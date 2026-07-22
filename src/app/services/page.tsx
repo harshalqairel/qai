@@ -19,17 +19,20 @@ export default function ServicesPage() {
     useState<Service | null>(null);
 
   const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("");
 
   const keyword = search.trim().toLowerCase();
 
   const filteredServices = services.filter((service) => {
-    if (!keyword) return true;
-
-    return (
+    const matchesSearch =
+      keyword === "" ||
       service.name.toLowerCase().includes(keyword) ||
       service.category.toLowerCase().includes(keyword) ||
-      service.description.toLowerCase().includes(keyword)
-    );
+      service.description.toLowerCase().includes(keyword);
+
+    const matchesCategory = category === "" || service.category === category;
+
+    return matchesSearch && matchesCategory;
   });
 
   return (
@@ -44,7 +47,12 @@ export default function ServicesPage() {
             }}
           />
 
-          <ServiceToolbar search={search} onSearchChange={setSearch} />
+          <ServiceToolbar
+            search={search}
+            onSearchChange={setSearch}
+            category={category}
+            onCategoryChange={setCategory}
+          />
 
           <ServiceList
             services={filteredServices}

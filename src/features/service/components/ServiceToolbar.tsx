@@ -3,9 +3,11 @@ import { SERVICE_CATEGORIES } from "@/features/service/constants";
 type ServiceToolbarProps = {
   search: string;
   onSearchChange: (value: string) => void;
+  category: string;
+  onCategoryChange: (value: string) => void;
 };
 
-export default function ServiceToolbar({ search, onSearchChange }: ServiceToolbarProps) {
+export default function ServiceToolbar({ search, onSearchChange, category, onCategoryChange }: ServiceToolbarProps) {
   return (
     <div className="flex items-center gap-4 rounded-2xl bg-white p-4 shadow-sm">
 
@@ -17,15 +19,19 @@ export default function ServiceToolbar({ search, onSearchChange }: ServiceToolba
         onChange={(e) => onSearchChange(e.target.value)}
       />
 
-      <select className="rounded-xl border border-zinc-300 px-4 py-2">
-        <option>All Categories</option>
+      <select
+        className="rounded-xl border border-zinc-300 px-4 py-2"
+        value={category}
+        onChange={(e) => onCategoryChange(e.target.value)}
+      >
+        <option value="">All Categories</option>
 
-        {SERVICE_CATEGORIES.map((category) => (
+        {SERVICE_CATEGORIES.map((cat) => (
           <option
-            key={category}
-            value={category}
+            key={cat}
+            value={cat}
           >
-            {category}
+            {cat}
           </option>
         ))}
 
