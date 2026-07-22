@@ -18,6 +18,20 @@ export default function ServicesPage() {
   const [selectedService, setSelectedService] =
     useState<Service | null>(null);
 
+  const [search, setSearch] = useState("");
+
+  const keyword = search.trim().toLowerCase();
+
+  const filteredServices = services.filter((service) => {
+    if (!keyword) return true;
+
+    return (
+      service.name.toLowerCase().includes(keyword) ||
+      service.category.toLowerCase().includes(keyword) ||
+      service.description.toLowerCase().includes(keyword)
+    );
+  });
+
   return (
     <>
       <main className="min-h-screen bg-zinc-100">
@@ -30,18 +44,15 @@ export default function ServicesPage() {
             }}
           />
 
-          <ServiceToolbar />
+          <ServiceToolbar search={search} onSearchChange={setSearch} />
 
           <ServiceList
-            services={services}
+            services={filteredServices}
             onEdit={(service) => {
               setSelectedService(service);
               setDialogOpen(true);
             }}
-            onDelete={(service) => {
-              // Forward delete to the hook; page performs no business logic.
-              deleteService(service.id);
-            }}
+            onDelete={(service) => deleteService(service.id)}
           />
 
         </div>

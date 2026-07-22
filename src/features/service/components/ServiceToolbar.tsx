@@ -1,6 +1,11 @@
 import { SERVICE_CATEGORIES } from "@/features/service/constants";
 
-export default function ServiceToolbar() {
+type ServiceToolbarProps = {
+  search: string;
+  onSearchChange: (value: string) => void;
+};
+
+export default function ServiceToolbar({ search, onSearchChange }: ServiceToolbarProps) {
   return (
     <div className="flex items-center gap-4 rounded-2xl bg-white p-4 shadow-sm">
 
@@ -8,6 +13,8 @@ export default function ServiceToolbar() {
         type="text"
         placeholder="Search services..."
         className="flex-1 rounded-xl border border-zinc-300 px-4 py-2"
+        value={search}
+        onChange={(e) => onSearchChange(e.target.value)}
       />
 
       <select className="rounded-xl border border-zinc-300 px-4 py-2">
