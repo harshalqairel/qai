@@ -4,11 +4,13 @@ import ServiceCard from "./ServiceCard";
 type ServiceListProps = {
   services: Service[];
   onEdit: (service: Service) => void;
+  onDelete: (service: Service) => void;
 };
 
 export default function ServiceList({
   services,
   onEdit,
+  onDelete,
 }: ServiceListProps) {
   if (services.length === 0) {
     return (
@@ -31,6 +33,7 @@ export default function ServiceList({
           key={service.id}
           service={service}
           onEdit={onEdit}
+          onDelete={onDelete}
         />
       ))}
     </div>

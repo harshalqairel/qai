@@ -11,7 +11,7 @@ import { Service, CreateServiceInput } from "@/features/service/types";
 import { useServices } from "@/features/service/hooks/useServices";
 
 export default function ServicesPage() {
-  const { services, createService, updateService } = useServices();
+  const { services, createService, updateService, deleteService } = useServices();
 
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -37,6 +37,10 @@ export default function ServicesPage() {
             onEdit={(service) => {
               setSelectedService(service);
               setDialogOpen(true);
+            }}
+            onDelete={(service) => {
+              // Forward delete to the hook; page performs no business logic.
+              deleteService(service.id);
             }}
           />
 

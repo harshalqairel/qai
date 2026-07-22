@@ -3,11 +3,13 @@ import { Service } from "@/features/service/types";
 type ServiceCardProps = {
   service: Service;
   onEdit: (service: Service) => void;
+  onDelete: (service: Service) => void;
 };
 
 export default function ServiceCard({
   service,
   onEdit,
+  onDelete,
 }: ServiceCardProps) {
   return (
     <div
@@ -94,6 +96,7 @@ export default function ServiceCard({
         </button>
 
         <button
+          onClick={() => onDelete(service)}
           className="
           rounded-xl
           border
