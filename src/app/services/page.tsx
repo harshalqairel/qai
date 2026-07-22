@@ -7,34 +7,16 @@ import ServiceToolbar from "@/features/service/components/ServiceToolbar";
 import ServiceList from "@/features/service/components/ServiceList";
 import ServiceDialog from "@/features/service/components/ServiceDialog";
 
-import { Service } from "@/features/service/types";
-import { initialServices } from "@/features/service/data";
+import { Service, CreateServiceInput } from "@/features/service/types";
+import { useServices } from "@/features/service/hooks/useServices";
 
 export default function ServicesPage() {
-  const [services, setServices] = useState(initialServices);
+  const { services, createService, updateService } = useServices();
 
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const [selectedService, setSelectedService] =
     useState<Service | null>(null);
-
-  function handleCreate(service: Service) {
-    setServices((prev) => [...prev, service]);
-
-    setDialogOpen(false);
-    setSelectedService(null);
-  }
-
-  function handleUpdate(updated: Service) {
-    setServices((prev) =>
-      prev.map((service) =>
-        service.id === updated.id ? updated : service
-      )
-    );
-
-    setDialogOpen(false);
-    setSelectedService(null);
-  }
 
   return (
     <>
@@ -68,8 +50,26 @@ export default function ServicesPage() {
           setDialogOpen(false);
           setSelectedService(null);
         }}
-        onCreate={handleCreate}
-        onUpdate={handleUpdate}
+        onCreate={(service: Service) => {
+          const input: CreateServiceInput = {
+            name: service.name,
+            category: service.category,
+            price: service.price,
+            duration: service.duration,
+            description: service.description,
+          };
+
+          createService(input);
+
+          setDialogOpen(false);
+          setSelectedService(null);
+        }}
+        onUpdate={(updated: Service) => {
+          updateService(updated);
+
+          setDialogOpen(false);
+          setSelectedService(null);
+        }}
       />
     </>
   );

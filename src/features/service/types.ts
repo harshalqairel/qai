@@ -8,6 +8,14 @@ export type Service = {
   active: boolean;
 };
 
+export type CreateServiceInput = {
+  name: string;
+  category: ServiceCategory;
+  price: number;
+  duration: number;
+  description: string;
+};
+
 export enum ServiceCategory {
   WEDDING = "Wedding",
   STUDIO = "Studio Rental",
