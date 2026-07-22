@@ -20,6 +20,7 @@ export default function ServicesPage() {
 
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
+  const [sort, setSort] = useState("");
 
   const keyword = search.trim().toLowerCase();
 
@@ -34,6 +35,38 @@ export default function ServicesPage() {
 
     return matchesSearch && matchesCategory;
   });
+
+  const sortedServices = [...filteredServices];
+
+  switch (sort) {
+  case "name-asc":
+    sortedServices.sort((a, b) => a.name.localeCompare(b.name));
+    break;
+
+  case "name-desc":
+    sortedServices.sort((a, b) => b.name.localeCompare(a.name));
+    break;
+
+  case "price-asc":
+    sortedServices.sort((a, b) => a.price - b.price);
+    break;
+
+  case "price-desc":
+    sortedServices.sort((a, b) => b.price - a.price);
+    break;
+
+  case "duration-asc":
+    sortedServices.sort((a, b) => a.duration - b.duration);
+    break;
+
+  case "duration-desc":
+    sortedServices.sort((a, b) => b.duration - a.duration);
+    break;
+
+  default:
+    // Newest (keep insertion order)
+    break;
+  }
 
   return (
     <>
@@ -52,10 +85,12 @@ export default function ServicesPage() {
             onSearchChange={setSearch}
             category={category}
             onCategoryChange={setCategory}
+            sort={sort}
+            onSortChange={setSort}
           />
 
           <ServiceList
-            services={filteredServices}
+            services={sortedServices}
             onEdit={(service) => {
               setSelectedService(service);
               setDialogOpen(true);

@@ -5,9 +5,11 @@ type ServiceToolbarProps = {
   onSearchChange: (value: string) => void;
   category: string;
   onCategoryChange: (value: string) => void;
+  sort: string;
+  onSortChange: (value: string) => void;
 };
 
-export default function ServiceToolbar({ search, onSearchChange, category, onCategoryChange }: ServiceToolbarProps) {
+export default function ServiceToolbar({ search, onSearchChange, category, onCategoryChange, sort, onSortChange }: ServiceToolbarProps) {
   return (
     <div className="flex items-center gap-4 rounded-2xl bg-white p-4 shadow-sm">
 
@@ -35,6 +37,20 @@ export default function ServiceToolbar({ search, onSearchChange, category, onCat
           </option>
         ))}
 
+      </select>
+
+      <select
+        className="rounded-xl border border-zinc-300 px-4 py-2"
+        value={sort}
+        onChange={(e) => onSortChange(e.target.value)}
+      >
+        <option value="">Newest</option>
+        <option value="name-asc">Name (A-Z)</option>
+        <option value="name-desc">Name (Z-A)</option>
+        <option value="price-asc">Price (Low → High)</option>
+        <option value="price-desc">Price (High → Low)</option>
+        <option value="duration-asc">Duration (Short → Long)</option>
+        <option value="duration-desc">Duration (Long → Short)</option>
       </select>
 
     </div>
