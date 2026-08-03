@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { storedTimestampSchema } from "@/lib/persistence";
 
 export const customerSchema = z.object({
   name: z
@@ -19,3 +20,15 @@ export const customerSchema = z.object({
 });
 
 export type CustomerFormValues = z.infer<typeof customerSchema>;
+
+export const customerRecordSchema = z
+  .object({
+    id: z.string().min(1),
+    name: z.string().min(1),
+    phone: z.string().min(1),
+    instagram: z.string(),
+    email: z.string().email().or(z.literal("")),
+    notes: z.string(),
+    createdAt: storedTimestampSchema,
+  })
+  .passthrough();

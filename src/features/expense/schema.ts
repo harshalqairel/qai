@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { EXPENSE_CATEGORIES, EXPENSE_TYPES } from "./constants";
 import { PAYMENT_METHODS } from "@/features/payment/constants";
+import { storedDateSchema, storedTimestampSchema } from "@/lib/persistence";
 
 export const expenseSchema = z
   .object({
@@ -24,3 +25,34 @@ export const expenseSchema = z
   });
 
 export type ExpenseFormValues = z.infer<typeof expenseSchema>;
+
+export const expenseRecordSchema = z
+  .object({
+    id: z.string().min(1),
+    date: storedDateSchema,
+    category: z.enum(EXPENSE_CATEGORIES),
+    amount: z.number().finite().positive(),
+    paymentMethod: z.enum(PAYMENT_METHODS),
+    expenseType: z.enum(EXPENSE_TYPES),
+    bookingId: z.string().min(1).nullable(),
+    vendor: z.string(),
+    notes: z.string(),
+    createdAt: storedTimestampSchema,
+    updatedAt: storedTimestampSchema,
+  })
+  .superRefine((data, ctx) => {
+    if (data.expenseType === "Booking Expense" && data.bookingId === null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Booking expenses require a booking ID.",
+        path: ["bookingId"],
+      });
+    }
+    if (data.expenseType === "Business Expense" && data.bookingId !== null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Business expenses cannot reference a booking.",
+        path: ["bookingId"],
+      });
+    }
+  });

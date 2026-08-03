@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  storedDateSchema,
+  storedTimeSchema,
+  storedTimestampSchema,
+} from "@/lib/persistence";
+import { BOOKING_STATUSES } from "./constants";
 
 export const bookingSchema = z
   .object({
@@ -24,3 +30,21 @@ export const bookingSchema = z
   );
 
 export type BookingFormValues = z.infer<typeof bookingSchema>;
+
+export const bookingRecordSchema = z
+  .object({
+    id: z.string().min(1),
+    customerId: z.string().min(1),
+    serviceId: z.string().min(1),
+    bookingDate: storedDateSchema,
+    startTime: storedTimeSchema,
+    endTime: storedTimeSchema,
+    location: z.string(),
+    servicePrice: z.number().finite().nonnegative(),
+    bookingStatus: z.enum(BOOKING_STATUSES),
+    fullPaymentDueDate: storedDateSchema,
+    notes: z.string(),
+    createdAt: storedTimestampSchema,
+    updatedAt: storedTimestampSchema,
+  })
+  .passthrough();

@@ -1,49 +1,38 @@
-import { Expense } from "../types";
+import { readVersionedCollection, writeVersionedCollection } from "@/lib/persistence";
 import { EXPENSE_STORAGE_KEY } from "../constants";
+import { expenseRecordSchema } from "../schema";
+import { Expense } from "../types";
 
-function normalizeExpense(item: Record<string, unknown>): Expense {
-  return {
-    id: String(item.id ?? ""),
-    date: String(item.date ?? ""),
-    category: String(item.category ?? "Other") as Expense["category"],
-    amount: Number(item.amount ?? 0),
-    paymentMethod: String(item.paymentMethod ?? "Cash") as Expense["paymentMethod"],
-    expenseType: String(item.expenseType ?? "Business Expense") as Expense["expenseType"],
-    bookingId: item.bookingId ? String(item.bookingId) : null,
-    vendor: String(item.vendor ?? ""),
-    notes: String(item.notes ?? ""),
-    createdAt: Number(item.createdAt ?? Date.now()),
-    updatedAt: Number(item.updatedAt ?? Date.now()),
-  };
+function migrateLegacyExpenses(records: unknown[]): unknown[] {
+  const migratedAt = Date.now();
+  return records.map((record) => {
+    if (!record || typeof record !== "object" || Array.isArray(record)) return record;
+    const expense = record as Record<string, unknown>;
+    const createdAt = expense.createdAt ?? migratedAt;
+    return {
+      ...expense,
+      category: expense.category ?? "Other",
+      paymentMethod: expense.paymentMethod ?? "Cash",
+      expenseType:
+        expense.expenseType ??
+        (expense.bookingId ? "Booking Expense" : "Business Expense"),
+      bookingId: expense.bookingId ?? null,
+      vendor: expense.vendor ?? "",
+      notes: expense.notes ?? "",
+      createdAt,
+      updatedAt: expense.updatedAt ?? createdAt,
+    };
+  });
 }
 
 export const localStorageRepository = {
   getAll(): Expense[] {
-    if (typeof window === "undefined") return [];
-
-    try {
-      const raw = localStorage.getItem(EXPENSE_STORAGE_KEY);
-      if (!raw) return [];
-
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return [];
-
-      return parsed
-        .filter((item) => item && typeof item === "object")
-        .map((item) => normalizeExpense(item as Record<string, unknown>))
-        .filter((item) => item.id !== "" && item.date !== "");
-    } catch (_error) {
-      return [];
-    }
+    return readVersionedCollection(EXPENSE_STORAGE_KEY, expenseRecordSchema, {
+      migrateLegacy: migrateLegacyExpenses,
+    });
   },
 
   save(expenses: Expense[]): void {
-    if (typeof window === "undefined") return;
-
-    try {
-      localStorage.setItem(EXPENSE_STORAGE_KEY, JSON.stringify(expenses));
-    } catch (_error) {
-      // noop — in-memory state is still updated
-    }
+    writeVersionedCollection(EXPENSE_STORAGE_KEY, expenseRecordSchema, expenses);
   },
 };

@@ -3,15 +3,21 @@
 import { useCallback, useEffect, useState } from "react";
 import { Expense, CreateExpenseInput, UpdateExpenseInput } from "../types";
 import { expenseRepository } from "../api/expenseRepository";
+import { EXPENSE_STORAGE_KEY } from "../constants";
+import { toPersistenceError } from "@/lib/persistence";
+import type { PersistenceErrorCode } from "@/lib/persistence";
 
 export function useExpenses() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [persistenceErrorCode, setPersistenceErrorCode] =
+    useState<PersistenceErrorCode | null>(null);
 
   useEffect(() => {
     try {
       setExpenses(expenseRepository.getAll());
-    } catch (_error) {
-      setExpenses([]);
+      setPersistenceErrorCode(null);
+    } catch (error) {
+      setPersistenceErrorCode(toPersistenceError(error, EXPENSE_STORAGE_KEY).code);
     }
   }, []);
 
@@ -24,44 +30,48 @@ export function useExpenses() {
       ...input,
     };
 
-    setExpenses((prev) => {
-      const next = [...prev, expense];
-      try {
-        expenseRepository.save(next);
-      } catch (_error) {
-        // noop
-      }
-      return next;
-    });
+    try {
+      expenseRepository.create(expense);
+      setExpenses((prev) => [...prev, expense]);
+      setPersistenceErrorCode(null);
+    } catch (error) {
+      setPersistenceErrorCode(toPersistenceError(error, EXPENSE_STORAGE_KEY).code);
+    }
 
     return expense;
   }, []);
 
   const updateExpense = useCallback((input: UpdateExpenseInput): void => {
-    setExpenses((prev) => {
-      const next = prev.map((e) =>
-        e.id === input.id ? { ...e, ...input, updatedAt: Date.now() } : e,
+    const current = expenses.find((expense) => expense.id === input.id);
+    if (!current) return;
+    const updated: Expense = { ...current, ...input, updatedAt: Date.now() };
+
+    try {
+      expenseRepository.update(updated);
+      setExpenses((prev) =>
+        prev.map((expense) => (expense.id === updated.id ? updated : expense)),
       );
-      try {
-        expenseRepository.save(next);
-      } catch (_error) {
-        // noop
-      }
-      return next;
-    });
-  }, []);
+      setPersistenceErrorCode(null);
+    } catch (error) {
+      setPersistenceErrorCode(toPersistenceError(error, EXPENSE_STORAGE_KEY).code);
+    }
+  }, [expenses]);
 
   const deleteExpense = useCallback((id: string): void => {
-    setExpenses((prev) => {
-      const next = prev.filter((e) => e.id !== id);
-      try {
-        expenseRepository.save(next);
-      } catch (_error) {
-        // noop
-      }
-      return next;
-    });
+    try {
+      expenseRepository.delete(id);
+      setExpenses((prev) => prev.filter((expense) => expense.id !== id));
+      setPersistenceErrorCode(null);
+    } catch (error) {
+      setPersistenceErrorCode(toPersistenceError(error, EXPENSE_STORAGE_KEY).code);
+    }
   }, []);
 
-  return { expenses, createExpense, updateExpense, deleteExpense };
+  return {
+    expenses,
+    createExpense,
+    updateExpense,
+    deleteExpense,
+    persistenceErrorCode,
+  };
 }

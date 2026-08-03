@@ -1,0 +1,217 @@
+import { z } from "zod";
+
+export const CURRENT_STORAGE_VERSION = 1;
+
+export type StorageEnvelope<T> = {
+  version: typeof CURRENT_STORAGE_VERSION;
+  data: T;
+  updatedAt: number;
+};
+
+export type PersistenceErrorCode =
+  | "INVALID_JSON"
+  | "VALIDATION_FAILURE"
+  | "UNSUPPORTED_VERSION"
+  | "MIGRATION_FAILURE"
+  | "STORAGE_UNAVAILABLE"
+  | "QUOTA_EXCEEDED"
+  | "SERIALIZATION_FAILURE"
+  | "WRITE_FAILURE";
+
+const ERROR_MESSAGES: Record<PersistenceErrorCode, string> = {
+  INVALID_JSON: "Stored data is not valid JSON.",
+  VALIDATION_FAILURE: "Stored data does not match the expected format.",
+  UNSUPPORTED_VERSION: "Stored data uses an unsupported version.",
+  MIGRATION_FAILURE: "Stored data could not be migrated.",
+  STORAGE_UNAVAILABLE: "Local storage is unavailable.",
+  QUOTA_EXCEEDED: "Local storage capacity has been exceeded.",
+  SERIALIZATION_FAILURE: "Data could not be prepared for storage.",
+  WRITE_FAILURE: "Data could not be written to local storage.",
+};
+
+export class PersistenceError extends Error {
+  readonly code: PersistenceErrorCode;
+  readonly storageKey: string;
+
+  constructor(code: PersistenceErrorCode, storageKey: string) {
+    super(ERROR_MESSAGES[code]);
+    this.name = "PersistenceError";
+    this.code = code;
+    this.storageKey = storageKey;
+  }
+}
+
+export const storedTimestampSchema = z.number().finite().int().nonnegative();
+
+export const storedDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((value) => {
+    const date = new Date(`${value}T00:00:00.000Z`);
+    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+  });
+
+export const storedTimeSchema = z
+  .string()
+  .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
+
+type ReadCollectionOptions = {
+  migrateLegacy?: (records: unknown[]) => unknown[];
+};
+
+const envelopeSchema = z
+  .object({
+    version: z.number().int().nonnegative(),
+    data: z.unknown(),
+    updatedAt: storedTimestampSchema,
+  })
+  .passthrough();
+
+function getStorage(storageKey: string): Storage {
+  if (typeof window === "undefined") {
+    throw new PersistenceError("STORAGE_UNAVAILABLE", storageKey);
+  }
+
+  try {
+    return window.localStorage;
+  } catch {
+    throw new PersistenceError("STORAGE_UNAVAILABLE", storageKey);
+  }
+}
+
+function parseJson(raw: string, storageKey: string): unknown {
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch {
+    throw new PersistenceError("INVALID_JSON", storageKey);
+  }
+}
+
+function validateRecords<T>(
+  records: unknown,
+  recordSchema: z.ZodType<T>,
+  storageKey: string,
+): T[] {
+  const result = z.array(recordSchema).safeParse(records);
+  if (!result.success) {
+    throw new PersistenceError("VALIDATION_FAILURE", storageKey);
+  }
+  return result.data;
+}
+
+function serializeEnvelope<T>(envelope: StorageEnvelope<T>, storageKey: string): string {
+  try {
+    const serialized = JSON.stringify(envelope);
+    if (typeof serialized !== "string") {
+      throw new PersistenceError("SERIALIZATION_FAILURE", storageKey);
+    }
+    return serialized;
+  } catch (error) {
+    if (error instanceof PersistenceError) throw error;
+    throw new PersistenceError("SERIALIZATION_FAILURE", storageKey);
+  }
+}
+
+function isQuotaExceeded(error: unknown): boolean {
+  return (
+    error instanceof DOMException &&
+    (error.name === "QuotaExceededError" ||
+      error.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+      error.code === 22 ||
+      error.code === 1014)
+  );
+}
+
+function isStorageUnavailable(error: unknown): boolean {
+  return (
+    error instanceof DOMException &&
+    (error.name === "SecurityError" || error.name === "InvalidStateError")
+  );
+}
+
+function setStoredValue(storage: Storage, storageKey: string, serialized: string): void {
+  try {
+    storage.setItem(storageKey, serialized);
+  } catch (error) {
+    if (isQuotaExceeded(error)) {
+      throw new PersistenceError("QUOTA_EXCEEDED", storageKey);
+    }
+    if (isStorageUnavailable(error)) {
+      throw new PersistenceError("STORAGE_UNAVAILABLE", storageKey);
+    }
+    throw new PersistenceError("WRITE_FAILURE", storageKey);
+  }
+}
+
+function createEnvelope<T>(data: T): StorageEnvelope<T> {
+  return {
+    version: CURRENT_STORAGE_VERSION,
+    data,
+    updatedAt: Date.now(),
+  };
+}
+
+export function readVersionedCollection<T>(
+  storageKey: string,
+  recordSchema: z.ZodType<T>,
+  options: ReadCollectionOptions = {},
+): T[] {
+  const storage = getStorage(storageKey);
+
+  let raw: string | null;
+  try {
+    raw = storage.getItem(storageKey);
+  } catch {
+    throw new PersistenceError("STORAGE_UNAVAILABLE", storageKey);
+  }
+
+  if (raw === null) return [];
+
+  const parsed = parseJson(raw, storageKey);
+
+  if (Array.isArray(parsed)) {
+    let legacyRecords: unknown[] = parsed;
+    if (options.migrateLegacy) {
+      try {
+        legacyRecords = options.migrateLegacy(parsed);
+      } catch {
+        throw new PersistenceError("MIGRATION_FAILURE", storageKey);
+      }
+    }
+
+    const validated = validateRecords(legacyRecords, recordSchema, storageKey);
+    const serialized = serializeEnvelope(createEnvelope(validated), storageKey);
+    setStoredValue(storage, storageKey, serialized);
+    return validated;
+  }
+
+  const envelopeResult = envelopeSchema.safeParse(parsed);
+  if (!envelopeResult.success) {
+    throw new PersistenceError("VALIDATION_FAILURE", storageKey);
+  }
+
+  if (envelopeResult.data.version !== CURRENT_STORAGE_VERSION) {
+    throw new PersistenceError("UNSUPPORTED_VERSION", storageKey);
+  }
+
+  return validateRecords(envelopeResult.data.data, recordSchema, storageKey);
+}
+
+export function writeVersionedCollection<T>(
+  storageKey: string,
+  recordSchema: z.ZodType<T>,
+  records: readonly T[],
+): void {
+  const validated = validateRecords(records, recordSchema, storageKey);
+  const serialized = serializeEnvelope(createEnvelope(validated), storageKey);
+  const storage = getStorage(storageKey);
+  setStoredValue(storage, storageKey, serialized);
+}
+
+export function toPersistenceError(
+  error: unknown,
+  storageKey: string,
+): PersistenceError {
+  if (error instanceof PersistenceError) return error;
+  return new PersistenceError("WRITE_FAILURE", storageKey);
+}

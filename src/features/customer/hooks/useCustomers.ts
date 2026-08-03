@@ -8,16 +8,22 @@ import {
   UpdateCustomerInput,
 } from "../types";
 import { customerRepository } from "../api/customerRepository";
+import { CUSTOMER_STORAGE_KEY } from "../constants";
+import { toPersistenceError } from "@/lib/persistence";
+import type { PersistenceErrorCode } from "@/lib/persistence";
 
 export function useCustomers() {
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [persistenceErrorCode, setPersistenceErrorCode] =
+    useState<PersistenceErrorCode | null>(null);
 
   useEffect(() => {
     try {
       const loaded = customerRepository.getAll();
       setCustomers(loaded);
-    } catch (_error) {
-      setCustomers([]);
+      setPersistenceErrorCode(null);
+    } catch (error) {
+      setPersistenceErrorCode(toPersistenceError(error, CUSTOMER_STORAGE_KEY).code);
     }
   }, []);
 
@@ -28,50 +34,40 @@ export function useCustomers() {
       ...input,
     };
 
-    // update local state
-    setCustomers((prev) => {
-      const next = [...prev, newCustomer];
-      return next;
-    });
-
-    // persist single entity (repository will read/merge/write)
     try {
       customerRepository.create(newCustomer);
-    } catch (_error) {
-      // noop
+      setCustomers((prev) => [...prev, newCustomer]);
+      setPersistenceErrorCode(null);
+    } catch (error) {
+      setPersistenceErrorCode(toPersistenceError(error, CUSTOMER_STORAGE_KEY).code);
     }
 
     return newCustomer;
   }, []);
 
   const updateCustomer = useCallback((input: UpdateCustomerInput): void => {
-    setCustomers((prev) => {
-      const next = prev.map((customer) =>
-        customer.id === input.id
-          ? {
-              ...customer,
-              ...input,
-            }
-          : customer,
-      );
-
-      return next;
-    });
+    const current = customers.find((customer) => customer.id === input.id);
+    if (!current) return;
+    const updated: Customer = { ...current, ...input };
 
     try {
-      customerRepository.update(input as Customer);
-    } catch (_error) {
-      // noop
+      customerRepository.update(updated);
+      setCustomers((prev) =>
+        prev.map((customer) => (customer.id === updated.id ? updated : customer)),
+      );
+      setPersistenceErrorCode(null);
+    } catch (error) {
+      setPersistenceErrorCode(toPersistenceError(error, CUSTOMER_STORAGE_KEY).code);
     }
-  }, []);
+  }, [customers]);
 
   const deleteCustomer = useCallback((id: string): void => {
-    setCustomers((prev) => prev.filter((customer) => customer.id !== id));
-
     try {
       customerRepository.delete(id);
-    } catch (_error) {
-      // noop
+      setCustomers((prev) => prev.filter((customer) => customer.id !== id));
+      setPersistenceErrorCode(null);
+    } catch (error) {
+      setPersistenceErrorCode(toPersistenceError(error, CUSTOMER_STORAGE_KEY).code);
     }
   }, []);
 
@@ -80,5 +76,6 @@ export function useCustomers() {
     createCustomer,
     updateCustomer,
     deleteCustomer,
+    persistenceErrorCode,
   };
 }

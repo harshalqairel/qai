@@ -24,3 +24,15 @@ export const serviceSchema = z.object({
 });
 
 export type ServiceFormValues = z.infer<typeof serviceSchema>;
+
+export const serviceRecordSchema = z
+  .object({
+    id: z.string().min(1),
+    name: z.string().min(1),
+    category: z.enum(ServiceCategory),
+    price: z.number().finite().positive(),
+    duration: z.number().finite().positive(),
+    description: z.string(),
+    active: z.boolean(),
+  })
+  .passthrough();

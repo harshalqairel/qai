@@ -4,16 +4,22 @@ import { useCallback, useEffect, useState } from "react";
 
 import { Booking, CreateBookingInput, UpdateBookingInput } from "../types";
 import { bookingRepository } from "../api/bookingRepository";
+import { BOOKING_STORAGE_KEY } from "../constants";
+import { toPersistenceError } from "@/lib/persistence";
+import type { PersistenceErrorCode } from "@/lib/persistence";
 
 export function useBookings() {
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [persistenceErrorCode, setPersistenceErrorCode] =
+    useState<PersistenceErrorCode | null>(null);
 
   useEffect(() => {
     try {
       const loaded = bookingRepository.getAll();
       setBookings(loaded);
-    } catch (_error) {
-      setBookings([]);
+      setPersistenceErrorCode(null);
+    } catch (error) {
+      setPersistenceErrorCode(toPersistenceError(error, BOOKING_STORAGE_KEY).code);
     }
   }, []);
 
@@ -26,42 +32,40 @@ export function useBookings() {
       ...input,
     };
 
-    setBookings((prev) => [...prev, newBooking]);
-
     try {
       bookingRepository.create(newBooking);
-    } catch (_error) {
-      // noop
+      setBookings((prev) => [...prev, newBooking]);
+      setPersistenceErrorCode(null);
+    } catch (error) {
+      setPersistenceErrorCode(toPersistenceError(error, BOOKING_STORAGE_KEY).code);
     }
 
     return newBooking;
   }, []);
 
   const updateBooking = useCallback((input: UpdateBookingInput): void => {
-    setBookings((prev) =>
-      prev.map((booking) =>
-        booking.id === input.id
-          ? { ...booking, ...input, updatedAt: Date.now() }
-          : booking,
-      ),
-    );
+    const current = bookings.find((booking) => booking.id === input.id);
+    if (!current) return;
+    const updated: Booking = { ...current, ...input, updatedAt: Date.now() };
 
     try {
-      const current = bookings.find((booking) => booking.id === input.id);
-      if (!current) return;
-      bookingRepository.update({ ...current, ...input, updatedAt: Date.now() });
-    } catch (_error) {
-      // noop
+      bookingRepository.update(updated);
+      setBookings((prev) =>
+        prev.map((booking) => (booking.id === updated.id ? updated : booking)),
+      );
+      setPersistenceErrorCode(null);
+    } catch (error) {
+      setPersistenceErrorCode(toPersistenceError(error, BOOKING_STORAGE_KEY).code);
     }
   }, [bookings]);
 
   const deleteBooking = useCallback((id: string): void => {
-    setBookings((prev) => prev.filter((booking) => booking.id !== id));
-
     try {
       bookingRepository.delete(id);
-    } catch (_error) {
-      // noop
+      setBookings((prev) => prev.filter((booking) => booking.id !== id));
+      setPersistenceErrorCode(null);
+    } catch (error) {
+      setPersistenceErrorCode(toPersistenceError(error, BOOKING_STORAGE_KEY).code);
     }
   }, []);
 
@@ -70,5 +74,6 @@ export function useBookings() {
     createBooking,
     updateBooking,
     deleteBooking,
+    persistenceErrorCode,
   };
 }
