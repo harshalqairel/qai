@@ -106,7 +106,7 @@ export default function BookingDialog({
   const selectedService = services.find((service) => service.id === selectedServiceId);
   const bookingPayments = booking ? payments.filter((payment) => payment.bookingId === booking.id) : [];
 
-  // Booking Profit — computed from payments and expenses for this booking
+  // Booking Profit ??computed from payments and expenses for this booking
   const totalPaid = bookingPayments.reduce((sum, p) => sum + p.amount, 0);
   const bookingExpensesTotal = booking ? getBookingExpenses(booking.id, expenses) : 0;
   const effectivePrice = Number(servicePriceValue) || 0;
@@ -157,7 +157,7 @@ export default function BookingDialog({
             </p>
           </div>
           <Button type="button" variant="ghost" size="icon" onClick={handleClose}>
-            ✕
+            ??
           </Button>
         </div>
 
@@ -176,7 +176,9 @@ export default function BookingDialog({
               render={({ field }) => (
                 <Select value={field.value} onValueChange={field.onChange}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select a customer" />
+                    <SelectValue placeholder="Select a customer">
+                      {field.value ? (customers.find((c) => c.id === field.value)?.name ?? "Unknown customer") : undefined}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {customers.map((customer) => (
@@ -199,7 +201,9 @@ export default function BookingDialog({
               render={({ field }) => (
                 <Select value={field.value} onValueChange={field.onChange}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select a service" />
+                    <SelectValue placeholder="Select a service">
+                      {field.value ? (services.find((s) => s.id === field.value)?.name ?? "Unknown service") : undefined}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {services.map((service) => (
@@ -332,7 +336,7 @@ export default function BookingDialog({
             )}
           </div>
 
-          {/* Booking Profit — only shown when editing */}
+          {/* Booking Profit ??only shown when editing */}
           {booking && (
             <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
               <h3 className="mb-3 font-semibold text-slate-900">Booking Profit</h3>
