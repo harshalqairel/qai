@@ -1,22 +1,51 @@
-type BookingStatusChartProps = { counts: Record<string, number> };
+import type { BookingStatus } from "@/features/booking/types";
+
+type BookingStatusChartProps = {
+  counts: Record<BookingStatus, number>;
+};
+
+const STATUS_STYLES: Record<BookingStatus, string> = {
+  Scheduled: "bg-[var(--dashboard-income)]",
+  Completed: "bg-[var(--dashboard-profit)]",
+  Cancelled: "bg-[var(--dashboard-expense)]",
+};
+
+const STATUSES: BookingStatus[] = ["Scheduled", "Completed", "Cancelled"];
 
 export default function BookingStatusChart({ counts }: BookingStatusChartProps) {
-  const total = Object.values(counts).reduce((s, v) => s + v, 0);
+  const total = STATUSES.reduce((sum, status) => sum + counts[status], 0);
 
   return (
-    <div>
-      <h3 className="text-lg font-semibold text-slate-900">Booking Status</h3>
-      <div className="mt-4 flex gap-4">
-        {Object.entries(counts).map(([k, v]) => (
-          <div key={k} className="flex items-center gap-3">
-            <div className="h-3 w-3 rounded-full" style={{ background: k === "Scheduled" ? "#10b981" : k === "Completed" ? "#0ea5e9" : "#f43f5e" }} />
-            <div>
-              <div className="font-medium text-slate-900">{k}</div>
-              <div className="text-sm text-zinc-600">{v} ({total === 0 ? 0 : Math.round((v / total) * 100)}%)</div>
-            </div>
-          </div>
-        ))}
+    <section>
+      <div>
+        <h2 className="text-lg font-semibold text-[var(--dashboard-text)]">Booking Status</h2>
+        <p className="mt-1 text-sm text-[var(--dashboard-muted-text)]">All bookings by current status.</p>
       </div>
-    </div>
+
+      <div className="mt-5 space-y-4">
+        {STATUSES.map((status) => {
+          const percentage = total === 0 ? 0 : Math.round((counts[status] / total) * 100);
+          return (
+            <div key={status}>
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="flex items-center gap-2 font-medium text-[var(--dashboard-text)]">
+                  <span className={`h-2.5 w-2.5 rounded-full ${STATUS_STYLES[status]}`} aria-hidden="true" />
+                  {status}
+                </span>
+                <span className="text-[var(--dashboard-muted-text)]">
+                  {counts[status]} · {percentage}%
+                </span>
+              </div>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--dashboard-surface-muted)]">
+                <div
+                  className={`h-full rounded-full ${STATUS_STYLES[status]}`}
+                  style={{ width: `${percentage}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }

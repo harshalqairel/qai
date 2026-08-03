@@ -1,43 +1,63 @@
 import { Button } from "@/components/ui/button";
+import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 
 type DashboardHeaderProps = {
-  selectedMonth: Date;
-  onMonthChange: (d: Date) => void;
-  onToday: () => void;
+  selectedYear: number;
+  onYearChange: (year: number) => void;
 };
 
-export default function DashboardHeader({ selectedMonth, onMonthChange, onToday }: DashboardHeaderProps) {
-  const yearLabel = String(selectedMonth.getFullYear());
+export default function DashboardHeader({
+  selectedYear,
+  onYearChange,
+}: DashboardHeaderProps) {
+  const currentYear = new Date().getFullYear();
 
   return (
-    <div className="flex flex-col gap-4 rounded-3xl bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+    <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl">Dashboard</h1>
-        <p className="mt-1 text-base text-zinc-600 sm:mt-2 sm:text-lg">
-          Payment-based business overview.
+        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--dashboard-income)]">
+          Business overview
+        </p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[var(--dashboard-text)] sm:text-4xl">
+          Dashboard
+        </h1>
+        <p className="mt-2 max-w-xl text-sm leading-6 text-[var(--dashboard-muted-text)] sm:text-base">
+          A clear view of your money, payments, and upcoming work.
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
         <Button
           variant="outline"
-          size="sm"
-          onClick={() => onMonthChange(new Date(selectedMonth.getFullYear() - 1, 0, 1))}
+          className="h-10 w-10 border-[var(--dashboard-border)] bg-white p-0 text-[var(--dashboard-text)] hover:bg-[var(--dashboard-surface-muted)]"
+          onClick={() => onYearChange(selectedYear - 1)}
+          aria-label="Previous year"
+          title="Previous year"
         >
-          Previous Year
+          <ChevronLeftIcon className="h-4 w-4" />
         </Button>
-        <span className="rounded-2xl bg-zinc-100 px-3 py-1.5 text-sm font-medium text-zinc-700">{yearLabel}</span>
+        <span className="flex h-10 min-w-20 items-center justify-center rounded-xl border border-[var(--dashboard-border)] bg-white px-4 text-sm font-semibold text-[var(--dashboard-text)]">
+          {selectedYear}
+        </span>
         <Button
           variant="outline"
-          size="sm"
-          onClick={() => onMonthChange(new Date(selectedMonth.getFullYear() + 1, 0, 1))}
+          className="h-10 w-10 border-[var(--dashboard-border)] bg-white p-0 text-[var(--dashboard-text)] hover:bg-[var(--dashboard-surface-muted)]"
+          onClick={() => onYearChange(selectedYear + 1)}
+          aria-label="Next year"
+          title="Next year"
         >
-          Next Year
+          <ChevronRightIcon className="h-4 w-4" />
         </Button>
-        <Button variant="outline" size="sm" onClick={onToday}>
-          This Year
-        </Button>
+        {selectedYear !== currentYear && (
+          <Button
+            variant="outline"
+            className="h-10 w-full border-[var(--dashboard-border)] bg-white text-[var(--dashboard-text)] hover:bg-[var(--dashboard-surface-muted)] sm:w-auto"
+            onClick={() => onYearChange(currentYear)}
+          >
+            This year
+          </Button>
+        )}
       </div>
-    </div>
+    </header>
   );
 }

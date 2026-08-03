@@ -1,42 +1,58 @@
-import type { Booking } from "@/features/booking/types";
+import type { EnrichedBooking } from "@/features/dashboard/hooks/useDashboard";
+import { BookingStatusBadge, PaymentStatusBadge } from "./DashboardStatusBadge";
 
-type EnrichedBooking = Booking & { customerName: string; serviceName: string };
-type TodayScheduleProps = { items: EnrichedBooking[] };
-
-function statusBadge(status: string) {
-  const badgeClasses =
-    status === "Scheduled"
-      ? "bg-emerald-100 text-emerald-700"
-      : status === "Completed"
-      ? "bg-sky-100 text-sky-700"
-      : "bg-red-100 text-red-700";
-
-  return (
-    <span className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ${badgeClasses}`}>
-      {status}
-    </span>
-  );
-}
+type TodayScheduleProps = {
+  items: EnrichedBooking[];
+};
 
 export default function TodaySchedule({ items }: TodayScheduleProps) {
   return (
-    <div>
-      <h2 className="text-lg font-semibold text-slate-900">Today's Schedule</h2>
+    <section>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-[var(--dashboard-text)]">Today?�s Schedule</h2>
+          <p className="mt-1 text-sm text-[var(--dashboard-muted-text)]">Work planned for today.</p>
+        </div>
+        <span className="rounded-full bg-[var(--dashboard-income-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--dashboard-income-text)]">
+          {items.length}
+        </span>
+      </div>
+
       {items.length === 0 ? (
-        <div className="mt-4 rounded-2xl border border-dashed border-zinc-200 p-6 text-center text-sm text-zinc-500">No bookings for today.</div>
+        <div className="mt-5 rounded-xl border border-dashed border-[var(--dashboard-border)] bg-[var(--dashboard-surface-muted)] p-6 text-center text-sm text-[var(--dashboard-muted-text)]">
+          Nothing is scheduled for today.
+        </div>
       ) : (
-        <div className="mt-4 space-y-3">
-          {items.map((b) => (
-            <div key={b.id} className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white p-4">
-              <div>
-                <div className="font-medium text-slate-900">{b.customerName} — {b.serviceName}</div>
-                <div className="text-sm text-zinc-600">{b.startTime}{b.endTime ? ` – ${b.endTime}` : ''} • {b.location}</div>
+        <div className="mt-5 space-y-3">
+          {items.map((booking) => (
+            <article
+              key={booking.id}
+              className="rounded-xl border border-[var(--dashboard-border)] bg-white p-4"
+            >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-[var(--dashboard-text)]">
+                    {booking.customerName}
+                  </p>
+                  <p className="mt-0.5 truncate text-sm text-[var(--dashboard-muted-text)]">
+                    {booking.serviceName}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <BookingStatusBadge status={booking.bookingStatus} />
+                  <PaymentStatusBadge status={booking.paymentStatus} />
+                </div>
               </div>
-              <div>{statusBadge(b.bookingStatus)}</div>
-            </div>
+              <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 border-t border-[var(--dashboard-border)] pt-3 text-sm text-[var(--dashboard-muted-text)]">
+                <span className="font-medium text-[var(--dashboard-text)]">
+                  {booking.startTime}{booking.endTime ? `??{booking.endTime}` : ""}
+                </span>
+                {booking.location.trim() && <span>{booking.location}</span>}
+              </div>
+            </article>
           ))}
         </div>
       )}
-    </div>
+    </section>
   );
 }

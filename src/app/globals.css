@@ -119,6 +119,33 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+.dashboard-theme {
+  --dashboard-bg: #f5f7fa;
+  --dashboard-card: #ffffff;
+  --dashboard-surface-muted: #f8fafc;
+  --dashboard-text: #172033;
+  --dashboard-muted-text: #5f6b7a;
+  --dashboard-muted: var(--dashboard-muted-text);
+  --dashboard-border: #dce1e7;
+  --dashboard-grid: #e8ebef;
+
+  --dashboard-income: #0f766e;
+  --dashboard-income-soft: #dff3f1;
+  --dashboard-income-text: #0b4f49;
+
+  --dashboard-unpaid: #d97706;
+  --dashboard-unpaid-soft: #fff0db;
+  --dashboard-unpaid-text: #8a4a06;
+
+  --dashboard-expense: #c2414d;
+  --dashboard-expense-soft: #fde7ea;
+  --dashboard-expense-text: #8b2731;
+
+  --dashboard-profit: #2563eb;
+  --dashboard-profit-soft: #e5edff;
+  --dashboard-profit-text: #1e4eb8;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

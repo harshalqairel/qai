@@ -4,71 +4,67 @@ import { useState } from "react";
 import DashboardHeader from "@/features/dashboard/components/DashboardHeader";
 import KPIGrid from "@/features/dashboard/components/KPIGrid";
 import TodaySchedule from "@/features/dashboard/components/TodaySchedule";
-import UpcomingBookings from "@/features/dashboard/components/UpcomingBookings";
+import UpcomingJobs from "@/features/dashboard/components/UpcomingJobs";
 import RevenueChart from "@/features/dashboard/components/RevenueChart";
-import BookingStatusChart from "@/features/dashboard/components/BookingStatusChart";
-import RevenueByServiceCategory from "@/features/dashboard/components/RevenueByServiceCategory";
+import IncomeByService from "@/features/dashboard/components/IncomeByService";
 import ExpenseByCategory from "@/features/dashboard/components/ExpenseByCategory";
-import QuickActions from "@/features/dashboard/components/QuickActions";
-import ActivityFeed from "@/features/dashboard/components/ActivityFeed";
+import PaymentDueList from "@/features/dashboard/components/PaymentDueList";
 import { useDashboard } from "@/features/dashboard/hooks/useDashboard";
 
-export default function DashboardPage() {
-  const [selectedMonth, setSelectedMonth] = useState<Date>(() => new Date());
-  const [chartRange] = useState<"year">("year");
+const CARD_CLASS =
+  "min-w-0 rounded-2xl border border-[var(--dashboard-border)] bg-[var(--dashboard-card)] p-5 sm:p-6";
 
-  const dashboard = useDashboard({ selectedMonth, chartRange });
+export default function DashboardPage() {
+  const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
+  const dashboard = useDashboard({ selectedYear });
 
   return (
-    <main className="min-h-screen bg-zinc-100">
-      <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
-        <DashboardHeader
-          selectedMonth={selectedMonth}
-          onMonthChange={setSelectedMonth}
-          onToday={() => {
-            const now = new Date();
-            setSelectedMonth(new Date(now.getFullYear(), 0, 1));
-          }}
-        />
+    <main className="dashboard-theme min-h-screen overflow-x-hidden bg-[var(--dashboard-bg)]">
+      <div className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:space-y-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
+        <DashboardHeader selectedYear={selectedYear} onYearChange={setSelectedYear} />
 
         <KPIGrid metrics={dashboard.metrics} />
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          <div className="space-y-6 md:col-span-2 lg:col-span-2">
-            <div className="rounded-3xl bg-white p-6 shadow-sm">
-              <TodaySchedule items={dashboard.todaysSchedule} />
-            </div>
+        <div className={CARD_CLASS}>
+          <RevenueChart data={dashboard.revenueSeries} />
+        </div>
 
-            <div className="rounded-3xl bg-white p-6 shadow-sm">
-              <RevenueChart data={dashboard.revenueSeries} />
-            </div>
-
-            <div className="rounded-3xl bg-white p-6 shadow-sm">
-              <BookingStatusChart counts={dashboard.statusCounts} />
-            </div>
+        <div className="grid min-w-0 gap-5 lg:grid-cols-2 lg:gap-6">
+          <div className={CARD_CLASS}>
+            <TodaySchedule items={dashboard.todaysSchedule} />
           </div>
-
-          <div className="space-y-6">
-            <div className="rounded-3xl bg-white p-6 shadow-sm">
-              <UpcomingBookings items={dashboard.upcomingBookings} />
-            </div>
-
-            <div className="rounded-3xl bg-white p-6 shadow-sm">
-              <RevenueByServiceCategory items={dashboard.revenueByCategory} />
-            </div>
-
-            <div className="rounded-3xl bg-white p-6 shadow-sm">
-              <ExpenseByCategory items={dashboard.expenseByCategory} />
-            </div>
-
-            <div className="rounded-3xl bg-white p-6 shadow-sm">
-              <QuickActions />
-            </div>
+          <div className={CARD_CLASS}>
+            <PaymentDueList
+              title="Payments Due Soon"
+              description="The next unpaid amounts coming due."
+              emptyMessage="No upcoming payments are due."
+              items={dashboard.paymentsDueSoon}
+            />
           </div>
         </div>
 
-        <div className="rounded-3xl bg-white p-6 shadow-sm">
-          <ActivityFeed items={dashboard.activityFeed} />
+        <div className="grid min-w-0 gap-5 lg:grid-cols-2 lg:gap-6">
+          <div className={CARD_CLASS}>
+            <UpcomingJobs items={dashboard.upcomingJobs} />
+          </div>
+          <div className={CARD_CLASS}>
+            <PaymentDueList
+              title="Late Payments"
+              description="Unpaid amounts past their due date."
+              emptyMessage="No late payments."
+              items={dashboard.latePayments}
+              late
+            />
+          </div>
+        </div>
+
+        <div className="grid min-w-0 gap-5 lg:grid-cols-2 lg:gap-6">
+          <div className={CARD_CLASS}>
+            <IncomeByService items={dashboard.incomeByService} />
+          </div>
+          <div className={CARD_CLASS}>
+            <ExpenseByCategory items={dashboard.expenseByCategory} />
+          </div>
         </div>
       </div>
     </main>
