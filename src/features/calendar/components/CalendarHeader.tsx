@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import type { CalendarView } from "../types";
 
 type CalendarHeaderProps = {
@@ -51,9 +52,27 @@ export default function CalendarHeader({
       <div className="flex flex-wrap items-center gap-2">
         {/* Prev / Today / Next — hidden on phones (agenda is always all bookings) */}
         <div className="hidden gap-2 md:flex">
-          <Button variant="outline" size="sm" onClick={onPrevious}>Previous</Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-10 w-10 p-0"
+            onClick={onPrevious}
+            aria-label="Previous month"
+            title="Previous month"
+          >
+            <ChevronLeftIcon className="h-4 w-4" />
+          </Button>
           <Button variant="outline" size="sm" onClick={onToday}>Today</Button>
-          <Button variant="outline" size="sm" onClick={onNext}>Next</Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-10 w-10 p-0"
+            onClick={onNext}
+            aria-label="Next month"
+            title="Next month"
+          >
+            <ChevronRightIcon className="h-4 w-4" />
+          </Button>
         </div>
 
         {/* View switcher */}
