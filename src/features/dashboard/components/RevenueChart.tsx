@@ -1,3 +1,5 @@
+"use client";
+
 import { useMemo, useState } from "react";
 import type { RevenuePoint } from "@/features/dashboard/hooks/useDashboard";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
@@ -6,47 +8,88 @@ type RevenueChartProps = {
   data: RevenuePoint[];
 };
 
-const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTH_SHORT = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
 
 const CHART_COLORS = {
-  received: "var(--dashboard-income)",
-  expenses: "var(--dashboard-expense)",
-  profit: "var(--dashboard-profit)",
-  grid: "var(--dashboard-grid)",
-  axisLabel: "var(--dashboard-text)",
+  received: "var(--dashboard-chart-received)",
+  expenses: "var(--dashboard-chart-expenses)",
+  profit: "var(--dashboard-chart-profit)",
+  grid: "var(--dashboard-chart-grid)",
+  axisLabel: "var(--dashboard-chart-axis)",
 };
 
-function getNiceStep(maxAbs: number) {
-  if (maxAbs <= 0) return 1;
-  const roughStep = maxAbs / 3;
-  const magnitude = Math.pow(10, Math.floor(Math.log10(roughStep)));
+function getNiceStep(roughStep: number): number {
+  if (roughStep <= 0) return 1;
+
+  const magnitude = 10 ** Math.floor(Math.log10(roughStep));
   const normalized = roughStep / magnitude;
 
-  let niceNormalized = 10;
-  if (normalized <= 1) niceNormalized = 1;
-  else if (normalized <= 2) niceNormalized = 2;
-  else if (normalized <= 2.5) niceNormalized = 2.5;
-  else if (normalized <= 5) niceNormalized = 5;
-
-  return niceNormalized * magnitude;
+  if (normalized <= 1) return magnitude;
+  if (normalized <= 2) return 2 * magnitude;
+  if (normalized <= 2.5) return 2.5 * magnitude;
+  if (normalized <= 5) return 5 * magnitude;
+  return 10 * magnitude;
 }
 
-function formatRupiahAxis(value: number) {
-  const abs = Math.abs(value);
+function getAxisTicks(minValue: number, maxValue: number): {
+  minTick: number;
+  maxTick: number;
+  tickValues: number[];
+} {
+  const range = Math.max(maxValue - minValue, 1);
+  let step = getNiceStep(range / 5);
+  let minTick = Math.floor(minValue / step) * step;
+  let maxTick = Math.ceil(maxValue / step) * step;
+  let tickCount = Math.round((maxTick - minTick) / step) + 1;
+
+  while (tickCount > 6) {
+    step = getNiceStep(step * 1.01);
+    minTick = Math.floor(minValue / step) * step;
+    maxTick = Math.ceil(maxValue / step) * step;
+    tickCount = Math.round((maxTick - minTick) / step) + 1;
+  }
+
+  const tickValues = Array.from(
+    { length: tickCount },
+    (_, index) => Number((maxTick - index * step).toFixed(6)),
+  );
+
+  return { minTick, maxTick, tickValues };
+}
+
+function formatScaledValue(value: number, divisor: number): string {
+  const scaled = value / divisor;
+  const formatted = Number.isInteger(scaled) ? scaled.toFixed(0) : scaled.toFixed(1);
+  return formatted.replace(".", ",");
+}
+
+function formatRupiahAxis(value: number): string {
+  const absolute = Math.abs(value);
   const sign = value < 0 ? "-" : "";
 
-  if (abs >= 1_000_000) {
-    const inMillions = abs / 1_000_000;
-    const text = Number.isInteger(inMillions) ? String(inMillions) : inMillions.toFixed(1).replace(/\.0$/, "");
-    return `Rp ${sign}${text} jt`;
+  if (absolute >= 1_000_000_000) {
+    return `Rp ${sign}${formatScaledValue(absolute, 1_000_000_000)} M`;
   }
-
-  if (abs >= 1_000) {
-    const inThousands = Math.round(abs / 1_000);
-    return `Rp ${sign}${inThousands} rb`;
+  if (absolute >= 1_000_000) {
+    return `Rp ${sign}${formatScaledValue(absolute, 1_000_000)} jt`;
   }
-
-  return `Rp ${sign}${Math.round(abs)}`;
+  if (absolute >= 1_000) {
+    return `Rp ${sign}${formatScaledValue(absolute, 1_000)} rb`;
+  }
+  return `Rp ${sign}${Math.round(absolute)}`;
 }
 
 export default function RevenueChart({ data }: RevenueChartProps) {
@@ -60,61 +103,41 @@ export default function RevenueChart({ data }: RevenueChartProps) {
   const chart = useMemo(() => {
     const width = 960;
     const height = 360;
-    const margin = { top: 18, right: 16, bottom: 52, left: 74 };
-
+    const margin = { top: 24, right: 16, bottom: 52, left: 88 };
     const plotWidth = width - margin.left - margin.right;
     const plotHeight = height - margin.top - margin.bottom;
 
-    const minValue = Math.min(0, ...data.map((d) => d.net));
-    const maxValue = Math.max(0, ...data.map((d) => Math.max(d.realized, d.expenses, d.net)));
-
-    const maxAbs = Math.max(Math.abs(minValue), Math.abs(maxValue));
-    const step = getNiceStep(maxAbs);
-    const maxTick = Math.ceil(maxValue / step) * step;
-    const minTick = Math.floor(minValue / step) * step;
-
-    const tickValues: number[] = [];
-    for (let tick = maxTick; tick >= minTick; tick -= step) {
-      tickValues.push(Number(tick.toFixed(6)));
-    }
-    if (!tickValues.includes(0)) {
-      tickValues.push(0);
-      tickValues.sort((a, b) => b - a);
-    }
-
-    const domainMin = Math.min(minTick, 0);
-    const domainMax = Math.max(maxTick, 0);
-    const domainSpan = Math.max(domainMax - domainMin, 1);
-
-    const valueToY = (value: number) => margin.top + ((domainMax - value) / domainSpan) * plotHeight;
+    const minValue = Math.min(0, ...data.map((month) => month.net));
+    const maxValue = Math.max(
+      0,
+      ...data.map((month) => Math.max(month.realized, month.expenses, month.net)),
+    );
+    const { minTick, maxTick, tickValues } = getAxisTicks(minValue, maxValue);
+    const domainSpan = Math.max(maxTick - minTick, 1);
+    const valueToY = (value: number) =>
+      margin.top + ((maxTick - value) / domainSpan) * plotHeight;
     const zeroY = valueToY(0);
 
     const groupWidth = data.length > 0 ? plotWidth / data.length : 0;
-    const barWidth = Math.max(6, groupWidth * 0.2);
-    const barGap = Math.max(2, groupWidth * 0.08);
+    const barWidth = Math.max(8, groupWidth * 0.21);
+    const barGap = Math.max(4, groupWidth * 0.09);
 
     const points = data.map((month, index) => {
       const xCenter = margin.left + groupWidth * (index + 0.5);
-      const receivedX = xCenter - barWidth - barGap / 2;
-      const expenseX = xCenter + barGap / 2;
-      const receivedY = valueToY(month.realized);
-      const expenseY = valueToY(month.expenses);
-      const netY = valueToY(month.net);
-
       return {
         index,
         month,
         xCenter,
-        receivedX,
-        expenseX,
-        receivedY,
-        expenseY,
-        netY,
+        receivedX: xCenter - barWidth - barGap / 2,
+        expenseX: xCenter + barGap / 2,
+        receivedY: valueToY(month.realized),
+        expenseY: valueToY(month.expenses),
+        profitY: valueToY(month.net),
       };
     });
 
-    const linePath = points
-      .map((point, index) => `${index === 0 ? "M" : "L"}${point.xCenter} ${point.netY}`)
+    const profitPath = points
+      .map((point, index) => `${index === 0 ? "M" : "L"}${point.xCenter} ${point.profitY}`)
       .join(" ");
 
     return {
@@ -123,16 +146,17 @@ export default function RevenueChart({ data }: RevenueChartProps) {
       margin,
       plotWidth,
       plotHeight,
+      groupWidth,
       barWidth,
       zeroY,
       points,
-      linePath,
+      profitPath,
       tickValues,
       valueToY,
     };
   }, [data]);
 
-  const activeItem = activeIndex !== null ? chart.points[activeIndex] : null;
+  const activeItem = activeIndex === null ? null : chart.points[activeIndex];
 
   return (
     <section>
@@ -143,19 +167,34 @@ export default function RevenueChart({ data }: RevenueChartProps) {
             Money received, expenses, and profit from January to December.
           </p>
         </div>
+
         <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs font-medium text-[var(--dashboard-muted-text)]">
           <span className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: CHART_COLORS.received }} aria-hidden="true" />
+            <span
+              className="h-2.5 w-3 rounded-t-sm"
+              style={{ backgroundColor: CHART_COLORS.received }}
+              aria-hidden="true"
+            />
             Money Received
           </span>
           <span className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: CHART_COLORS.expenses }} aria-hidden="true" />
+            <span
+              className="h-2.5 w-3 rounded-t-sm"
+              style={{ backgroundColor: CHART_COLORS.expenses }}
+              aria-hidden="true"
+            />
             Expenses
           </span>
           <span className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1" aria-hidden="true">
-              <span className="h-0.5 w-3" style={{ backgroundColor: CHART_COLORS.profit }} />
-              <span className="h-2 w-2 rounded-full border bg-white" style={{ borderColor: CHART_COLORS.profit }} />
+            <span className="relative h-2.5 w-5" aria-hidden="true">
+              <span
+                className="absolute left-0 top-1 h-[3px] w-5"
+                style={{ backgroundColor: CHART_COLORS.profit }}
+              />
+              <span
+                className="absolute left-2 top-0 h-2.5 w-2.5 rounded-full border-2 bg-white"
+                style={{ borderColor: CHART_COLORS.profit }}
+              />
             </span>
             Profit
           </span>
@@ -167,120 +206,147 @@ export default function RevenueChart({ data }: RevenueChartProps) {
           No money flow recorded for this year.
         </p>
       ) : (
-        <div className="relative mt-5 overflow-hidden rounded-xl border border-[var(--dashboard-border)] bg-[var(--dashboard-surface-muted)] p-2 sm:p-3">
-          {activeItem && (
-            <div
-              className="pointer-events-none absolute top-2 z-10 rounded-lg border border-[var(--dashboard-border)] bg-white/95 px-3 py-2 text-xs shadow-sm"
-              style={{
-                left: `${Math.max(12, Math.min(88, ((activeItem.index + 0.5) / chart.points.length) * 100))}%`,
-                transform: "translateX(-50%)",
-              }}
-            >
-              <p className="font-semibold text-[var(--dashboard-text)]">{MONTH_SHORT[activeItem.index] ?? activeItem.month.label}</p>
-              <p className="mt-1 text-[var(--dashboard-muted-text)]">Money Received: <span className="font-medium text-[var(--dashboard-text)]">{formatRupiah(activeItem.month.realized)}</span></p>
-              <p className="text-[var(--dashboard-muted-text)]">Expenses: <span className="font-medium text-[var(--dashboard-text)]">{formatRupiah(activeItem.month.expenses)}</span></p>
-              <p className="text-[var(--dashboard-muted-text)]">Profit: <span className="font-medium text-[var(--dashboard-text)]">{formatRupiah(activeItem.month.net)}</span></p>
-            </div>
-          )}
+        <div className="mt-5 overflow-x-auto overscroll-x-contain rounded-xl bg-white">
+          <div className="relative min-w-[720px] p-2 sm:p-3">
+            {activeItem && (
+              <div
+                className="pointer-events-none absolute top-2 z-10 rounded-lg border border-[var(--dashboard-chart-tooltip-border)] bg-[var(--dashboard-chart-tooltip-bg)] px-3 py-2 text-xs shadow-sm"
+                style={{
+                  left: `${Math.max(12, Math.min(88, ((activeItem.index + 0.5) / chart.points.length) * 100))}%`,
+                  transform: "translateX(-50%)",
+                }}
+              >
+                <p className="font-semibold text-[var(--dashboard-text)]">{activeItem.month.label}</p>
+                <p className="mt-1 text-[var(--dashboard-muted-text)]">
+                  Money Received:{" "}
+                  <span className="font-medium text-[var(--dashboard-text)]">
+                    {formatRupiah(activeItem.month.realized)}
+                  </span>
+                </p>
+                <p className="text-[var(--dashboard-muted-text)]">
+                  Expenses:{" "}
+                  <span className="font-medium text-[var(--dashboard-text)]">
+                    {formatRupiah(activeItem.month.expenses)}
+                  </span>
+                </p>
+                <p className="text-[var(--dashboard-muted-text)]">
+                  Profit:{" "}
+                  <span className="font-medium text-[var(--dashboard-text)]">
+                    {formatRupiah(activeItem.month.net)}
+                  </span>
+                </p>
+              </div>
+            )}
 
-          <svg
-            viewBox={`0 0 ${chart.width} ${chart.height}`}
-            className="h-56 w-full sm:h-64 lg:h-72"
-            role="img"
-            aria-label="Monthly money flow chart"
-          >
-            {chart.tickValues.map((tick) => {
-              const y = chart.valueToY(tick);
-              return (
-                <g key={tick}>
-                  <line
-                    x1={chart.margin.left}
-                    x2={chart.margin.left + chart.plotWidth}
-                    y1={y}
-                    y2={y}
-                    stroke={CHART_COLORS.grid}
-                    strokeWidth="1"
+            <svg
+              viewBox={`0 0 ${chart.width} ${chart.height}`}
+              className="h-64 w-full sm:h-72"
+              role="img"
+              aria-label="Monthly money flow: Money Received and Expenses bars with a Profit line"
+            >
+              {chart.tickValues.map((tick) => {
+                const y = chart.valueToY(tick);
+                return (
+                  <g key={tick}>
+                    <line
+                      x1={chart.margin.left}
+                      x2={chart.margin.left + chart.plotWidth}
+                      y1={y}
+                      y2={y}
+                      stroke={CHART_COLORS.grid}
+                      strokeWidth="1"
+                    />
+                    <text
+                      x={chart.margin.left - 16}
+                      y={y + 5}
+                      textAnchor="end"
+                      fontSize="14"
+                      fill={CHART_COLORS.axisLabel}
+                    >
+                      {formatRupiahAxis(tick)}
+                    </text>
+                  </g>
+                );
+              })}
+
+              {chart.points.map((point) => (
+                <g key={point.index}>
+                  <rect
+                    x={point.receivedX}
+                    y={Math.min(point.receivedY, chart.zeroY)}
+                    width={chart.barWidth}
+                    height={Math.abs(chart.zeroY - point.receivedY)}
+                    fill={CHART_COLORS.received}
+                    rx="3"
+                    ry="3"
+                  />
+                  <rect
+                    x={point.expenseX}
+                    y={Math.min(point.expenseY, chart.zeroY)}
+                    width={chart.barWidth}
+                    height={Math.abs(chart.zeroY - point.expenseY)}
+                    fill={CHART_COLORS.expenses}
+                    rx="3"
+                    ry="3"
                   />
                   <text
-                    x={chart.margin.left - 12}
-                    y={y + 4}
-                    textAnchor="end"
+                    x={point.xCenter}
+                    y={chart.margin.top + chart.plotHeight + 22}
+                    textAnchor="middle"
                     fontSize="12"
                     fill={CHART_COLORS.axisLabel}
+                    className="sm:hidden"
                   >
-                    {formatRupiahAxis(tick)}
+                    {MONTH_SHORT[point.index] ?? point.month.label.slice(0, 3)}
+                  </text>
+                  <text
+                    x={point.xCenter}
+                    y={chart.margin.top + chart.plotHeight + 22}
+                    textAnchor="middle"
+                    fontSize="11"
+                    fill={CHART_COLORS.axisLabel}
+                    className="hidden sm:block"
+                  >
+                    {point.month.label}
                   </text>
                 </g>
-              );
-            })}
+              ))}
 
-            <line
-              x1={chart.margin.left}
-              x2={chart.margin.left + chart.plotWidth}
-              y1={chart.zeroY}
-              y2={chart.zeroY}
-              stroke={CHART_COLORS.grid}
-              strokeWidth="1.2"
-            />
+              <path
+                d={chart.profitPath}
+                fill="none"
+                stroke={CHART_COLORS.profit}
+                strokeWidth="3"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+              {chart.points.map((point) => (
+                <circle
+                  key={`profit-${point.index}`}
+                  cx={point.xCenter}
+                  cy={point.profitY}
+                  r="4"
+                  fill="white"
+                  stroke={CHART_COLORS.profit}
+                  strokeWidth="2.5"
+                />
+              ))}
 
-            {chart.points.map((point) => (
-              <g key={point.index}>
+              {chart.points.map((point) => (
                 <rect
-                  x={point.receivedX}
-                  y={Math.min(point.receivedY, chart.zeroY)}
-                  width={chart.barWidth}
-                  height={Math.abs(chart.zeroY - point.receivedY)}
-                  fill={CHART_COLORS.received}
-                  rx="2"
-                />
-                <rect
-                  x={point.expenseX}
-                  y={Math.min(point.expenseY, chart.zeroY)}
-                  width={chart.barWidth}
-                  height={Math.abs(chart.zeroY - point.expenseY)}
-                  fill={CHART_COLORS.expenses}
-                  rx="2"
-                />
-                <text
-                  x={point.xCenter}
-                  y={chart.margin.top + chart.plotHeight + 20}
-                  textAnchor="middle"
-                  fontSize="11"
-                  fill="var(--dashboard-muted-text)"
-                >
-                  {MONTH_SHORT[point.index] ?? point.month.label.slice(0, 3)}
-                </text>
-                <rect
-                  x={chart.margin.left + (chart.plotWidth / chart.points.length) * point.index}
+                  key={`hit-${point.index}`}
+                  x={chart.margin.left + chart.groupWidth * point.index}
                   y={chart.margin.top}
-                  width={chart.plotWidth / chart.points.length}
+                  width={chart.groupWidth}
                   height={chart.plotHeight}
                   fill="transparent"
-                  onMouseEnter={() => setActiveIndex(point.index)}
-                  onMouseLeave={() => setActiveIndex(null)}
+                  onPointerEnter={() => setActiveIndex(point.index)}
+                  onPointerLeave={() => setActiveIndex(null)}
                   onClick={() => setActiveIndex(point.index)}
                 />
-              </g>
-            ))}
-
-            <path
-              d={chart.linePath}
-              fill="none"
-              stroke={CHART_COLORS.profit}
-              strokeWidth="2.5"
-            />
-            {chart.points.map((point) => (
-              <circle
-                key={`net-${point.index}`}
-                cx={point.xCenter}
-                cy={point.netY}
-                r="3.5"
-                fill="white"
-                stroke={CHART_COLORS.profit}
-                strokeWidth="2"
-              />
-            ))}
-          </svg>
+              ))}
+            </svg>
+          </div>
         </div>
       )}
     </section>

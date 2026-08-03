@@ -144,6 +144,14 @@
   --dashboard-profit: #2563eb;
   --dashboard-profit-soft: #e5edff;
   --dashboard-profit-text: #1e4eb8;
+
+  --dashboard-chart-received: #0f9fa8;
+  --dashboard-chart-expenses: #2563eb;
+  --dashboard-chart-profit: #d94f4f;
+  --dashboard-chart-axis: #475569;
+  --dashboard-chart-grid: #e2e8f0;
+  --dashboard-chart-tooltip-bg: #ffffff;
+  --dashboard-chart-tooltip-border: #cbd5e1;
 }
 
 @layer base {

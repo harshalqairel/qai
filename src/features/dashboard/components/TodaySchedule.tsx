@@ -1,4 +1,5 @@
 import type { EnrichedBooking } from "@/features/dashboard/hooks/useDashboard";
+import { formatBookingTime } from "@/features/dashboard/utils";
 import { BookingStatusBadge, PaymentStatusBadge } from "./DashboardStatusBadge";
 
 type TodayScheduleProps = {
@@ -10,7 +11,7 @@ export default function TodaySchedule({ items }: TodayScheduleProps) {
     <section>
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-[var(--dashboard-text)]">Today?�s Schedule</h2>
+          <h2 className="text-lg font-semibold text-[var(--dashboard-text)]">Today&apos;s Schedule</h2>
           <p className="mt-1 text-sm text-[var(--dashboard-muted-text)]">Work planned for today.</p>
         </div>
         <span className="rounded-full bg-[var(--dashboard-income-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--dashboard-income-text)]">
@@ -45,7 +46,7 @@ export default function TodaySchedule({ items }: TodayScheduleProps) {
               </div>
               <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 border-t border-[var(--dashboard-border)] pt-3 text-sm text-[var(--dashboard-muted-text)]">
                 <span className="font-medium text-[var(--dashboard-text)]">
-                  {booking.startTime}{booking.endTime ? `??{booking.endTime}` : ""}
+                  {formatBookingTime(booking.startTime, booking.endTime)}
                 </span>
                 {booking.location.trim() && <span>{booking.location}</span>}
               </div>
