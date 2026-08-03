@@ -1,15 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import type { z } from "zod";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
-  Service,
-  ServiceCategory,
-} from "@/features/service/types";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 
+import { Service, ServiceCategory } from "@/features/service/types";
+import { SERVICE_CATEGORIES } from "@/features/service/constants";
 import {
-  SERVICE_CATEGORIES,
-} from "@/features/service/constants";
+  serviceSchema,
+  ServiceFormValues,
+} from "@/features/service/schema";
 
 type ServiceDialogProps = {
   open: boolean;
@@ -21,6 +34,15 @@ type ServiceDialogProps = {
 
 const INITIAL_CATEGORY = ServiceCategory.WEDDING;
 
+const defaultValues: ServiceFormValues = {
+  name: "",
+  category: INITIAL_CATEGORY,
+  price: 0,
+  duration: 0,
+  description: "",
+  active: true,
+};
+
 export default function ServiceDialog({
   open,
   service,
@@ -28,35 +50,48 @@ export default function ServiceDialog({
   onCreate,
   onUpdate,
 }: ServiceDialogProps) {
-  const [name, setName] = useState("");
-  const [category, setCategory] = useState(INITIAL_CATEGORY);
-  const [price, setPrice] = useState("");
-  const [duration, setDuration] = useState("");
-  const [description, setDescription] = useState("");
-
   const isEdit = service !== null;
+
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    formState: {
+      errors,
+      isSubmitting,
+    },
+  } = useForm<
+    z.input<typeof serviceSchema>,
+    any,
+    ServiceFormValues
+  >({
+    resolver: zodResolver(serviceSchema),
+    defaultValues,
+    mode: "onTouched",
+  });
 
   useEffect(() => {
     if (!open) return;
 
     if (service) {
-      setName(service.name);
-      setCategory(service.category);
-      setPrice(service.price.toString());
-      setDuration(service.duration.toString());
-      setDescription(service.description);
+      reset({
+        name: service.name,
+        category: service.category,
+        price: service.price,
+        duration: service.duration,
+        description: service.description,
+        active: service.active,
+      });
+
       return;
     }
 
-    resetForm();
-  }, [open, service]);
+    reset(defaultValues);
+  }, [open, service, reset]);
 
   function resetForm() {
-    setName("");
-    setCategory(INITIAL_CATEGORY);
-    setPrice("");
-    setDuration("");
-    setDescription("");
+    reset(defaultValues);
   }
 
   function handleClose() {
@@ -64,36 +99,21 @@ export default function ServiceDialog({
     onClose();
   }
 
-  function handleSave() {
-    if (!name.trim()) {
-      alert("Service name is required.");
-      return;
-    }
-
-    if (Number(price) <= 0) {
-      alert("Price must be greater than 0.");
-      return;
-    }
-
-    if (Number(duration) <= 0) {
-      alert("Duration must be greater than 0.");
-      return;
-    }
-
-    const data: Service = {
+  function onSubmit(values: ServiceFormValues) {
+    const serviceData: Service = {
       id: service?.id ?? crypto.randomUUID(),
-      name: name.trim(),
-      category,
-      price: Number(price),
-      duration: Number(duration),
-      description: description.trim(),
+      name: values.name.trim(),
+      category: values.category,
+      price: values.price,
+      duration: values.duration,
+      description: values.description.trim(),
       active: service?.active ?? true,
     };
 
     if (isEdit) {
-      onUpdate(data);
+      onUpdate(serviceData);
     } else {
-      onCreate(data);
+      onCreate(serviceData);
     }
 
     resetForm();
@@ -123,107 +143,151 @@ export default function ServiceDialog({
             </p>
           </div>
 
-          <button
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
             onClick={handleClose}
-            className="rounded-xl p-2 text-2xl text-slate-500 hover:bg-slate-100"
           >
             ✕
-          </button>
+          </Button>
         </div>
 
-        <div className="space-y-6">
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          className="space-y-6"
+        >
           <div>
-            <label className="mb-2 block font-semibold">
+            <Label className="mb-2 block font-semibold">
               Category
-            </label>
+            </Label>
 
-            <select
-              value={category}
-              onChange={(e) =>
-                setCategory(e.target.value as ServiceCategory)
-              }
-              className="w-full rounded-xl border border-slate-300 px-4 py-3"
-            >
-              {SERVICE_CATEGORIES.map((item) => (
-                <option
-                  key={item}
-                  value={item}
+            <Controller
+              control={control}
+              name="category"
+              render={({ field }) => (
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
                 >
-                  {item}
-                </option>
-              ))}
-            </select>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
+
+                  <SelectContent>
+                    {SERVICE_CATEGORIES.map((item) => (
+                      <SelectItem
+                        key={item}
+                        value={item}
+                      >
+                        {item}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+
+            {errors.category && (
+              <p className="mt-2 text-sm text-destructive">
+                {errors.category.message}
+              </p>
+            )}
           </div>
 
           <div>
-            <label className="mb-2 block font-semibold">
+            <Label className="mb-2 block font-semibold">
               Service Name
-            </label>
+            </Label>
 
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 px-4 py-3"
+            <Input
+              {...register("name")}
+              className="w-full"
             />
+
+            {errors.name && (
+              <p className="mt-2 text-sm text-destructive">
+                {errors.name.message}
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-5">
             <div>
-              <label className="mb-2 block font-semibold">
+              <Label className="mb-2 block font-semibold">
                 Price
-              </label>
+              </Label>
 
-              <input
+              <Input
                 type="number"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3"
+                {...register("price", {
+                  valueAsNumber: true,
+                })}
               />
+
+              {errors.price && (
+                <p className="mt-2 text-sm text-destructive">
+                  {errors.price.message}
+                </p>
+              )}
             </div>
 
             <div>
-              <label className="mb-2 block font-semibold">
+              <Label className="mb-2 block font-semibold">
                 Duration
-              </label>
+              </Label>
 
-              <input
+              <Input
                 type="number"
-                value={duration}
-                onChange={(e) => setDuration(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3"
+                {...register("duration", {
+                  valueAsNumber: true,
+                })}
               />
+
+              {errors.duration && (
+                <p className="mt-2 text-sm text-destructive">
+                  {errors.duration.message}
+                </p>
+              )}
             </div>
           </div>
 
           <div>
-            <label className="mb-2 block font-semibold">
+            <Label className="mb-2 block font-semibold">
               Description
-            </label>
+            </Label>
 
-            <textarea
+            <Textarea
               rows={5}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 px-4 py-3"
+              {...register("description")}
             />
+
+            {errors.description && (
+              <p className="mt-2 text-sm text-destructive">
+                {errors.description.message}
+              </p>
+            )}
           </div>
-        </div>
 
-        <div className="mt-10 flex justify-end gap-3">
-          <button
-            onClick={handleClose}
-            className="rounded-xl border border-slate-300 px-5 py-3 font-semibold"
-          >
-            Cancel
-          </button>
+          <div className="mt-10 flex justify-end gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleClose}
+            >
+              Cancel
+            </Button>
 
-          <button
-            onClick={handleSave}
-            className="rounded-xl bg-black px-5 py-3 font-semibold text-white hover:bg-slate-800"
-          >
-            {isEdit ? "Update Service" : "Save Service"}
-          </button>
-        </div>
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+            >
+              {isEdit
+                ? "Update Service"
+                : "Save Service"}
+            </Button>
+          </div>
+        </form>
       </div>
     </div>
   );
