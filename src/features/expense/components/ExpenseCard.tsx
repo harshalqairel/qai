@@ -1,9 +1,17 @@
 import { Expense } from "@/features/expense/types";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
 
+export type ExpenseBookingDetails = {
+  customerName: string;
+  serviceName: string;
+  bookingDate: string;
+  startTime: string;
+  endTime: string;
+};
+
 type ExpenseCardProps = {
   expense: Expense;
-  bookingLabel?: string;
+  bookingDetails?: ExpenseBookingDetails | null;
   onEdit: (expense: Expense) => void;
   onDelete: (expense: Expense) => void;
 };
@@ -18,73 +26,96 @@ function formatDate(date: string) {
 }
 
 const TYPE_BADGE: Record<string, string> = {
-  "Booking Expense": "bg-violet-100 text-violet-700",
-  "Business Expense": "bg-sky-100 text-sky-700",
+  "Booking Expense": "border border-blue-200 bg-blue-50 text-[var(--status-info)]",
+  "Business Expense": "border border-teal-200 bg-teal-50 text-[var(--brand)]",
 };
 
-export default function ExpenseCard({ expense, bookingLabel, onEdit, onDelete }: ExpenseCardProps) {
+export default function ExpenseCard({
+  expense,
+  bookingDetails,
+  onEdit,
+  onDelete,
+}: ExpenseCardProps) {
   return (
-    <div className="rounded-3xl border border-zinc-200 bg-white p-7 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
-      <div className="grid gap-6 md:grid-cols-[1.2fr_0.8fr] md:items-start">
-        <div className="space-y-3">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900">{expense.category}</h2>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <span className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ${TYPE_BADGE[expense.expenseType] ?? "bg-zinc-100 text-zinc-700"}`}>
-                {expense.expenseType}
+    <article className="rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h2 className="text-xl font-bold tracking-tight text-foreground">{expense.category}</h2>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${TYPE_BADGE[expense.expenseType] ?? "border border-border bg-muted text-muted-foreground"}`}>
+              {expense.expenseType}
+            </span>
+            {expense.vendor && (
+              <span className="inline-flex rounded-full border border-border bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">
+                {expense.vendor}
               </span>
-              {expense.vendor && (
-                <span className="inline-flex rounded-full bg-zinc-100 px-3 py-1 text-sm font-semibold text-zinc-700">
-                  {expense.vendor}
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
-            <div>
-              <p className="font-semibold text-slate-900">Date</p>
-              <p>{formatDate(expense.date)}</p>
-            </div>
-            <div>
-              <p className="font-semibold text-slate-900">Payment Method</p>
-              <p>{expense.paymentMethod}</p>
-            </div>
-            {expense.expenseType === "Booking Expense" && (
-              <div>
-                <p className="font-semibold text-slate-900">Booking</p>
-                <p>{bookingLabel ?? expense.bookingId ?? "—"}</p>
-              </div>
             )}
           </div>
-
-          {expense.notes && (
-            <p className="text-sm text-slate-600">{expense.notes}</p>
-          )}
         </div>
-
-        <div>
-          <p className="text-sm font-semibold text-slate-900">Amount</p>
-          <p className="mt-1 text-3xl font-bold text-slate-900">{formatRupiah(expense.amount)}</p>
+        <div className="shrink-0 sm:text-right">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Amount</p>
+          <p className="mt-1 text-2xl font-bold tracking-tight text-foreground tabular-nums sm:text-3xl">
+            {formatRupiah(expense.amount)}
+          </p>
         </div>
       </div>
 
-      <div className="mt-8 flex flex-wrap gap-3">
+      <dl className="mt-5 grid gap-4 border-t border-border pt-5 text-sm sm:grid-cols-3">
+        <div>
+          <dt className="font-semibold text-foreground">Date</dt>
+          <dd className="mt-1 text-muted-foreground">{formatDate(expense.date)}</dd>
+        </div>
+        <div>
+          <dt className="font-semibold text-foreground">Payment method</dt>
+          <dd className="mt-1 text-muted-foreground">{expense.paymentMethod}</dd>
+        </div>
+        {expense.vendor && (
+          <div>
+            <dt className="font-semibold text-foreground">Vendor</dt>
+            <dd className="mt-1 text-muted-foreground">{expense.vendor}</dd>
+          </div>
+        )}
+      </dl>
+
+      {expense.expenseType === "Booking Expense" && (
+        <section className="mt-5 rounded-lg border border-border bg-muted/55 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Booking</p>
+          {bookingDetails ? (
+            <div className="mt-2">
+              <p className="font-semibold text-foreground">{bookingDetails.customerName}</p>
+              <p className="mt-0.5 text-sm text-muted-foreground">{bookingDetails.serviceName}</p>
+              <p className="mt-2 text-sm font-medium text-foreground">
+                {bookingDetails.bookingDate} · {bookingDetails.startTime}–{bookingDetails.endTime}
+              </p>
+            </div>
+          ) : (
+            <p className="mt-2 text-sm font-medium text-muted-foreground">Booking not found</p>
+          )}
+        </section>
+      )}
+
+      {expense.notes && (
+        <p className="mt-5 border-t border-border pt-5 text-sm leading-6 text-muted-foreground">
+          {expense.notes}
+        </p>
+      )}
+
+      <div className="mt-5 flex flex-wrap gap-3 border-t border-border pt-5">
         <button
           type="button"
           onClick={() => onEdit(expense)}
-          className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white transition hover:bg-slate-700"
+          className="min-h-10 rounded-lg border border-border bg-white px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
         >
           Edit
         </button>
         <button
           type="button"
           onClick={() => onDelete(expense)}
-          className="rounded-xl border border-red-300 bg-white px-5 py-3 font-semibold text-red-600 transition hover:bg-red-50"
+          className="min-h-10 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-[var(--status-error)] transition-colors hover:bg-red-50"
         >
           Delete
         </button>
       </div>
-    </div>
+    </article>
   );
 }

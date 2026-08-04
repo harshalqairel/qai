@@ -148,10 +148,10 @@ export default function BookingDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm" onClick={handleClose}>
-      <div className="h-screen w-full max-w-xl overflow-y-auto bg-white p-6 shadow-2xl sm:p-8" onClick={(e) => e.stopPropagation()}>
+      <div className="h-dvh w-full max-w-xl overflow-y-auto border-l border-border bg-white p-5 shadow-xl sm:p-8" onClick={(e) => e.stopPropagation()}>
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h2 className="text-3xl font-bold text-slate-900">{booking ? "Edit Booking" : "Add Booking"}</h2>
+            <h2 className="dialog-title">{booking ? "Edit Booking" : "Add Booking"}</h2>
             <p className="mt-2 text-slate-500">
               {booking ? "Update booking and payment details." : "Create a new booking."}
             </p>

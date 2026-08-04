@@ -70,7 +70,7 @@ export default function BookingCalendar() {
           onNext={goNext}
           onToday={goToday}
         />
-        <div className="rounded-3xl bg-white p-3 shadow-sm sm:p-6">
+        <div className="rounded-xl border border-border bg-white p-3 shadow-sm sm:p-6">
           <CalendarView
             view={view}
             activeDate={activeDate}

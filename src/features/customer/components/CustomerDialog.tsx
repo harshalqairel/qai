@@ -87,12 +87,12 @@ export default function CustomerDialog({
       onClick={handleClose}
     >
       <div
-        className="h-screen w-full max-w-xl overflow-y-auto bg-white p-8 shadow-2xl"
+        className="h-dvh w-full max-w-xl overflow-y-auto border-l border-border bg-white p-5 shadow-xl sm:p-8"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-10 flex items-center justify-between">
           <div>
-            <h2 className="text-3xl font-bold text-slate-900">
+            <h2 className="dialog-title">
               {customer ? "Edit Customer" : "Add Customer"}
             </h2>
 

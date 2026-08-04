@@ -41,12 +41,12 @@ export default function CalendarHeader({
   const headerLabel = formatHeaderLabel(activeDate, view);
 
   return (
-    <div className="flex flex-col gap-4 rounded-3xl bg-white p-4 shadow-sm sm:p-6 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-4 rounded-xl border border-border bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
       <div className="space-y-1">
         {/* Mobile: show "Agenda" label; tablet+: show date label */}
         <div className="block text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500 md:hidden">Agenda</div>
         <div className="hidden text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500 md:block">Calendar</div>
-        <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl lg:text-3xl">{headerLabel}</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground lg:text-3xl">{headerLabel}</h1>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

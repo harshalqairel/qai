@@ -18,7 +18,7 @@ export default function DashboardHeader({
         <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--dashboard-income)]">
           Business overview
         </p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[var(--dashboard-text)] sm:text-4xl">
+        <h1 className="page-title mt-2">
           Dashboard
         </h1>
         <p className="mt-2 max-w-xl text-sm leading-6 text-[var(--dashboard-muted-text)] sm:text-base">

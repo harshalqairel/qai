@@ -14,21 +14,17 @@ export default function ServiceCard({
   return (
     <div
       className="
-      rounded-3xl
+      rounded-xl
       border
       border-zinc-200
       bg-white
-      p-7
+      p-5 sm:p-6
       shadow-sm
-      transition-all
-      duration-200
-      hover:-translate-y-1
-      hover:shadow-xl
     "
     >
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">
+          <h2 className="text-xl font-bold tracking-tight text-foreground">
             {service.name}
           </h2>
 
@@ -38,12 +34,12 @@ export default function ServiceCard({
               inline-flex
               items-center
               rounded-full
-              bg-pink-100
+              border border-blue-200 bg-blue-50
               px-3
               py-1
               text-sm
               font-semibold
-              text-pink-700
+              text-[var(--support-blue)]
               "
             >
               {service.category}
@@ -63,7 +59,7 @@ export default function ServiceCard({
       </div>
 
       <div className="mt-8">
-        <p className="text-5xl font-bold tracking-tight text-slate-900">
+        <p className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
           Rp {service.price.toLocaleString("id-ID")}
         </p>
 
@@ -78,18 +74,18 @@ export default function ServiceCard({
         )}
       </div>
 
-      <div className="mt-8 flex gap-3">
+      <div className="mt-5 flex gap-3 border-t border-border pt-5">
         <button
           onClick={() => onEdit(service)}
           className="
-          rounded-xl
-          bg-slate-900
-          px-5
-          py-3
+          min-h-10 rounded-lg
+          border border-border bg-white
+          px-4
+          py-2
           font-semibold
-          text-white
+          text-foreground
           transition
-          hover:bg-slate-700
+          hover:bg-muted
           "
         >
           Edit
@@ -98,12 +94,12 @@ export default function ServiceCard({
         <button
           onClick={() => onDelete(service)}
           className="
-          rounded-xl
+          min-h-10 rounded-lg
           border
           border-red-300
           bg-white
-          px-5
-          py-3
+          px-4
+          py-2
           font-semibold
           text-red-600
           transition

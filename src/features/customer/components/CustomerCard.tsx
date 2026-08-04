@@ -22,21 +22,17 @@ export default function CustomerCard({
   return (
     <div
       className="
-        rounded-3xl
+        rounded-xl
         border
         border-zinc-200
         bg-white
-        p-7
+        p-5 sm:p-6
         shadow-sm
-        transition-all
-        duration-200
-        hover:-translate-y-1
-        hover:shadow-xl
       "
     >
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">{customer.name}</h2>
+          <h2 className="text-xl font-bold tracking-tight text-foreground">{customer.name}</h2>
 
           <div className="mt-3 space-y-2 text-sm text-slate-600">
             <p>
@@ -84,18 +80,18 @@ export default function CustomerCard({
         </div>
       </div>
 
-      <div className="mt-8 flex gap-3">
+      <div className="mt-5 flex gap-3 border-t border-border pt-5">
         <button
           onClick={() => onEdit(customer)}
           className="
-            rounded-xl
-            bg-slate-900
-            px-5
-            py-3
+            min-h-10 rounded-lg
+            border border-border bg-white
+            px-4
+            py-2
             font-semibold
-            text-white
+            text-foreground
             transition
-            hover:bg-slate-700
+            hover:bg-muted
           "
         >
           Edit
@@ -104,12 +100,12 @@ export default function CustomerCard({
         <button
           onClick={() => onDelete(customer)}
           className="
-            rounded-xl
+            min-h-10 rounded-lg
             border
             border-red-300
             bg-white
-            px-5
-            py-3
+            px-4
+            py-2
             font-semibold
             text-red-600
             transition

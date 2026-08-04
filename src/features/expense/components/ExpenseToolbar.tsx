@@ -18,7 +18,7 @@ export default function ExpenseToolbar({
   sort, onSortChange,
 }: ExpenseToolbarProps) {
   return (
-    <div className="flex flex-col gap-4 rounded-2xl bg-white p-4 shadow-sm lg:flex-row lg:items-center">
+    <div className="filter-bar">
       <input
         type="text"
         placeholder="Search expenses..."

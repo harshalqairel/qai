@@ -78,7 +78,7 @@ export default function PaymentDialog({ open, bookingId, payment, onClose, onCre
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={handleClose}>
-      <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl sm:p-8" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-lg rounded-xl border border-border bg-white p-6 shadow-xl sm:p-8" onClick={(e) => e.stopPropagation()}>
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h3 className="text-2xl font-bold text-slate-900">{isEdit ? "Edit Payment" : "Add Payment"}</h3>

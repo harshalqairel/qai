@@ -53,18 +53,24 @@ function paymentStatusBadge(status: DerivedPaymentStatus) {
 
   return (
     <span className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ${badgeClasses}`}>
-      {status}
+      {status === "Outstanding"
+        ? "Unpaid"
+        : status === "Partial Paid"
+          ? "Part paid"
+          : status === "Fully Paid"
+            ? "Paid"
+            : "Cancelled"}
     </span>
   );
 }
 
 export default function BookingCard({ booking, onEdit, onDelete }: BookingCardProps) {
   return (
-    <div className="rounded-3xl border border-zinc-200 bg-white p-7 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
+    <article className="rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6">
       <div className="grid gap-6 md:grid-cols-[1.2fr_0.8fr] md:items-start">
         <div className="space-y-3">
           <div>
-            <h2 className="text-2xl font-bold text-slate-900">{booking.customerName}</h2>
+            <h2 className="text-xl font-bold tracking-tight text-foreground">{booking.customerName}</h2>
             <p className="mt-1 text-sm text-slate-600">{booking.serviceName}</p>
           </div>
 
@@ -118,22 +124,22 @@ export default function BookingCard({ booking, onEdit, onDelete }: BookingCardPr
         </div>
       )}
 
-      <div className="mt-8 flex flex-wrap gap-3">
+      <div className="mt-5 flex flex-wrap gap-3 border-t border-border pt-5">
         <button
           type="button"
           onClick={() => onEdit(booking)}
-          className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white transition hover:bg-slate-700"
+          className="min-h-10 rounded-lg border border-border bg-white px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
         >
           Edit
         </button>
         <button
           type="button"
           onClick={() => onDelete(booking)}
-          className="rounded-xl border border-red-300 bg-white px-5 py-3 font-semibold text-red-600 transition hover:bg-red-50"
+          className="min-h-10 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-[var(--status-error)] transition-colors hover:bg-red-50"
         >
           Delete
         </button>
       </div>
-    </div>
+    </article>
   );
 }

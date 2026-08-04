@@ -12,7 +12,7 @@ import PaymentDueList from "@/features/dashboard/components/PaymentDueList";
 import { useDashboard } from "@/features/dashboard/hooks/useDashboard";
 
 const CARD_CLASS =
-  "min-w-0 rounded-2xl border border-[var(--dashboard-border)] bg-[var(--dashboard-card)] p-5 sm:p-6";
+  "surface-card min-w-0 p-5 sm:p-6";
 
 export default function DashboardPage() {
   const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());

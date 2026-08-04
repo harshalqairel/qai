@@ -6,15 +6,15 @@ export default function ServiceHeader({
   onAdd,
 }: ServiceHeaderProps) {
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
 
       <div>
 
-        <h1 className="text-4xl font-bold tracking-tight text-zinc-900">
+        <h1 className="page-title">
           Services
         </h1>
 
-        <p className="mt-2 text-lg text-zinc-600">
+        <p className="mt-3 text-sm leading-6 text-muted-foreground sm:text-base">
           Manage all services offered by your business.
         </p>
 
@@ -23,14 +23,14 @@ export default function ServiceHeader({
       <button
         onClick={onAdd}
         className="
-        rounded-xl
-        bg-black
+        min-h-11 rounded-lg
+        bg-primary
         px-5
-        py-3
+        py-2.5
         font-semibold
         text-white
         transition
-        hover:bg-zinc-800
+        shadow-sm hover:bg-[var(--brand-hover)]
         "
       >
         + Add Service

@@ -3,32 +3,58 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import {
+  BookOpenCheck,
+  BriefcaseBusiness,
+  CalendarDays,
+  LayoutDashboard,
+  Menu,
+  ReceiptText,
+  Settings,
+  Users,
+  X,
+} from "lucide-react";
 
 const NAV = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/bookings", label: "Bookings" },
-  { href: "/calendar", label: "Calendar" },
-  { href: "/customers", label: "Customers" },
-  { href: "/services", label: "Services" },
-  { href: "/expenses", label: "Expenses" },
-  { href: "/settings", label: "Settings" },
+  { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
+  { href: "/bookings", label: "Bookings", Icon: BookOpenCheck },
+  { href: "/calendar", label: "Calendar", Icon: CalendarDays },
+  { href: "/customers", label: "Customers", Icon: Users },
+  { href: "/services", label: "Services", Icon: BriefcaseBusiness },
+  { href: "/expenses", label: "Expenses", Icon: ReceiptText },
+  { href: "/settings", label: "Settings", Icon: Settings },
 ];
+
+function Brand() {
+  return (
+    <div>
+      <div className="text-xl font-bold tracking-tight text-foreground">
+        Qai
+      </div>
+      <div className="mt-0.5 text-xs text-muted-foreground">Your business notebook</div>
+    </div>
+  );
+}
 
 function NavLinks({ pathname, onClick }: { pathname: string; onClick?: () => void }) {
   return (
-    <nav className="flex flex-col gap-1">
-      {NAV.map((n) => {
-        const active = pathname === n.href;
+    <nav className="flex flex-col gap-1.5" aria-label="Main navigation">
+      {NAV.map(({ href, label, Icon }) => {
+        const active = pathname === href;
         return (
           <Link
-            key={n.href}
-            href={n.href}
+            key={href}
+            href={href}
             onClick={onClick}
-            className={`rounded-xl px-4 py-2.5 text-sm font-medium transition ${
-              active ? "bg-slate-900 text-white" : "text-zinc-700 hover:bg-zinc-100"
+            aria-current={active ? "page" : undefined}
+            className={`flex min-h-11 items-center gap-3 rounded-r-xl border-l-4 px-3 py-2.5 text-sm font-semibold transition-colors ${
+              active
+                ? "border-l-[var(--brand)] bg-accent text-accent-foreground"
+                : "border-l-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
             }`}
           >
-            {n.label}
+            <Icon className="size-4.5 shrink-0" aria-hidden="true" />
+            <span>{label}</span>
           </Link>
         );
       })}
@@ -42,69 +68,56 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* ── Mobile top bar ─────────────────────────────────────── */}
-      <header className="fixed inset-x-0 top-0 z-30 flex h-14 items-center justify-between border-b border-zinc-200 bg-white px-4 lg:hidden">
-        <div className="text-lg font-bold text-slate-900">Qai</div>
+      <header className="fixed inset-x-0 top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-card/95 px-4 backdrop-blur lg:hidden">
+        <div className="text-lg font-bold tracking-tight text-foreground">Qai</div>
         <button
           type="button"
           aria-label="Open menu"
           onClick={() => setDrawerOpen(true)}
-          className="rounded-lg p-2 text-zinc-600 hover:bg-zinc-100"
+          className="flex size-10 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
-          {/* Hamburger icon */}
-          <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M3 5h14a1 1 0 010 2H3a1 1 0 010-2zm0 4h14a1 1 0 010 2H3a1 1 0 010-2zm0 4h14a1 1 0 010 2H3a1 1 0 010-2z" clipRule="evenodd" />
-          </svg>
+          <Menu className="size-5" aria-hidden="true" />
         </button>
       </header>
 
-      {/* ── Mobile drawer overlay ──────────────────────────────── */}
       {drawerOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+        <button
+          type="button"
+          className="fixed inset-0 z-40 bg-black/35 lg:hidden"
           onClick={() => setDrawerOpen(false)}
-          aria-hidden="true"
+          aria-label="Close menu"
         />
       )}
 
-      {/* ── Mobile drawer panel ────────────────────────────────── */}
-      <div
-        className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-white shadow-xl transition-transform duration-300 lg:hidden ${
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-border bg-card shadow-xl transition-transform duration-200 lg:hidden ${
           drawerOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex h-14 items-center justify-between border-b border-zinc-200 px-4">
-          <div>
-            <div className="text-lg font-bold text-slate-900">Qai</div>
-            <div className="text-[11px] text-zinc-500">Manage bookings</div>
-          </div>
+        <div className="flex h-16 items-center justify-between border-b border-border px-5">
+          <Brand />
           <button
             type="button"
             aria-label="Close menu"
             onClick={() => setDrawerOpen(false)}
-            className="rounded-lg p-2 text-zinc-600 hover:bg-zinc-100"
+            className="flex size-10 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
-            <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
+            <X className="size-5" aria-hidden="true" />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-4">
           <NavLinks pathname={pathname} onClick={() => setDrawerOpen(false)} />
         </div>
-        <div className="border-t border-zinc-100 p-4 text-xs text-zinc-400">v0.1 • MVP</div>
-      </div>
+        <div className="border-t border-border p-4 text-xs text-muted-foreground">v0.1 · MVP</div>
+      </aside>
 
-      {/* ── Desktop sidebar ────────────────────────────────────── */}
-      <aside className="hidden h-screen w-64 shrink-0 flex-col border-r border-zinc-200 bg-white p-6 lg:flex">
-        <div className="mb-8">
-          <div className="text-2xl font-bold text-slate-900">Qai</div>
-          <div className="mt-0.5 text-xs text-zinc-500">Manage bookings and services</div>
+      <aside className="hidden h-screen w-64 shrink-0 flex-col border-r border-border bg-card p-5 lg:sticky lg:top-0 lg:flex">
+        <div className="mb-8 px-2 pt-1">
+          <Brand />
         </div>
         <NavLinks pathname={pathname} />
-        <div className="mt-auto pt-6 text-xs text-zinc-400">v0.1 • MVP</div>
+        <div className="mt-auto border-t border-border px-2 pt-5 text-xs text-muted-foreground">v0.1 · MVP</div>
       </aside>
     </>
   );
 }
-

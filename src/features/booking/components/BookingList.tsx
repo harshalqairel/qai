@@ -19,7 +19,7 @@ type BookingListProps = {
 export default function BookingList({ bookings, onEdit, onDelete }: BookingListProps) {
   if (bookings.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-12 text-center">
+      <div className="empty-state">
         <h3 className="text-xl font-semibold text-zinc-800">No bookings yet</h3>
         <p className="mt-2 text-zinc-500">
           Click <strong>Add Booking</strong> to create your first booking.

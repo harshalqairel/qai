@@ -14,7 +14,7 @@ export default function ServiceList({
 }: ServiceListProps) {
   if (services.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-12 text-center">
+      <div className="empty-state">
         <h3 className="text-xl font-semibold text-zinc-800">
           No services yet
         </h3>

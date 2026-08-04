@@ -11,18 +11,18 @@ type ServiceToolbarProps = {
 
 export default function ServiceToolbar({ search, onSearchChange, category, onCategoryChange, sort, onSortChange }: ServiceToolbarProps) {
   return (
-    <div className="flex items-center gap-4 rounded-2xl bg-white p-4 shadow-sm">
+    <div className="filter-bar">
 
       <input
         type="text"
         placeholder="Search services..."
-        className="flex-1 rounded-xl border border-zinc-300 px-4 py-2"
+        className="native-control lg:flex-1"
         value={search}
         onChange={(e) => onSearchChange(e.target.value)}
       />
 
       <select
-        className="rounded-xl border border-zinc-300 px-4 py-2"
+        className="native-control lg:w-auto"
         value={category}
         onChange={(e) => onCategoryChange(e.target.value)}
       >
@@ -40,7 +40,7 @@ export default function ServiceToolbar({ search, onSearchChange, category, onCat
       </select>
 
       <select
-        className="rounded-xl border border-zinc-300 px-4 py-2"
+        className="native-control lg:w-auto"
         value={sort}
         onChange={(e) => onSortChange(e.target.value)}
       >

@@ -70,8 +70,8 @@ export default function ServicesPage() {
 
   return (
     <>
-      <main className="min-h-screen bg-zinc-100">
-        <div className="mx-auto max-w-7xl space-y-8 px-8 py-10">
+      <main className="min-h-screen">
+        <div className="page-shell">
 
           <ServiceHeader
             onAdd={() => {

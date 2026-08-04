@@ -13,6 +13,7 @@ import { EXPENSE_CATEGORIES, EXPENSE_TYPES } from "@/features/expense/constants"
 import { PAYMENT_METHODS } from "@/features/payment/constants";
 import { expenseSchema, ExpenseFormValues } from "@/features/expense/schema";
 import { Expense, CreateExpenseInput, UpdateExpenseInput } from "@/features/expense/types";
+import { XIcon } from "lucide-react";
 
 type BookingOption = { id: string; label: string };
 
@@ -112,20 +113,20 @@ export default function ExpenseDialog({
       onClick={handleClose}
     >
       <div
-        className="h-screen w-full max-w-xl overflow-y-auto bg-white p-6 shadow-2xl sm:p-8"
+        className="h-dvh w-full max-w-xl overflow-y-auto border-l border-border bg-white p-5 shadow-xl sm:p-8"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h2 className="text-3xl font-bold text-slate-900">
+            <h2 className="dialog-title">
               {isEdit ? "Edit Expense" : "Add Expense"}
             </h2>
             <p className="mt-2 text-slate-500">
               {isEdit ? "Update expense details." : "Record a new expense."}
             </p>
           </div>
-          <Button type="button" variant="ghost" size="icon" onClick={handleClose}>
-            ✕
+          <Button type="button" variant="ghost" size="icon" onClick={handleClose} aria-label="Close expense form">
+            <XIcon className="size-5" aria-hidden="true" />
           </Button>
         </div>
 
@@ -164,7 +165,11 @@ export default function ExpenseDialog({
                     onValueChange={(v) => field.onChange(v || null)}
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select a booking" />
+                      <SelectValue placeholder="Select a booking">
+                        {field.value
+                          ? bookingOptions.find((option) => option.id === field.value)?.label ?? "Booking not found"
+                          : undefined}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {bookingOptions.map((opt) => (

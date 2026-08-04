@@ -46,7 +46,7 @@ function AgendaView({ bookings, onBookingClick, onDateClick }: Pick<CalendarView
 
   if (sorted.length === 0) {
     return (
-      <div className="rounded-3xl border border-dashed border-zinc-200 p-12 text-center text-sm text-zinc-500">
+      <div className="rounded-xl border border-dashed border-zinc-200 p-12 text-center text-sm text-zinc-500">
         No bookings found.
       </div>
     );
@@ -117,7 +117,7 @@ function MonthView({ activeDate, bookingsByDate, onBookingClick, onDateClick }: 
   const gridDays = Array.from({ length: 42 }, (_, i) => addDays(monthStartWeek, i));
 
   return (
-    <div className="overflow-hidden rounded-3xl border border-zinc-200 bg-zinc-50 shadow-sm">
+    <div className="overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50 shadow-sm">
       <div className="grid grid-cols-7 gap-px bg-zinc-200 px-2 py-3 text-center text-xs font-semibold uppercase tracking-[0.15em] text-zinc-600 sm:text-sm">
         {WEEK_DAYS.map((d) => <div key={d} className="py-2">{d}</div>)}
       </div>
@@ -129,7 +129,7 @@ function MonthView({ activeDate, bookingsByDate, onBookingClick, onDateClick }: 
           return (
             <div
               key={dateKey}
-              className={`flex min-h-[80px] flex-col gap-1 rounded-2xl border border-zinc-200 bg-white p-2 transition lg:min-h-[120px] lg:gap-2 lg:p-3 ${isCurrentMonth ? "" : "bg-zinc-50 opacity-50"}`}
+              className={`flex min-h-[80px] flex-col gap-1 rounded-lg border border-zinc-200 bg-white p-2 transition lg:min-h-[120px] lg:gap-2 lg:p-3 ${isCurrentMonth ? "" : "bg-zinc-50 opacity-50"}`}
               onClick={() => onDateClick(dateKey)}
             >
               <div className="flex items-center justify-between">
@@ -181,7 +181,7 @@ function WeekView({ activeDate, bookingsByDate, onBookingClick, onDateClick }: {
         const dateKey = toDateKey(day);
         const dayBookings = bookingsByDate.get(dateKey) ?? [];
         return (
-          <div key={dateKey} className="flex flex-col rounded-3xl border border-zinc-200 bg-white p-3 shadow-sm sm:p-4">
+          <div key={dateKey} className="flex flex-col rounded-xl border border-zinc-200 bg-white p-3 shadow-sm sm:p-4">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div>
                 <p className="text-xs font-semibold text-slate-900 sm:text-sm">{WEEK_DAYS[day.getDay()]}</p>
@@ -233,7 +233,7 @@ function DayView({ activeDate, bookingsByDate, onBookingClick, onDateClick }: {
   const dayBookings = bookingsByDate.get(dayKey) ?? [];
 
   return (
-    <div className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-6">
+    <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-6">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Day</p>
@@ -250,7 +250,7 @@ function DayView({ activeDate, bookingsByDate, onBookingClick, onDateClick }: {
         </button>
       </div>
       {dayBookings.length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-zinc-200 p-12 text-center text-sm text-zinc-500">
+        <div className="rounded-xl border border-dashed border-zinc-200 p-12 text-center text-sm text-zinc-500">
           No bookings for this day.
         </div>
       ) : (
@@ -260,7 +260,7 @@ function DayView({ activeDate, bookingsByDate, onBookingClick, onDateClick }: {
               key={booking.id}
               type="button"
               onClick={() => onBookingClick(booking)}
-              className="w-full rounded-3xl border border-zinc-200 bg-zinc-50 p-4 text-left shadow-sm transition hover:border-zinc-300"
+              className="w-full rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-left shadow-sm transition hover:border-zinc-300"
             >
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0">
