@@ -53,6 +53,8 @@ export default function ExpenseDialog({
 }: ExpenseDialogProps) {
   const isEdit = expense !== null;
   const action = useActionGuard();
+  const selectableCategories = categories.filter((category) => category.active || category.id === expense?.categoryId);
+  const hasSelectableCategory = selectableCategories.length > 0;
 
   const {
     register,
@@ -195,12 +197,12 @@ export default function ExpenseDialog({
 
           {/* Category */}
           <div>
-            <Label className="mb-2 block font-semibold">Category</Label>
+            <Label className="mb-2 block font-semibold">Expense Category</Label>
             <Controller
               control={control}
               name="categoryId"
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select value={field.value} onValueChange={field.onChange} disabled={!hasSelectableCategory}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select category">
                       {field.value
@@ -209,9 +211,7 @@ export default function ExpenseDialog({
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {categories
-                      .filter((category) => category.active || category.id === expense?.categoryId)
-                      .map((category) => (
+                    {selectableCategories.map((category) => (
                         <SelectItem
                           key={category.id}
                           value={category.id}
@@ -224,6 +224,19 @@ export default function ExpenseDialog({
                 </Select>
               )}
             />
+            {!hasSelectableCategory && (
+              <div className="mt-2 space-y-1 text-sm">
+                <p className="text-muted-foreground">No expense categories yet.</p>
+                <button
+                  type="button"
+                  className="font-medium text-[var(--status-info)] hover:underline"
+                  onClick={() => window.location.assign("/settings?section=expense-categories")}
+                >
+                  Add an expense category
+                </button>
+                <p className="text-muted-foreground">Add an expense category before saving this expense.</p>
+              </div>
+            )}
             {errors.categoryId && (
               <p className="mt-2 text-sm text-destructive">{errors.categoryId.message}</p>
             )}
@@ -288,7 +301,7 @@ export default function ExpenseDialog({
             <Button type="button" variant="outline" disabled={action.pending} onClick={handleClose}>
               Cancel
             </Button>
-            <ActionButton type="submit" loading={action.pending || isSubmitting} loadingText={isEdit ? "Updating…" : "Saving…"}>
+            <ActionButton type="submit" loading={action.pending || isSubmitting} loadingText={isEdit ? "Updating…" : "Saving…"} disabled={!hasSelectableCategory}>
               {isEdit ? "Update Expense" : "Save Expense"}
             </ActionButton>
           </div>

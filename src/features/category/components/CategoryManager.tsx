@@ -193,7 +193,15 @@ export default function CategoryManager<T extends BaseCategory>({
       )}
 
       {!loadError && (categories.length === 0 ? (
-        <div className="p-8 text-center text-sm text-muted-foreground">No {recordName} categories yet.</div>
+        <div className="p-8 text-center">
+          <p className="text-sm font-medium text-foreground">No {recordName} categories yet.</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {recordName === "service"
+              ? "Add categories that match the services you offer."
+              : "Add categories that match your business expenses."}
+          </p>
+          <Button className="mt-4" onClick={openCreate}>Add category</Button>
+        </div>
       ) : (
         <div className="divide-y divide-border">
           {categories.map((category) => {

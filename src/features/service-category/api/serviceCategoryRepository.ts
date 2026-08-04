@@ -14,7 +14,6 @@ import type { CategoryInput } from "@/features/category/types";
 import { CATEGORY_COLORS } from "@/features/category/constants";
 import type { ServiceCategory } from "../types";
 import {
-  DEFAULT_SERVICE_CATEGORY_NAMES,
   SERVICE_CATEGORY_STORAGE_KEY,
   SERVICE_STORAGE_KEY,
 } from "@/features/service/constants";
@@ -48,8 +47,7 @@ function getAll(): ServiceCategory[] {
   }
 
   const names = legacyNames();
-  const seedNames = names.length > 0 ? names : [...DEFAULT_SERVICE_CATEGORY_NAMES];
-  const categories = seedNames.map((name, index) =>
+  const categories = names.map((name, index) =>
     createDeterministicCategory(
       "service",
       name,

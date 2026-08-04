@@ -14,7 +14,6 @@ import type { CategoryInput } from "@/features/category/types";
 import { CATEGORY_COLORS } from "@/features/category/constants";
 import type { ExpenseCategory } from "../types";
 import {
-  DEFAULT_EXPENSE_CATEGORY_NAMES,
   EXPENSE_CATEGORY_STORAGE_KEY,
   EXPENSE_STORAGE_KEY,
 } from "@/features/expense/constants";
@@ -48,8 +47,7 @@ function getAll(): ExpenseCategory[] {
   }
 
   const names = legacyNames();
-  const seedNames = names.length > 0 ? names : [...DEFAULT_EXPENSE_CATEGORY_NAMES];
-  const categories = seedNames.map((name, index) =>
+  const categories = names.map((name, index) =>
     createDeterministicCategory(
       "expense",
       name,

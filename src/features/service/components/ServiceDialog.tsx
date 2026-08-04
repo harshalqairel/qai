@@ -56,6 +56,8 @@ export default function ServiceDialog({
 }: ServiceDialogProps) {
   const action = useActionGuard();
   const isEdit = service !== null;
+  const selectableCategories = categories.filter((category) => category.active || category.id === service?.categoryId);
+  const hasSelectableCategory = selectableCategories.length > 0;
 
   const {
     register,
@@ -169,7 +171,7 @@ export default function ServiceDialog({
         >
           <div>
             <Label className="mb-2 block font-semibold">
-              Category
+              Service Category
             </Label>
 
             <Controller
@@ -179,6 +181,7 @@ export default function ServiceDialog({
                 <Select
                   value={field.value}
                   onValueChange={field.onChange}
+                  disabled={!hasSelectableCategory}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select a category">
@@ -189,9 +192,7 @@ export default function ServiceDialog({
                   </SelectTrigger>
 
                   <SelectContent>
-                    {categories
-                      .filter((item) => item.active || item.id === service?.categoryId)
-                      .map((item) => (
+                    {selectableCategories.map((item) => (
                       <SelectItem
                         key={item.id}
                         value={item.id}
@@ -204,6 +205,19 @@ export default function ServiceDialog({
                 </Select>
               )}
             />
+            {!hasSelectableCategory && (
+              <div className="mt-2 space-y-1 text-sm">
+                <p className="text-muted-foreground">No service categories yet.</p>
+                <button
+                  type="button"
+                  className="font-medium text-[var(--status-info)] hover:underline"
+                  onClick={() => window.location.assign("/settings?section=service-categories")}
+                >
+                  Add a service category
+                </button>
+                <p className="text-muted-foreground">Add a service category before saving this service.</p>
+              </div>
+            )}
 
             {errors.categoryId && (
               <p className="mt-2 text-sm text-destructive">
@@ -300,6 +314,7 @@ export default function ServiceDialog({
               type="submit"
               loading={action.pending || isSubmitting}
               loadingText={isEdit ? "Updating…" : "Saving…"}
+              disabled={!hasSelectableCategory}
             >
               {isEdit
                 ? "Update Service"
