@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import DashboardHeader from "@/features/dashboard/components/DashboardHeader";
+import GettingStartedGuide from "@/features/dashboard/components/GettingStartedGuide";
 import KPIGrid from "@/features/dashboard/components/KPIGrid";
 import TodaySchedule from "@/features/dashboard/components/TodaySchedule";
 import UpcomingJobs from "@/features/dashboard/components/UpcomingJobs";
@@ -12,8 +13,6 @@ import PaymentDueList from "@/features/dashboard/components/PaymentDueList";
 import { useDashboard } from "@/features/dashboard/hooks/useDashboard";
 import PageSkeleton from "@/components/system/PageSkeleton";
 import DataErrorState from "@/components/system/DataErrorState";
-import EmptyState from "@/components/system/EmptyState";
-import { BarChart3 } from "lucide-react";
 
 const CARD_CLASS =
   "surface-card min-w-0 p-5 sm:p-6";
@@ -30,8 +29,8 @@ export default function DashboardPage() {
       <div className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:space-y-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
         <DashboardHeader selectedYear={selectedYear} onYearChange={setSelectedYear} />
 
-        {!dashboard.hasData ? (
-          <EmptyState icon={BarChart3} title="No data yet." description="Add a booking, payment, or expense to start seeing your business summary." />
+        {dashboard.showSetupGuide ? (
+          <GettingStartedGuide {...dashboard.setupGuideProgress} />
         ) : (
           <>
 

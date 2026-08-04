@@ -6,8 +6,10 @@ import CategoryManager from "@/features/category/components/CategoryManager";
 import { useServiceCategories } from "@/features/service-category/hooks/useServiceCategories";
 import { useExpenseCategories } from "@/features/expense-category/hooks/useExpenseCategories";
 import DataBackupSection from "@/features/backup/components/DataBackupSection";
+import HowToUseQai from "@/features/settings/components/HowToUseQai";
 import {
   Bell,
+  CircleHelp,
   CalendarDays,
   CircleUserRound,
   CreditCard,
@@ -23,6 +25,7 @@ import { QaiLogo } from "@/components/brand/QaiLogo";
 
 const SECTIONS = [
   { id: "business-profile", label: "Business Profile", Icon: CircleUserRound },
+  { id: "how-to-use", label: "How to use Qai", Icon: CircleHelp },
   { id: "data-backup", label: "Data Backup", Icon: Database },
   { id: "service-categories", label: "Service Categories", Icon: Tags },
   { id: "expense-categories", label: "Expense Categories", Icon: ReceiptText },
@@ -107,6 +110,7 @@ export default function SettingsPage() {
             {section === "business-profile" && (
               <Placeholder title="Business Profile" message="Not set up yet" />
             )}
+            {section === "how-to-use" && <HowToUseQai />}
             {section === "data-backup" && <DataBackupSection />}
             {section === "service-categories" && (
               <CategoryManager

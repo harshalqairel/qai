@@ -59,6 +59,13 @@ export type EnrichedBooking = Booking & {
   paymentStatus: "Outstanding" | "Partial Paid" | "Fully Paid" | "Cancelled";
 };
 
+export type SetupGuideProgress = {
+  serviceCategoriesComplete: boolean;
+  expenseCategoriesComplete: boolean;
+  servicesComplete: boolean;
+  customerAndBookingComplete: boolean;
+};
+
 type UseDashboardArgs = {
   selectedYear: number;
 };
@@ -277,6 +284,15 @@ export function useDashboard({ selectedYear }: UseDashboardArgs) {
     [validExpenses, expenseCategories],
   );
 
+  const setupGuideProgress = useMemo<SetupGuideProgress>(() => ({
+    serviceCategoriesComplete: serviceCategories.some((category) => category.active),
+    expenseCategoriesComplete: expenseCategories.some((category) => category.active),
+    servicesComplete: services.some((service) => service.active),
+    customerAndBookingComplete: customers.length > 0 && bookings.length > 0,
+  }), [serviceCategories, expenseCategories, services, customers, bookings]);
+
+  const showSetupGuide = bookings.length === 0 && payments.length === 0 && expenses.length === 0;
+
   return {
     metrics,
     todaysSchedule,
@@ -287,6 +303,8 @@ export function useDashboard({ selectedYear }: UseDashboardArgs) {
     revenueSeries,
     incomeByCategory,
     expenseByCategory,
+    showSetupGuide,
+    setupGuideProgress,
     isLoading: bookingData.isLoading || customerData.isLoading || serviceData.isLoading || serviceCategoryData.isLoading || paymentData.isLoading || expenseData.isLoading || expenseCategoryData.isLoading,
     loadError: bookingData.loadError || customerData.loadError || serviceData.loadError || serviceCategoryData.loadError || paymentData.loadError || expenseData.loadError || expenseCategoryData.loadError,
     hasData: bookings.length > 0 || validPayments.length > 0 || validExpenses.length > 0,
