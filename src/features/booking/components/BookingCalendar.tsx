@@ -50,13 +50,11 @@ export default function BookingCalendar() {
   }
 
   const handleCreate = (input: BookingFormValues) => {
-    createBooking(input);
-    closeDialog();
+    return createBooking(input);
   };
 
   const handleUpdate = (input: BookingFormValues & { id: string }) => {
-    updateBooking(input);
-    closeDialog();
+    return updateBooking(input);
   };
 
   return (
@@ -102,14 +100,8 @@ export default function BookingCalendar() {
         bookingId={selectedBookingIdForPayment}
         payment={editingPayment}
         onClose={closePaymentDialog}
-        onCreate={(input) => {
-          createPayment(input);
-          closePaymentDialog();
-        }}
-        onUpdate={(input) => {
-          updatePayment(input);
-          closePaymentDialog();
-        }}
+        onCreate={(input) => createPayment(input)}
+        onUpdate={(input) => updatePayment(input)}
       />
     </>
   );

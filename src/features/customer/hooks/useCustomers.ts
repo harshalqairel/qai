@@ -8,26 +8,30 @@ import {
   UpdateCustomerInput,
 } from "../types";
 import { customerRepository } from "../api/customerRepository";
-import { CUSTOMER_STORAGE_KEY } from "../constants";
-import { toPersistenceError } from "@/lib/persistence";
-import type { PersistenceErrorCode } from "@/lib/persistence";
 
 export function useCustomers() {
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [persistenceErrorCode, setPersistenceErrorCode] =
-    useState<PersistenceErrorCode | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
-  useEffect(() => {
+  const retry = useCallback(() => {
+    setIsLoading(true);
     try {
-      const loaded = customerRepository.getAll();
-      setCustomers(loaded);
-      setPersistenceErrorCode(null);
-    } catch (error) {
-      setPersistenceErrorCode(toPersistenceError(error, CUSTOMER_STORAGE_KEY).code);
+      setCustomers(customerRepository.getAll());
+      setLoadError(false);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
-  const createCustomer = useCallback((input: CreateCustomerInput): Customer => {
+  useEffect(() => {
+    const timeoutId = window.setTimeout(retry, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [retry]);
+
+  const createCustomer = useCallback((input: CreateCustomerInput): boolean => {
     const newCustomer: Customer = {
       id: crypto.randomUUID(),
       createdAt: Date.now(),
@@ -37,17 +41,15 @@ export function useCustomers() {
     try {
       customerRepository.create(newCustomer);
       setCustomers((prev) => [...prev, newCustomer]);
-      setPersistenceErrorCode(null);
-    } catch (error) {
-      setPersistenceErrorCode(toPersistenceError(error, CUSTOMER_STORAGE_KEY).code);
+      return true;
+    } catch {
+      return false;
     }
-
-    return newCustomer;
   }, []);
 
-  const updateCustomer = useCallback((input: UpdateCustomerInput): void => {
+  const updateCustomer = useCallback((input: UpdateCustomerInput): boolean => {
     const current = customers.find((customer) => customer.id === input.id);
-    if (!current) return;
+    if (!current) return false;
     const updated: Customer = { ...current, ...input };
 
     try {
@@ -55,19 +57,19 @@ export function useCustomers() {
       setCustomers((prev) =>
         prev.map((customer) => (customer.id === updated.id ? updated : customer)),
       );
-      setPersistenceErrorCode(null);
-    } catch (error) {
-      setPersistenceErrorCode(toPersistenceError(error, CUSTOMER_STORAGE_KEY).code);
+      return true;
+    } catch {
+      return false;
     }
   }, [customers]);
 
-  const deleteCustomer = useCallback((id: string): void => {
+  const deleteCustomer = useCallback((id: string): boolean => {
     try {
       customerRepository.delete(id);
       setCustomers((prev) => prev.filter((customer) => customer.id !== id));
-      setPersistenceErrorCode(null);
-    } catch (error) {
-      setPersistenceErrorCode(toPersistenceError(error, CUSTOMER_STORAGE_KEY).code);
+      return true;
+    } catch {
+      return false;
     }
   }, []);
 
@@ -76,6 +78,8 @@ export function useCustomers() {
     createCustomer,
     updateCustomer,
     deleteCustomer,
-    persistenceErrorCode,
+    isLoading,
+    loadError,
+    retry,
   };
 }

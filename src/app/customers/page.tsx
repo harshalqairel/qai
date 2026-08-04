@@ -18,12 +18,18 @@ import { usePayments } from "@/features/payment/hooks/usePayments";
 import { summarizeBookingPayments } from "@/features/payment/utils/paymentCalculations";
 import { useMemo } from "react";
 import { useServices } from "@/features/service/hooks/useServices";
+import PageSkeleton from "@/components/system/PageSkeleton";
+import DataErrorState from "@/components/system/DataErrorState";
 
 export default function CustomersPage() {
-  const { customers, createCustomer, updateCustomer, deleteCustomer } = useCustomers();
-  const { bookings } = useBookings();
-  const { payments } = usePayments();
-  const { services } = useServices();
+  const customerData = useCustomers();
+  const bookingData = useBookings();
+  const paymentData = usePayments();
+  const serviceData = useServices();
+  const { customers, createCustomer, updateCustomer, deleteCustomer } = customerData;
+  const { bookings } = bookingData;
+  const { payments } = paymentData;
+  const { services } = serviceData;
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -94,6 +100,16 @@ export default function CustomersPage() {
       break;
   }
 
+  const isLoading = customerData.isLoading || bookingData.isLoading || paymentData.isLoading || serviceData.isLoading;
+  const loadError = customerData.loadError || bookingData.loadError || paymentData.loadError || serviceData.loadError;
+
+  if (isLoading) return <main className="min-h-screen"><PageSkeleton variant="list" /></main>;
+  if (loadError) return (
+    <main className="min-h-screen"><div className="page-shell"><DataErrorState onRetry={() => {
+      customerData.retry(); bookingData.retry(); paymentData.retry(); serviceData.retry();
+    }} /></div></main>
+  );
+
   return (
     <>
       <main className="min-h-screen">
@@ -131,16 +147,8 @@ export default function CustomersPage() {
           setDialogOpen(false);
           setSelectedCustomer(null);
         }}
-        onCreate={(input: CreateCustomerInput) => {
-          createCustomer(input);
-          setDialogOpen(false);
-          setSelectedCustomer(null);
-        }}
-        onUpdate={(input: UpdateCustomerInput) => {
-          updateCustomer(input);
-          setDialogOpen(false);
-          setSelectedCustomer(null);
-        }}
+        onCreate={(input: CreateCustomerInput) => createCustomer(input)}
+        onUpdate={(input: UpdateCustomerInput) => updateCustomer(input)}
       />
     </>
   );

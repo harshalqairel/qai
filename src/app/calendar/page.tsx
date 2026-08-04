@@ -9,6 +9,8 @@ import { BookingFormValues } from "@/features/booking/schema";
 import { usePayments } from "@/features/payment/hooks/usePayments";
 import { useExpenses } from "@/features/expense/hooks/useExpenses";
 import { useState } from "react";
+import PageSkeleton from "@/components/system/PageSkeleton";
+import DataErrorState from "@/components/system/DataErrorState";
 
 export default function CalendarPage() {
   const {
@@ -29,9 +31,14 @@ export default function CalendarPage() {
     closeDialog,
     createBooking,
     updateBooking,
+    isLoading: calendarLoading,
+    loadError: calendarError,
+    retry: retryCalendar,
   } = useCalendar();
-  const { payments, createPayment, updatePayment, deletePayment } = usePayments();
-  const { expenses } = useExpenses();
+  const paymentData = usePayments();
+  const expenseData = useExpenses();
+  const { payments, createPayment, updatePayment, deletePayment } = paymentData;
+  const { expenses } = expenseData;
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [selectedBookingIdForPayment, setSelectedBookingIdForPayment] = useState<string | null>(null);
   const [editingPayment, setEditingPayment] = useState<import("@/features/payment/types").Payment | null>(null);
@@ -49,18 +56,21 @@ export default function CalendarPage() {
   }
 
   const handleCreate = (input: BookingFormValues) => {
-    createBooking(input);
-    closeDialog();
+    return createBooking(input);
   };
 
   const handleUpdate = (input: BookingFormValues & { id: string }) => {
-    updateBooking(input);
-    closeDialog();
+    return updateBooking(input);
   };
 
   const handleDateClick = (date: string) => {
     openCreateForDate(date);
   };
+
+  if (calendarLoading || paymentData.isLoading || expenseData.isLoading) return <main className="min-h-screen"><PageSkeleton variant="calendar" /></main>;
+  if (calendarError || paymentData.loadError || expenseData.loadError) return (
+    <main className="min-h-screen"><div className="page-shell"><DataErrorState onRetry={() => { retryCalendar(); paymentData.retry(); expenseData.retry(); }} /></div></main>
+  );
 
   return (
     <>
@@ -108,14 +118,8 @@ export default function CalendarPage() {
         bookingId={selectedBookingIdForPayment}
         payment={editingPayment}
         onClose={closePaymentDialog}
-        onCreate={(input) => {
-          createPayment(input);
-          closePaymentDialog();
-        }}
-        onUpdate={(input) => {
-          updatePayment(input);
-          closePaymentDialog();
-        }}
+        onCreate={(input) => createPayment(input)}
+        onUpdate={(input) => updatePayment(input)}
       />
     </>
   );

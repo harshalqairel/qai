@@ -13,14 +13,18 @@ import { Controller } from "react-hook-form";
 import { PAYMENT_METHODS } from "../constants";
 import { paymentSchema, PaymentFormValues } from "../schema";
 import { CreatePaymentInput, Payment, UpdatePaymentInput } from "../types";
+import ActionButton from "@/components/system/ActionButton";
+import { useActionGuard } from "@/hooks/useActionGuard";
+import { notify } from "@/lib/notifications";
+import { XIcon } from "lucide-react";
 
 type PaymentDialogProps = {
   open: boolean;
   bookingId: string | null;
   payment?: Payment | null;
   onClose: () => void;
-  onCreate: (input: CreatePaymentInput) => void;
-  onUpdate?: (input: UpdatePaymentInput) => void;
+  onCreate: (input: CreatePaymentInput) => boolean;
+  onUpdate?: (input: UpdatePaymentInput) => boolean;
 };
 
 const defaultValues: PaymentFormValues = {
@@ -33,8 +37,9 @@ const defaultValues: PaymentFormValues = {
 
 export default function PaymentDialog({ open, bookingId, payment, onClose, onCreate, onUpdate }: PaymentDialogProps) {
   const isEdit = !!payment;
+  const action = useActionGuard();
 
-  const form = useForm<z.input<typeof paymentSchema>, any, PaymentFormValues>({
+  const form = useForm<z.input<typeof paymentSchema>, undefined, PaymentFormValues>({
     resolver: zodResolver(paymentSchema),
     defaultValues,
     mode: "onTouched",
@@ -65,19 +70,22 @@ export default function PaymentDialog({ open, bookingId, payment, onClose, onCre
     onClose();
   }
 
-  function onSubmit(values: PaymentFormValues) {
-    if (isEdit && payment) {
-      onUpdate?.({ id: payment.id, ...values });
-    } else {
-      onCreate(values);
+  async function onSubmit(values: PaymentFormValues) {
+    const succeeded = await action.run(() => isEdit && payment
+      ? onUpdate?.({ id: payment.id, ...values }) ?? false
+      : onCreate(values));
+    if (!succeeded) {
+      notify.error("Could not save the payment. Try again.");
+      return;
     }
+    notify.success(isEdit ? "Payment updated." : "Payment recorded.");
     handleClose();
   }
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={handleClose}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={() => !action.pending && handleClose()}>
       <div className="w-full max-w-lg rounded-xl border border-border bg-white p-6 shadow-xl sm:p-8" onClick={(e) => e.stopPropagation()}>
         <div className="mb-6 flex items-center justify-between">
           <div>
@@ -86,8 +94,8 @@ export default function PaymentDialog({ open, bookingId, payment, onClose, onCre
               {isEdit ? "Update this payment transaction." : "Record one payment transaction."}
             </p>
           </div>
-          <Button type="button" variant="ghost" size="icon" onClick={handleClose}>
-            ✕
+          <Button type="button" variant="ghost" size="icon" disabled={action.pending} onClick={handleClose} aria-label="Close payment form">
+            <XIcon className="size-5" aria-hidden="true" />
           </Button>
         </div>
 
@@ -132,10 +140,10 @@ export default function PaymentDialog({ open, bookingId, payment, onClose, onCre
           </div>
 
           <div className="mt-8 flex justify-end gap-3">
-            <Button type="button" variant="outline" onClick={handleClose}>
+            <Button type="button" variant="outline" disabled={action.pending} onClick={handleClose}>
               Cancel
             </Button>
-            <Button type="submit">{isEdit ? "Update Payment" : "Save Payment"}</Button>
+            <ActionButton type="submit" loading={action.pending} loadingText={isEdit ? "Updating…" : "Saving…"}>{isEdit ? "Update Payment" : "Save Payment"}</ActionButton>
           </div>
         </form>
       </div>

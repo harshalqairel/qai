@@ -1,5 +1,6 @@
 import { Expense } from "@/features/expense/types";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
+import DeleteAction from "@/components/system/DeleteAction";
 
 export type ExpenseBookingDetails = {
   customerName: string;
@@ -14,7 +15,7 @@ type ExpenseCardProps = {
   categoryName: string;
   bookingDetails?: ExpenseBookingDetails | null;
   onEdit: (expense: Expense) => void;
-  onDelete: (expense: Expense) => void;
+  onDelete: (expense: Expense) => boolean;
 };
 
 function formatDate(date: string) {
@@ -110,13 +111,12 @@ export default function ExpenseCard({
         >
           Edit
         </button>
-        <button
-          type="button"
-          onClick={() => onDelete(expense)}
-          className="min-h-10 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-[var(--status-error)] transition-colors hover:bg-red-50"
-        >
-          Delete
-        </button>
+        <DeleteAction
+          itemName="this expense"
+          onConfirm={() => onDelete(expense)}
+          successMessage="Expense deleted."
+          errorMessage="Could not delete the expense. Try again."
+        />
       </div>
     </article>
   );

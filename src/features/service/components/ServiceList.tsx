@@ -1,11 +1,13 @@
 import { Service } from "@/features/service/types";
 import ServiceCard from "./ServiceCard";
+import EmptyState from "@/components/system/EmptyState";
+import { BriefcaseBusiness } from "lucide-react";
 
 type ServiceListProps = {
   services: Service[];
   getCategoryName: (categoryId: string) => string;
   onEdit: (service: Service) => void;
-  onDelete: (service: Service) => void;
+  onDelete: (service: Service) => boolean;
 };
 
 export default function ServiceList({
@@ -15,17 +17,7 @@ export default function ServiceList({
   onDelete,
 }: ServiceListProps) {
   if (services.length === 0) {
-    return (
-      <div className="empty-state">
-        <h3 className="text-xl font-semibold text-zinc-800">
-          No services yet
-        </h3>
-
-        <p className="mt-2 text-zinc-500">
-          Click <strong>Add Service</strong> to create your first service.
-        </p>
-      </div>
-    );
+    return <EmptyState icon={BriefcaseBusiness} title="No services yet." description="Add a service when you are ready." />;
   }
 
   return (

@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +14,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -22,6 +33,8 @@ import {
 import { CATEGORY_COLORS, DEFAULT_CATEGORY_COLOR } from "../constants";
 import { normalizeCategoryName } from "../utils";
 import type { BaseCategory, CategoryInput } from "../types";
+import DataErrorState from "@/components/system/DataErrorState";
+import { notify } from "@/lib/notifications";
 
 type CategoryManagerProps<T extends BaseCategory> = {
   title: string;
@@ -34,6 +47,7 @@ type CategoryManagerProps<T extends BaseCategory> = {
   onSetActive: (id: string, active: boolean) => void;
   onDelete: (id: string, replacementId?: string) => void;
   loadError?: string;
+  onRetry: () => void;
 };
 
 export default function CategoryManager<T extends BaseCategory>({
@@ -47,6 +61,7 @@ export default function CategoryManager<T extends BaseCategory>({
   onSetActive,
   onDelete,
   loadError,
+  onRetry,
 }: CategoryManagerProps<T>) {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<T | null>(null);
@@ -56,6 +71,11 @@ export default function CategoryManager<T extends BaseCategory>({
   const [actionError, setActionError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<T | null>(null);
   const [replacementId, setReplacementId] = useState("");
+  const [pendingAction, setPendingAction] = useState<{
+    kind: "saving" | "hiding" | "showing" | "deleting" | "moving";
+    categoryId?: string;
+  } | null>(null);
+  const actionLocked = useRef(false);
 
   const usageCount = deleteTarget ? usageCounts[deleteTarget.id] ?? 0 : 0;
   const replacements = useMemo(
@@ -82,6 +102,7 @@ export default function CategoryManager<T extends BaseCategory>({
   }
 
   function saveCategory() {
+    if (actionLocked.current) return;
     const trimmed = name.trim();
     if (!trimmed) {
       setNameError("Enter a category name.");
@@ -98,36 +119,61 @@ export default function CategoryManager<T extends BaseCategory>({
     }
 
     try {
-      if (editing) onUpdate(editing.id, { name: trimmed, color });
-      else onCreate({ name: trimmed, color });
+      actionLocked.current = true;
+      setPendingAction({ kind: "saving", categoryId: editing?.id });
+      if (editing) {
+        onUpdate(editing.id, { name: trimmed, color });
+        notify.success("Category updated.");
+      } else {
+        onCreate({ name: trimmed, color });
+        notify.success("Category added.");
+      }
       setFormOpen(false);
     } catch {
-      setActionError("Could not save. Try again.");
+      notify.error("Could not save the category. Try again.");
+    } finally {
+      actionLocked.current = false;
+      setPendingAction(null);
     }
   }
 
   function confirmDelete() {
+    if (actionLocked.current) return;
     if (!deleteTarget) return;
     if (usageCount > 0 && !replacementId) {
       setActionError("Choose another active category.");
       return;
     }
     try {
+      actionLocked.current = true;
+      setPendingAction({ kind: usageCount > 0 ? "moving" : "deleting", categoryId: deleteTarget.id });
       onDelete(deleteTarget.id, usageCount > 0 ? replacementId : undefined);
+      notify.success(usageCount > 0 ? "Records moved and category deleted." : "Category deleted.");
       setDeleteTarget(null);
       setReplacementId("");
       setActionError("");
     } catch {
-      setActionError("Could not update these records. Try again.");
+      notify.error(usageCount > 0 ? "Could not move the records. Try again." : "Could not delete the category. Try again.");
+    } finally {
+      actionLocked.current = false;
+      setPendingAction(null);
     }
   }
 
   function toggleCategory(category: T) {
+    if (actionLocked.current) return;
     try {
-      onSetActive(category.id, !category.active);
+      actionLocked.current = true;
+      const nextActive = !category.active;
+      setPendingAction({ kind: nextActive ? "showing" : "hiding", categoryId: category.id });
+      onSetActive(category.id, nextActive);
+      notify.success(nextActive ? "Category shown again." : "Category hidden.");
       setActionError("");
     } catch {
-      setActionError("Could not update this category. Try again.");
+      notify.error("Could not save the category. Try again.");
+    } finally {
+      actionLocked.current = false;
+      setPendingAction(null);
     }
   }
 
@@ -138,22 +184,21 @@ export default function CategoryManager<T extends BaseCategory>({
           <h2 className="text-lg font-bold tracking-tight text-foreground">{title}</h2>
           <p className="mt-1 text-sm text-muted-foreground">{description}</p>
         </div>
-        <Button onClick={openCreate}>Add category</Button>
+        <Button disabled={Boolean(loadError)} onClick={openCreate}>Add category</Button>
       </div>
 
-      {loadError && (
-        <div className="alert-tone alert-tone-error m-5" role="alert">{loadError}</div>
-      )}
+      {loadError && <div className="m-5"><DataErrorState onRetry={onRetry} /></div>}
       {actionError && !formOpen && !deleteTarget && (
         <div className="alert-tone alert-tone-error m-5" role="alert">{actionError}</div>
       )}
 
-      {categories.length === 0 ? (
-        <div className="p-8 text-center text-sm text-muted-foreground">No categories yet.</div>
+      {!loadError && (categories.length === 0 ? (
+        <div className="p-8 text-center text-sm text-muted-foreground">No {recordName} categories yet.</div>
       ) : (
         <div className="divide-y divide-border">
           {categories.map((category) => {
             const count = usageCounts[category.id] ?? 0;
+            const rowPending = pendingAction?.categoryId === category.id;
             return (
               <article key={category.id} className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <div className="flex min-w-0 items-start gap-3">
@@ -175,17 +220,19 @@ export default function CategoryManager<T extends BaseCategory>({
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 sm:justify-end">
-                  <Button variant="outline" size="sm" onClick={() => openEdit(category)}>Edit</Button>
+                  <Button variant="outline" size="sm" disabled={rowPending} onClick={() => openEdit(category)}>Edit</Button>
                   <Button
                     variant="outline"
                     size="sm"
+                    disabled={rowPending}
                     onClick={() => toggleCategory(category)}
                   >
-                    {category.active ? "Hide" : "Show again"}
+                    {rowPending && pendingAction?.kind === "hiding" ? "Hiding…" : rowPending && pendingAction?.kind === "showing" ? "Showing…" : category.active ? "Hide" : "Show again"}
                   </Button>
                   <Button
                     variant="destructive"
                     size="sm"
+                    disabled={rowPending}
                     onClick={() => {
                       setDeleteTarget(category);
                       setReplacementId("");
@@ -199,7 +246,7 @@ export default function CategoryManager<T extends BaseCategory>({
             );
           })}
         </div>
-      )}
+      ))}
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent>
@@ -242,22 +289,34 @@ export default function CategoryManager<T extends BaseCategory>({
             {actionError && <p className="text-sm text-destructive">{actionError}</p>}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setFormOpen(false)}>Cancel</Button>
-            <Button onClick={saveCategory}>{editing ? "Save changes" : "Add category"}</Button>
+            <Button variant="outline" disabled={pendingAction !== null} onClick={() => setFormOpen(false)}>Cancel</Button>
+            <Button disabled={pendingAction !== null} onClick={saveCategory}>
+              {pendingAction?.kind === "saving" && <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
+              {pendingAction?.kind === "saving" ? (editing ? "Updating…" : "Saving…") : editing ? "Save changes" : "Add category"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete this category?</DialogTitle>
-            <DialogDescription>
+      <AlertDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteTarget(null);
+            setReplacementId("");
+            setActionError("");
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this category?</AlertDialogTitle>
+            <AlertDialogDescription>
               {usageCount === 0
                 ? "This cannot be undone."
                 : `This category is used by ${usageCount} ${recordName}${usageCount === 1 ? "" : "s"}.`}
-            </DialogDescription>
-          </DialogHeader>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
           {usageCount > 0 && (
             <div>
               <Label className="mb-2">Move records to</Label>
@@ -278,14 +337,15 @@ export default function CategoryManager<T extends BaseCategory>({
             </div>
           )}
           {actionError && <p className="text-sm text-destructive">{actionError}</p>}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={confirmDelete}>
-              {usageCount > 0 ? "Move and delete" : "Delete"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={pendingAction !== null}>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" disabled={pendingAction !== null} onClick={confirmDelete}>
+              {(pendingAction?.kind === "moving" || pendingAction?.kind === "deleting") && <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
+              {pendingAction?.kind === "moving" ? "Moving…" : pendingAction?.kind === "deleting" ? "Deleting…" : usageCount > 0 ? "Move and delete" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }

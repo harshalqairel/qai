@@ -14,6 +14,8 @@ import { usePayments } from "@/features/payment/hooks/usePayments";
 import { Payment } from "@/features/payment/types";
 import { useExpenses } from "@/features/expense/hooks/useExpenses";
 import { summarizeBookingPayments } from "@/features/payment/utils/paymentCalculations";
+import PageSkeleton from "@/components/system/PageSkeleton";
+import DataErrorState from "@/components/system/DataErrorState";
 
 type BookingWithNames = Booking & {
   customerName: string;
@@ -24,11 +26,16 @@ type BookingWithNames = Booking & {
 };
 
 export default function BookingsPage() {
-  const { bookings, createBooking, updateBooking, deleteBooking } = useBookings();
-  const { customers } = useCustomers();
-  const { services } = useServices();
-  const { payments, createPayment, updatePayment, deletePayment } = usePayments();
-  const { expenses } = useExpenses();
+  const bookingData = useBookings();
+  const customerData = useCustomers();
+  const serviceData = useServices();
+  const paymentData = usePayments();
+  const expenseData = useExpenses();
+  const { bookings, createBooking, updateBooking, deleteBooking } = bookingData;
+  const { customers } = customerData;
+  const { services } = serviceData;
+  const { payments, createPayment, updatePayment, deletePayment } = paymentData;
+  const { expenses } = expenseData;
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
@@ -103,6 +110,12 @@ export default function BookingsPage() {
     setEditingPayment(null);
   }
 
+  const dataSources = [bookingData, customerData, serviceData, paymentData, expenseData];
+  if (dataSources.some((source) => source.isLoading)) return <main className="min-h-screen"><PageSkeleton variant="list" /></main>;
+  if (dataSources.some((source) => source.loadError)) return (
+    <main className="min-h-screen"><div className="page-shell"><DataErrorState onRetry={() => dataSources.forEach((source) => source.retry())} /></div></main>
+  );
+
   return (
     <>
       <main className="min-h-screen">
@@ -147,16 +160,8 @@ export default function BookingsPage() {
           setDialogOpen(false);
           setSelectedBooking(null);
         }}
-        onCreate={(input: CreateBookingInput) => {
-          createBooking(input);
-          setDialogOpen(false);
-          setSelectedBooking(null);
-        }}
-        onUpdate={(input: UpdateBookingInput) => {
-          updateBooking(input);
-          setDialogOpen(false);
-          setSelectedBooking(null);
-        }}
+        onCreate={(input: CreateBookingInput) => createBooking(input)}
+        onUpdate={(input: UpdateBookingInput) => updateBooking(input)}
         onAddPaymentClick={(bookingId) => openPaymentDialog(bookingId)}
         onEditPaymentClick={(payment) => openPaymentDialog(payment.bookingId, payment)}
         onDeletePayment={(id) => deletePayment(id)}
@@ -167,14 +172,8 @@ export default function BookingsPage() {
         bookingId={selectedBookingIdForPayment}
         payment={editingPayment}
         onClose={closePaymentDialog}
-        onCreate={(input) => {
-          createPayment(input);
-          closePaymentDialog();
-        }}
-        onUpdate={(input) => {
-          updatePayment(input);
-          closePaymentDialog();
-        }}
+        onCreate={(input) => createPayment(input)}
+        onUpdate={(input) => updatePayment(input)}
       />
     </>
   );

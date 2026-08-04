@@ -57,13 +57,20 @@ type UseDashboardArgs = {
 };
 
 export function useDashboard({ selectedYear }: UseDashboardArgs) {
-  const { bookings } = useBookings();
-  const { customers } = useCustomers();
-  const { services } = useServices();
-  const { categories: serviceCategories } = useServiceCategories();
-  const { payments } = usePayments();
-  const { expenses } = useExpenses();
-  const { categories: expenseCategories } = useExpenseCategories();
+  const bookingData = useBookings();
+  const customerData = useCustomers();
+  const serviceData = useServices();
+  const serviceCategoryData = useServiceCategories();
+  const paymentData = usePayments();
+  const expenseData = useExpenses();
+  const expenseCategoryData = useExpenseCategories();
+  const { bookings } = bookingData;
+  const { customers } = customerData;
+  const { services } = serviceData;
+  const { categories: serviceCategories } = serviceCategoryData;
+  const { payments } = paymentData;
+  const { expenses } = expenseData;
+  const { categories: expenseCategories } = expenseCategoryData;
 
   const todayKey = useMemo(() => {
     const today = new Date();
@@ -245,5 +252,12 @@ export function useDashboard({ selectedYear }: UseDashboardArgs) {
     revenueSeries,
     incomeByCategory,
     expenseByCategory,
+    isLoading: bookingData.isLoading || customerData.isLoading || serviceData.isLoading || serviceCategoryData.isLoading || paymentData.isLoading || expenseData.isLoading || expenseCategoryData.isLoading,
+    loadError: bookingData.loadError || customerData.loadError || serviceData.loadError || serviceCategoryData.loadError || paymentData.loadError || expenseData.loadError || expenseCategoryData.loadError,
+    hasData: bookings.length > 0 || payments.length > 0 || expenses.length > 0,
+    retry: () => {
+      bookingData.retry(); customerData.retry(); serviceData.retry(); serviceCategoryData.retry();
+      paymentData.retry(); expenseData.retry(); expenseCategoryData.retry();
+    },
   };
 }

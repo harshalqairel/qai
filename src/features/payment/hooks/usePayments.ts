@@ -3,25 +3,30 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { paymentRepository } from "../api/paymentRepository";
 import { CreatePaymentInput, Payment, UpdatePaymentInput } from "../types";
-import { PAYMENT_STORAGE_KEY } from "../constants";
-import { toPersistenceError } from "@/lib/persistence";
-import type { PersistenceErrorCode } from "@/lib/persistence";
 
 export function usePayments() {
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [persistenceErrorCode, setPersistenceErrorCode] =
-    useState<PersistenceErrorCode | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
-  useEffect(() => {
+  const retry = useCallback(() => {
+    setIsLoading(true);
     try {
       setPayments(paymentRepository.getAll());
-      setPersistenceErrorCode(null);
-    } catch (error) {
-      setPersistenceErrorCode(toPersistenceError(error, PAYMENT_STORAGE_KEY).code);
+      setLoadError(false);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
-  const createPayment = useCallback((input: CreatePaymentInput): Payment => {
+  useEffect(() => {
+    const timeoutId = window.setTimeout(retry, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [retry]);
+
+  const createPayment = useCallback((input: CreatePaymentInput): boolean => {
     const payment: Payment = {
       id: crypto.randomUUID(),
       createdAt: Date.now(),
@@ -31,17 +36,15 @@ export function usePayments() {
     try {
       paymentRepository.create(payment);
       setPayments((prev) => [...prev, payment]);
-      setPersistenceErrorCode(null);
-    } catch (error) {
-      setPersistenceErrorCode(toPersistenceError(error, PAYMENT_STORAGE_KEY).code);
+      return true;
+    } catch {
+      return false;
     }
-
-    return payment;
   }, []);
 
-  const updatePayment = useCallback((input: UpdatePaymentInput): void => {
+  const updatePayment = useCallback((input: UpdatePaymentInput): boolean => {
     const current = payments.find((payment) => payment.id === input.id);
-    if (!current) return;
+    if (!current) return false;
     const updated: Payment = { ...current, ...input };
 
     try {
@@ -49,19 +52,19 @@ export function usePayments() {
       setPayments((prev) =>
         prev.map((payment) => (payment.id === updated.id ? updated : payment)),
       );
-      setPersistenceErrorCode(null);
-    } catch (error) {
-      setPersistenceErrorCode(toPersistenceError(error, PAYMENT_STORAGE_KEY).code);
+      return true;
+    } catch {
+      return false;
     }
   }, [payments]);
 
-  const deletePayment = useCallback((id: string): void => {
+  const deletePayment = useCallback((id: string): boolean => {
     try {
       paymentRepository.delete(id);
       setPayments((prev) => prev.filter((payment) => payment.id !== id));
-      setPersistenceErrorCode(null);
-    } catch (error) {
-      setPersistenceErrorCode(toPersistenceError(error, PAYMENT_STORAGE_KEY).code);
+      return true;
+    } catch {
+      return false;
     }
   }, []);
 
@@ -81,6 +84,8 @@ export function usePayments() {
     createPayment,
     updatePayment,
     deletePayment,
-    persistenceErrorCode,
+    isLoading,
+    loadError,
+    retry,
   };
 }

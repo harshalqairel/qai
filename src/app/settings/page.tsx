@@ -6,6 +6,8 @@ import CategoryManager from "@/features/category/components/CategoryManager";
 import { useServiceCategories } from "@/features/service-category/hooks/useServiceCategories";
 import { useExpenseCategories } from "@/features/expense-category/hooks/useExpenseCategories";
 import { CalendarDays, CircleUserRound, CreditCard, Info, Bell, Link2, ReceiptText, Tags, WalletCards } from "lucide-react";
+import PageSkeleton from "@/components/system/PageSkeleton";
+import { QaiLogo } from "@/components/brand/QaiLogo";
 
 const SECTIONS = [
   { id: "business-profile", label: "Business Profile", Icon: CircleUserRound },
@@ -34,6 +36,10 @@ export default function SettingsPage() {
   const [section, setSection] = useState<SectionId>("business-profile");
   const serviceCategories = useServiceCategories();
   const expenseCategories = useExpenseCategories();
+
+  if (serviceCategories.isLoading || expenseCategories.isLoading) {
+    return <main className="min-h-screen"><PageSkeleton variant="settings" /></main>;
+  }
 
   return (
     <main className="min-h-screen">
@@ -93,6 +99,7 @@ export default function SettingsPage() {
                 onSetActive={serviceCategories.setCategoryActive}
                 onDelete={serviceCategories.deleteCategory}
                 loadError={serviceCategories.loadError}
+                onRetry={serviceCategories.retry}
               />
             )}
             {section === "expense-categories" && (
@@ -107,6 +114,7 @@ export default function SettingsPage() {
                 onSetActive={expenseCategories.setCategoryActive}
                 onDelete={expenseCategories.deleteCategory}
                 loadError={expenseCategories.loadError}
+                onRetry={expenseCategories.retry}
               />
             )}
             {section === "payment-terms" && (
@@ -149,7 +157,8 @@ export default function SettingsPage() {
             )}
             {section === "about" && (
               <section className="surface-card p-5 sm:p-6">
-                <h2 className="text-lg font-bold tracking-tight">About Qai</h2>
+                <QaiLogo size="md" />
+                <h2 className="mt-5 text-lg font-bold tracking-tight">About Qai</h2>
                 <dl className="mt-5 grid gap-5 text-sm sm:grid-cols-[140px_1fr]">
                   <div className="contents">
                     <dt className="font-semibold text-foreground">Product</dt>

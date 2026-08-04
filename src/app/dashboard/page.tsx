@@ -10,6 +10,10 @@ import IncomeByCategory from "@/features/dashboard/components/IncomeByCategory";
 import ExpenseByCategory from "@/features/dashboard/components/ExpenseByCategory";
 import PaymentDueList from "@/features/dashboard/components/PaymentDueList";
 import { useDashboard } from "@/features/dashboard/hooks/useDashboard";
+import PageSkeleton from "@/components/system/PageSkeleton";
+import DataErrorState from "@/components/system/DataErrorState";
+import EmptyState from "@/components/system/EmptyState";
+import { BarChart3 } from "lucide-react";
 
 const CARD_CLASS =
   "surface-card min-w-0 p-5 sm:p-6";
@@ -18,10 +22,18 @@ export default function DashboardPage() {
   const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
   const dashboard = useDashboard({ selectedYear });
 
+  if (dashboard.isLoading) return <main className="min-h-screen"><PageSkeleton variant="dashboard" /></main>;
+  if (dashboard.loadError) return <main className="min-h-screen"><div className="page-shell"><DataErrorState onRetry={dashboard.retry} /></div></main>;
+
   return (
     <main className="dashboard-theme min-h-screen overflow-x-hidden bg-[var(--dashboard-bg)]">
       <div className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:space-y-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
         <DashboardHeader selectedYear={selectedYear} onYearChange={setSelectedYear} />
+
+        {!dashboard.hasData ? (
+          <EmptyState icon={BarChart3} title="No data yet." description="Add a booking, payment, or expense to start seeing your business summary." />
+        ) : (
+          <>
 
         <KPIGrid metrics={dashboard.metrics} />
 
@@ -37,7 +49,7 @@ export default function DashboardPage() {
             <PaymentDueList
               title="Payments Due Soon"
               description="The next unpaid amounts coming due."
-              emptyMessage="No upcoming payments are due."
+              emptyMessage="No payments due soon."
               items={dashboard.paymentsDueSoon}
             />
           </div>
@@ -66,6 +78,8 @@ export default function DashboardPage() {
             <ExpenseByCategory items={dashboard.expenseByCategory} />
           </div>
         </div>
+          </>
+        )}
       </div>
     </main>
   );

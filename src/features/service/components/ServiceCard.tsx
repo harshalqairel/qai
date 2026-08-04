@@ -1,10 +1,11 @@
 import { Service } from "@/features/service/types";
+import DeleteAction from "@/components/system/DeleteAction";
 
 type ServiceCardProps = {
   service: Service;
   categoryName: string;
   onEdit: (service: Service) => void;
-  onDelete: (service: Service) => void;
+  onDelete: (service: Service) => boolean;
 };
 
 export default function ServiceCard({
@@ -93,23 +94,12 @@ export default function ServiceCard({
           Edit
         </button>
 
-        <button
-          onClick={() => onDelete(service)}
-          className="
-          min-h-10 rounded-lg
-          border
-          border-red-300
-          bg-white
-          px-4
-          py-2
-          font-semibold
-          text-red-600
-          transition
-          hover:bg-red-50
-          "
-        >
-          Delete
-        </button>
+        <DeleteAction
+          itemName="this service"
+          onConfirm={() => onDelete(service)}
+          successMessage="Service deleted."
+          errorMessage="Could not delete the service. Try again."
+        />
       </div>
     </div>
   );

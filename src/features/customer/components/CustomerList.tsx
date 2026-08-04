@@ -1,5 +1,7 @@
 import { Customer } from "@/features/customer/types";
 import CustomerCard from "./CustomerCard";
+import EmptyState from "@/components/system/EmptyState";
+import { Users } from "lucide-react";
 
 type CustomerWithStats = Customer & {
   bookingsCount: number;
@@ -11,7 +13,7 @@ type CustomerWithStats = Customer & {
 type CustomerListProps = {
   customers: CustomerWithStats[];
   onEdit: (customer: CustomerWithStats) => void;
-  onDelete: (customer: CustomerWithStats) => void;
+  onDelete: (customer: CustomerWithStats) => boolean;
 };
 
 export default function CustomerList({
@@ -20,15 +22,7 @@ export default function CustomerList({
   onDelete,
 }: CustomerListProps) {
   if (customers.length === 0) {
-    return (
-      <div className="empty-state">
-        <h3 className="text-xl font-semibold text-zinc-800">No customers yet</h3>
-
-        <p className="mt-2 text-zinc-500">
-          Click <strong>Add Customer</strong> to add your first customer.
-        </p>
-      </div>
-    );
+    return <EmptyState icon={Users} title="No customers yet." description="Add a customer when you are ready." />;
   }
 
   return (

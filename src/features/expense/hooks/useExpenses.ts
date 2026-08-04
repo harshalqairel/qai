@@ -3,25 +3,30 @@
 import { useCallback, useEffect, useState } from "react";
 import { Expense, CreateExpenseInput, UpdateExpenseInput } from "../types";
 import { expenseRepository } from "../api/expenseRepository";
-import { EXPENSE_STORAGE_KEY } from "../constants";
-import { toPersistenceError } from "@/lib/persistence";
-import type { PersistenceErrorCode } from "@/lib/persistence";
 
 export function useExpenses() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [persistenceErrorCode, setPersistenceErrorCode] =
-    useState<PersistenceErrorCode | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
-  useEffect(() => {
+  const retry = useCallback(() => {
+    setIsLoading(true);
     try {
       setExpenses(expenseRepository.getAll());
-      setPersistenceErrorCode(null);
-    } catch (error) {
-      setPersistenceErrorCode(toPersistenceError(error, EXPENSE_STORAGE_KEY).code);
+      setLoadError(false);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
-  const createExpense = useCallback((input: CreateExpenseInput): Expense => {
+  useEffect(() => {
+    const timeoutId = window.setTimeout(retry, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [retry]);
+
+  const createExpense = useCallback((input: CreateExpenseInput): boolean => {
     const now = Date.now();
     const expense: Expense = {
       id: crypto.randomUUID(),
@@ -33,17 +38,15 @@ export function useExpenses() {
     try {
       expenseRepository.create(expense);
       setExpenses((prev) => [...prev, expense]);
-      setPersistenceErrorCode(null);
-    } catch (error) {
-      setPersistenceErrorCode(toPersistenceError(error, EXPENSE_STORAGE_KEY).code);
+      return true;
+    } catch {
+      return false;
     }
-
-    return expense;
   }, []);
 
-  const updateExpense = useCallback((input: UpdateExpenseInput): void => {
+  const updateExpense = useCallback((input: UpdateExpenseInput): boolean => {
     const current = expenses.find((expense) => expense.id === input.id);
-    if (!current) return;
+    if (!current) return false;
     const updated: Expense = { ...current, ...input, updatedAt: Date.now() };
 
     try {
@@ -51,19 +54,19 @@ export function useExpenses() {
       setExpenses((prev) =>
         prev.map((expense) => (expense.id === updated.id ? updated : expense)),
       );
-      setPersistenceErrorCode(null);
-    } catch (error) {
-      setPersistenceErrorCode(toPersistenceError(error, EXPENSE_STORAGE_KEY).code);
+      return true;
+    } catch {
+      return false;
     }
   }, [expenses]);
 
-  const deleteExpense = useCallback((id: string): void => {
+  const deleteExpense = useCallback((id: string): boolean => {
     try {
       expenseRepository.delete(id);
       setExpenses((prev) => prev.filter((expense) => expense.id !== id));
-      setPersistenceErrorCode(null);
-    } catch (error) {
-      setPersistenceErrorCode(toPersistenceError(error, EXPENSE_STORAGE_KEY).code);
+      return true;
+    } catch {
+      return false;
     }
   }, []);
 
@@ -72,6 +75,8 @@ export function useExpenses() {
     createExpense,
     updateExpense,
     deleteExpense,
-    persistenceErrorCode,
+    isLoading,
+    loadError,
+    retry,
   };
 }

@@ -10,10 +10,14 @@ import ServiceDialog from "@/features/service/components/ServiceDialog";
 import { Service, CreateServiceInput } from "@/features/service/types";
 import { useServices } from "@/features/service/hooks/useServices";
 import { useServiceCategories } from "@/features/service-category/hooks/useServiceCategories";
+import PageSkeleton from "@/components/system/PageSkeleton";
+import DataErrorState from "@/components/system/DataErrorState";
 
 export default function ServicesPage() {
-  const { services, createService, updateService, deleteService } = useServices();
-  const { categories } = useServiceCategories();
+  const serviceData = useServices();
+  const categoryData = useServiceCategories();
+  const { services, createService, updateService, deleteService } = serviceData;
+  const { categories } = categoryData;
 
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -71,6 +75,11 @@ export default function ServicesPage() {
     break;
   }
 
+  if (serviceData.isLoading || categoryData.isLoading) return <main className="min-h-screen"><PageSkeleton variant="list" /></main>;
+  if (serviceData.loadError || categoryData.loadError) return (
+    <main className="min-h-screen"><div className="page-shell"><DataErrorState onRetry={() => { serviceData.retry(); categoryData.retry(); }} /></div></main>
+  );
+
   return (
     <>
       <main className="min-h-screen">
@@ -123,17 +132,9 @@ export default function ServicesPage() {
             description: service.description,
           };
 
-          createService(input);
-
-          setDialogOpen(false);
-          setSelectedService(null);
+          return createService(input);
         }}
-        onUpdate={(updated: Service) => {
-          updateService(updated);
-
-          setDialogOpen(false);
-          setSelectedService(null);
-        }}
+        onUpdate={(updated: Service) => updateService(updated)}
       />
     </>
   );

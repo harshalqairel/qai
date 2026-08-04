@@ -1,13 +1,18 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { cn } from "@/lib/utils";
+import AppStartup from "@/components/system/AppStartup";
+import { Toaster } from "@/components/ui/sonner";
+import Sidebar from "@/components/Sidebar";
 
 export const metadata: Metadata = {
-  title: "Qai Business OS",
-  description: "A simple business workspace for independent service professionals.",
+  title: "Qai",
+  description: "A simple business tool for bookings, customers, payments, and expenses.",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+  },
 };
-
-import Sidebar from "@/components/Sidebar";
 
 export default function RootLayout({
   children,
@@ -22,8 +27,9 @@ export default function RootLayout({
       <body className="flex min-h-full bg-background">
         <Sidebar />
         <div className="app-canvas min-w-0 flex-1 pt-14 lg:pt-0">
-          {children}
+          <AppStartup>{children}</AppStartup>
         </div>
+        <Toaster position="top-right" closeButton />
       </body>
     </html>
   );

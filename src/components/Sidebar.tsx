@@ -14,6 +14,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { QaiLogo } from "@/components/brand/QaiLogo";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
@@ -28,10 +29,8 @@ const NAV = [
 function Brand() {
   return (
     <div>
-      <div className="text-xl font-bold tracking-tight text-foreground">
-        Qai
-      </div>
-      <div className="mt-0.5 text-xs text-muted-foreground">Your business notebook</div>
+      <QaiLogo size="md" />
+      <div className="mt-1 text-xs text-muted-foreground">Creative business manager</div>
     </div>
   );
 }
@@ -69,7 +68,7 @@ export default function Sidebar() {
   return (
     <>
       <header className="fixed inset-x-0 top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-card/95 px-4 backdrop-blur lg:hidden">
-        <div className="text-lg font-bold tracking-tight text-foreground">Qai</div>
+        <QaiLogo size="sm" />
         <button
           type="button"
           aria-label="Open menu"

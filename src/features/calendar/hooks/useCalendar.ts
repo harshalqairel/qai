@@ -22,14 +22,13 @@ const DEFAULT_BOOKING_VALUES: BookingFormValues = {
   notes: "",
 };
 
-function toDateKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
 export function useCalendar() {
-  const { bookings, createBooking, updateBooking, deleteBooking } = useBookings();
-  const { customers } = useCustomers();
-  const { services } = useServices();
+  const bookingData = useBookings();
+  const customerData = useCustomers();
+  const serviceData = useServices();
+  const { bookings, createBooking, updateBooking, deleteBooking } = bookingData;
+  const { customers } = customerData;
+  const { services } = serviceData;
 
   const [view, setView] = useState<CalendarView>(calendarRepository.getDefaultView());
   const [activeDate, setActiveDate] = useState<Date>(() => new Date());
@@ -121,5 +120,12 @@ export function useCalendar() {
     createBooking,
     updateBooking,
     deleteBooking,
+    isLoading: bookingData.isLoading || customerData.isLoading || serviceData.isLoading,
+    loadError: bookingData.loadError || customerData.loadError || serviceData.loadError,
+    retry: () => {
+      bookingData.retry();
+      customerData.retry();
+      serviceData.retry();
+    },
   };
 }

@@ -10,13 +10,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import ActionButton from "@/components/system/ActionButton";
+import { useActionGuard } from "@/hooks/useActionGuard";
+import { notify } from "@/lib/notifications";
+import { XIcon } from "lucide-react";
 
 type CustomerDialogProps = {
   open: boolean;
   customer: Customer | null;
   onClose: () => void;
-  onCreate: (input: CreateCustomerInput) => void;
-  onUpdate: (input: UpdateCustomerInput) => void;
+  onCreate: (input: CreateCustomerInput) => boolean;
+  onUpdate: (input: UpdateCustomerInput) => boolean;
 };
 
 const defaultValues: CustomerFormValues = {
@@ -34,6 +38,7 @@ export default function CustomerDialog({
   onCreate,
   onUpdate,
 }: CustomerDialogProps) {
+  const action = useActionGuard();
   const form = useForm<CustomerFormValues>({
     resolver: zodResolver(customerSchema),
     defaultValues,
@@ -64,17 +69,29 @@ export default function CustomerDialog({
     onClose();
   }
 
-  function onSubmit(values: CustomerFormValues) {
+  async function onSubmit(values: CustomerFormValues) {
     if (customer) {
       const updateInput: UpdateCustomerInput = {
         id: customer.id,
         ...values,
       };
-      onUpdate(updateInput);
+      const succeeded = await action.run(() => onUpdate(updateInput));
+      if (!succeeded) {
+        notify.error("Could not save the customer. Try again.");
+        return;
+      }
+      notify.success("Customer updated.");
+      handleClose();
       return;
     }
 
-    onCreate(values);
+    const succeeded = await action.run(() => onCreate(values));
+    if (!succeeded) {
+      notify.error("Could not save the customer. Try again.");
+      return;
+    }
+    notify.success("Customer added.");
+    handleClose();
   }
 
   if (!open) {
@@ -84,7 +101,7 @@ export default function CustomerDialog({
   return (
     <div
       className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm"
-      onClick={handleClose}
+      onClick={() => !action.pending && handleClose()}
     >
       <div
         className="h-dvh w-full max-w-xl overflow-y-auto border-l border-border bg-white p-5 shadow-xl sm:p-8"
@@ -101,16 +118,13 @@ export default function CustomerDialog({
             </p>
           </div>
 
-          <Button type="button" variant="ghost" size="icon" onClick={handleClose}>
-            ✕
+          <Button type="button" variant="ghost" size="icon" disabled={action.pending} onClick={handleClose} aria-label="Close customer form">
+            <XIcon className="size-5" aria-hidden="true" />
           </Button>
         </div>
 
         <form
-          onSubmit={form.handleSubmit((values) => {
-            onSubmit(values);
-            form.reset(defaultValues);
-          })}
+          onSubmit={form.handleSubmit(onSubmit)}
           className="space-y-6"
         >
           <div>
@@ -164,13 +178,13 @@ export default function CustomerDialog({
           </div>
 
           <div className="mt-10 flex justify-end gap-3">
-            <Button type="button" variant="outline" onClick={handleClose}>
+            <Button type="button" variant="outline" disabled={action.pending} onClick={handleClose}>
               Cancel
             </Button>
 
-            <Button type="submit">
+            <ActionButton type="submit" loading={action.pending} loadingText={customer ? "Updating…" : "Saving…"}>
               {customer ? "Update Customer" : "Save Customer"}
-            </Button>
+            </ActionButton>
           </div>
         </form>
       </div>

@@ -1,6 +1,7 @@
 import { Booking } from "@/features/booking/types";
 import { DerivedPaymentStatus } from "@/features/payment/types";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
+import DeleteAction from "@/components/system/DeleteAction";
 
 type BookingWithNames = Booking & {
   customerName: string;
@@ -13,7 +14,7 @@ type BookingWithNames = Booking & {
 type BookingCardProps = {
   booking: BookingWithNames;
   onEdit: (booking: BookingWithNames) => void;
-  onDelete: (booking: BookingWithNames) => void;
+  onDelete: (booking: BookingWithNames) => boolean;
 };
 
 function formatBookingDate(date: string) {
@@ -132,13 +133,12 @@ export default function BookingCard({ booking, onEdit, onDelete }: BookingCardPr
         >
           Edit
         </button>
-        <button
-          type="button"
-          onClick={() => onDelete(booking)}
-          className="min-h-10 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-[var(--status-error)] transition-colors hover:bg-red-50"
-        >
-          Delete
-        </button>
+        <DeleteAction
+          itemName="this booking"
+          onConfirm={() => onDelete(booking)}
+          successMessage="Booking deleted."
+          errorMessage="Could not delete the booking. Try again."
+        />
       </div>
     </article>
   );

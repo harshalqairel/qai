@@ -22,6 +22,7 @@ export function useServiceCategories() {
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [usageCounts, setUsageCounts] = useState<Record<string, number>>({});
   const [loadError, setLoadError] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
   const refresh = useCallback(() => {
     try {
@@ -36,8 +37,15 @@ export function useServiceCategories() {
       setLoadError("");
     } catch {
       setLoadError("Could not load categories. Try reloading the page.");
+    } finally {
+      setIsLoading(false);
     }
   }, []);
+
+  const retry = useCallback(() => {
+    setIsLoading(true);
+    refresh();
+  }, [refresh]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(refresh, 0);
@@ -107,5 +115,7 @@ export function useServiceCategories() {
     setCategoryActive,
     deleteCategory,
     loadError,
+    isLoading,
+    retry,
   };
 }

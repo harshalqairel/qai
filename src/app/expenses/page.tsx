@@ -12,6 +12,8 @@ import { useCustomers } from "@/features/customer/hooks/useCustomers";
 import { useServices } from "@/features/service/hooks/useServices";
 import { Expense } from "@/features/expense/types";
 import { useExpenseCategories } from "@/features/expense-category/hooks/useExpenseCategories";
+import PageSkeleton from "@/components/system/PageSkeleton";
+import DataErrorState from "@/components/system/DataErrorState";
 
 type BookingOption = ExpenseBookingDetails & {
   id: string;
@@ -27,11 +29,16 @@ function formatBookingDate(date: string) {
 }
 
 export default function ExpensesPage() {
-  const { expenses, createExpense, updateExpense, deleteExpense } = useExpenses();
-  const { bookings } = useBookings();
-  const { customers } = useCustomers();
-  const { services } = useServices();
-  const { categories } = useExpenseCategories();
+  const expenseData = useExpenses();
+  const bookingData = useBookings();
+  const customerData = useCustomers();
+  const serviceData = useServices();
+  const categoryData = useExpenseCategories();
+  const { expenses, createExpense, updateExpense, deleteExpense } = expenseData;
+  const { bookings } = bookingData;
+  const { customers } = customerData;
+  const { services } = serviceData;
+  const { categories } = categoryData;
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
@@ -100,6 +107,12 @@ export default function ExpensesPage() {
       sorted.sort((a, b) => b.createdAt - a.createdAt);
   }
 
+  const dataSources = [expenseData, bookingData, customerData, serviceData, categoryData];
+  if (dataSources.some((source) => source.isLoading)) return <main className="min-h-screen"><PageSkeleton variant="list" /></main>;
+  if (dataSources.some((source) => source.loadError)) return (
+    <main className="min-h-screen"><div className="page-shell"><DataErrorState onRetry={() => dataSources.forEach((source) => source.retry())} /></div></main>
+  );
+
   return (
     <>
       <main className="min-h-screen">
@@ -143,15 +156,8 @@ export default function ExpensesPage() {
           setDialogOpen(false);
           setSelectedExpense(null);
         }}
-        onCreate={(input) => {
-          createExpense(input);
-          setDialogOpen(false);
-        }}
-        onUpdate={(input) => {
-          updateExpense(input);
-          setDialogOpen(false);
-          setSelectedExpense(null);
-        }}
+        onCreate={(input) => createExpense(input)}
+        onUpdate={(input) => updateExpense(input)}
       />
     </>
   );

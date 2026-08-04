@@ -1,5 +1,6 @@
 import { Customer } from "@/features/customer/types";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
+import DeleteAction from "@/components/system/DeleteAction";
 
 type CustomerWithStats = Customer & {
   bookingsCount: number;
@@ -11,7 +12,7 @@ type CustomerWithStats = Customer & {
 type CustomerCardProps = {
   customer: CustomerWithStats;
   onEdit: (customer: CustomerWithStats) => void;
-  onDelete: (customer: CustomerWithStats) => void;
+  onDelete: (customer: CustomerWithStats) => boolean;
 };
 
 export default function CustomerCard({
@@ -97,23 +98,12 @@ export default function CustomerCard({
           Edit
         </button>
 
-        <button
-          onClick={() => onDelete(customer)}
-          className="
-            min-h-10 rounded-lg
-            border
-            border-red-300
-            bg-white
-            px-4
-            py-2
-            font-semibold
-            text-red-600
-            transition
-            hover:bg-red-50
-          "
-        >
-          Delete
-        </button>
+        <DeleteAction
+          itemName="this customer"
+          onConfirm={() => onDelete(customer)}
+          successMessage="Customer deleted."
+          errorMessage="Could not delete the customer. Try again."
+        />
       </div>
     </div>
   );

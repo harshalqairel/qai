@@ -16,6 +16,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import ActionButton from "@/components/system/ActionButton";
+import { useActionGuard } from "@/hooks/useActionGuard";
+import { notify } from "@/lib/notifications";
+import { XIcon } from "lucide-react";
 
 import { Service } from "@/features/service/types";
 import type { ServiceCategory } from "@/features/service-category/types";
@@ -28,8 +32,8 @@ type ServiceDialogProps = {
   open: boolean;
   service: Service | null;
   onClose: () => void;
-  onCreate: (service: Service) => void;
-  onUpdate: (service: Service) => void;
+  onCreate: (service: Service) => boolean;
+  onUpdate: (service: Service) => boolean;
   categories: ServiceCategory[];
 };
 
@@ -50,6 +54,7 @@ export default function ServiceDialog({
   onUpdate,
   categories,
 }: ServiceDialogProps) {
+  const action = useActionGuard();
   const isEdit = service !== null;
 
   const {
@@ -102,7 +107,7 @@ export default function ServiceDialog({
     onClose();
   }
 
-  function onSubmit(values: ServiceFormValues) {
+  async function onSubmit(values: ServiceFormValues) {
     const serviceData: Service = {
       id: service?.id ?? crypto.randomUUID(),
       name: values.name.trim(),
@@ -113,13 +118,13 @@ export default function ServiceDialog({
       active: service?.active ?? true,
     };
 
-    if (isEdit) {
-      onUpdate(serviceData);
-    } else {
-      onCreate(serviceData);
+    const succeeded = await action.run(() => isEdit ? onUpdate(serviceData) : onCreate(serviceData));
+    if (!succeeded) {
+      notify.error("Could not save the service. Try again.");
+      return;
     }
-
-    resetForm();
+    notify.success(isEdit ? "Service updated." : "Service added.");
+    handleClose();
   }
 
   if (!open) return null;
@@ -127,7 +132,7 @@ export default function ServiceDialog({
   return (
     <div
       className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm"
-      onClick={handleClose}
+      onClick={() => !action.pending && handleClose()}
     >
       <div
         className="h-dvh w-full max-w-xl overflow-y-auto border-l border-border bg-white p-5 shadow-xl sm:p-8"
@@ -150,9 +155,11 @@ export default function ServiceDialog({
             type="button"
             variant="ghost"
             size="icon"
+            disabled={action.pending}
             onClick={handleClose}
+            aria-label="Close service form"
           >
-            ✕
+            <XIcon className="size-5" aria-hidden="true" />
           </Button>
         </div>
 
@@ -283,19 +290,21 @@ export default function ServiceDialog({
             <Button
               type="button"
               variant="outline"
+              disabled={action.pending}
               onClick={handleClose}
             >
               Cancel
             </Button>
 
-            <Button
+            <ActionButton
               type="submit"
-              disabled={isSubmitting}
+              loading={action.pending || isSubmitting}
+              loadingText={isEdit ? "Updating…" : "Saving…"}
             >
               {isEdit
                 ? "Update Service"
                 : "Save Service"}
-            </Button>
+            </ActionButton>
           </div>
         </form>
       </div>

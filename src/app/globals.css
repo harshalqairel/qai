@@ -19,6 +19,7 @@
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
   --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
@@ -51,21 +52,27 @@
 :root {
   --font-sans-system: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-mono-system: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  --app-background: #f4f6f7;
+  --app-background: #f7f8fa;
   --surface: #ffffff;
-  --surface-subtle: #eef2f4;
-  --line: #d7dee4;
-  --ink: #17212b;
-  --text-muted: #66717d;
-  --brand: #1f6f78;
-  --brand-hover: #185860;
-  --brand-active: #12464d;
-  --support-blue: #4d6b8a;
-  --focus: #2f8490;
-  --status-success: #287a58;
-  --status-warning: #b7791f;
-  --status-error: #b74848;
-  --status-info: #3a6ea5;
+  --surface-subtle: #f3f5f6;
+  --line: #e2e6ea;
+  --ink: #0f1d2d;
+  --text-muted: #64748b;
+  --brand: #0d5c5a;
+  --brand-hover: #0a4745;
+  --brand-active: #083735;
+  --support-blue: #1f2a44;
+  --focus: #36c5c1;
+  --status-success: #22c55e;
+  --status-warning: #f59e0b;
+  --status-error: #ef4444;
+  --status-info: #3b82f6;
+  --chart-teal: #0d5c5a;
+  --chart-navy: #1f2a44;
+  --chart-slate: #64748b;
+  --chart-aqua: #36c5c1;
+  --chart-coral: #ff6b5e;
+  --chart-violet: #8b5cf6;
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -91,11 +98,12 @@
   --border: var(--line);
   --input: var(--line);
   --ring: var(--focus);
-  --chart-1: var(--brand);
-  --chart-2: var(--support-blue);
-  --chart-3: var(--status-warning);
-  --chart-4: var(--status-error);
-  --chart-5: var(--text-muted);
+  --chart-1: var(--chart-teal);
+  --chart-2: var(--chart-navy);
+  --chart-3: var(--chart-slate);
+  --chart-4: var(--chart-aqua);
+  --chart-5: var(--chart-coral);
+  --chart-6: var(--chart-violet);
   --radius: 0.5rem;
   --sidebar: var(--surface);
   --sidebar-foreground: var(--ink);
@@ -167,9 +175,9 @@
   --dashboard-profit-soft: #e5edff;
   --dashboard-profit-text: #1e4eb8;
 
-  --dashboard-chart-received: var(--brand);
-  --dashboard-chart-expenses: var(--support-blue);
-  --dashboard-chart-profit: var(--status-error);
+  --dashboard-chart-received: var(--chart-teal);
+  --dashboard-chart-expenses: var(--chart-navy);
+  --dashboard-chart-profit: var(--chart-aqua);
   --dashboard-chart-axis: #475569;
   --dashboard-chart-grid: #e2e8f0;
   --dashboard-chart-tooltip-bg: #ffffff;
@@ -341,5 +349,55 @@
     color: var(--status-error);
     border-color: color-mix(in srgb, var(--status-error) 35%, white);
     background: color-mix(in srgb, var(--status-error) 9%, white);
+  }
+
+  .startup-reveal {
+    animation: startup-reveal 120ms ease-out 120ms both;
+  }
+
+  .qai-toast {
+    border-color: var(--line) !important;
+    color: var(--ink) !important;
+    box-shadow: 0 4px 12px rgb(15 29 45 / 0.1) !important;
+  }
+
+  .qai-toast-success {
+    background: color-mix(in srgb, var(--status-success) 8%, white) !important;
+    border-color: color-mix(in srgb, var(--status-success) 30%, white) !important;
+  }
+
+  .qai-toast-error {
+    background: color-mix(in srgb, var(--status-error) 8%, white) !important;
+    border-color: color-mix(in srgb, var(--status-error) 30%, white) !important;
+  }
+
+  .qai-toast-warning {
+    background: color-mix(in srgb, var(--status-warning) 10%, white) !important;
+    border-color: color-mix(in srgb, var(--status-warning) 32%, white) !important;
+  }
+
+  .qai-toast-info {
+    background: color-mix(in srgb, var(--status-info) 8%, white) !important;
+    border-color: color-mix(in srgb, var(--status-info) 30%, white) !important;
+  }
+
+  .qai-toast-success [data-icon] { color: var(--status-success); }
+  .qai-toast-error [data-icon] { color: var(--status-error); }
+  .qai-toast-warning [data-icon] { color: var(--status-warning); }
+  .qai-toast-info [data-icon] { color: var(--status-info); }
+
+  .toaster {
+    --width: min(356px, calc(100vw - 2rem));
+  }
+}
+
+@keyframes startup-reveal {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .startup-reveal {
+    animation: none;
   }
 }

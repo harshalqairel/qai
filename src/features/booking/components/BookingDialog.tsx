@@ -16,6 +16,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import ActionButton from "@/components/system/ActionButton";
+import DeleteAction from "@/components/system/DeleteAction";
+import { useActionGuard } from "@/hooks/useActionGuard";
+import { notify } from "@/lib/notifications";
+import { XIcon } from "lucide-react";
 
 type BookingDialogProps = {
   open: boolean;
@@ -26,11 +31,11 @@ type BookingDialogProps = {
   payments: Payment[];
   expenses: Expense[];
   onClose: () => void;
-  onCreate: (input: CreateBookingInput) => void;
-  onUpdate: (input: UpdateBookingInput) => void;
+  onCreate: (input: CreateBookingInput) => boolean;
+  onUpdate: (input: UpdateBookingInput) => boolean;
   onAddPaymentClick: (bookingId: string) => void;
   onEditPaymentClick: (payment: Payment) => void;
-  onDeletePayment: (id: string) => void;
+  onDeletePayment: (id: string) => boolean;
 };
 
 const defaultValues: BookingFormValues = {
@@ -61,6 +66,7 @@ export default function BookingDialog({
   onEditPaymentClick,
   onDeletePayment,
 }: BookingDialogProps) {
+  const action = useActionGuard();
   const {
     register,
     control,
@@ -69,7 +75,7 @@ export default function BookingDialog({
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<z.input<typeof bookingSchema>, any, BookingFormValues>({
+  } = useForm<z.input<typeof bookingSchema>, undefined, BookingFormValues>({
     resolver: zodResolver(bookingSchema),
     defaultValues,
     mode: "onTouched",
@@ -135,19 +141,20 @@ export default function BookingDialog({
     onClose();
   }
 
-  function onSubmit(values: BookingFormValues) {
-    if (booking) {
-      onUpdate({ id: booking.id, ...values });
+  async function onSubmit(values: BookingFormValues) {
+    const succeeded = await action.run(() => booking ? onUpdate({ id: booking.id, ...values }) : onCreate(values));
+    if (!succeeded) {
+      notify.error("Could not save the booking. Try again.");
       return;
     }
-
-    onCreate(values);
+    notify.success(booking ? "Booking updated." : "Booking saved.");
+    handleClose();
   }
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm" onClick={handleClose}>
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm" onClick={() => !action.pending && handleClose()}>
       <div className="h-dvh w-full max-w-xl overflow-y-auto border-l border-border bg-white p-5 shadow-xl sm:p-8" onClick={(e) => e.stopPropagation()}>
         <div className="mb-8 flex items-center justify-between">
           <div>
@@ -156,16 +163,13 @@ export default function BookingDialog({
               {booking ? "Update booking and payment details." : "Create a new booking."}
             </p>
           </div>
-          <Button type="button" variant="ghost" size="icon" onClick={handleClose}>
-            ??
+          <Button type="button" variant="ghost" size="icon" disabled={action.pending} onClick={handleClose} aria-label="Close booking form">
+            <XIcon className="size-5" aria-hidden="true" />
           </Button>
         </div>
 
         <form
-          onSubmit={handleSubmit((values) => {
-            onSubmit(values);
-            reset(defaultValues);
-          })}
+          onSubmit={handleSubmit(onSubmit)}
           className="space-y-6"
         >
           <div>
@@ -321,13 +325,12 @@ export default function BookingDialog({
                           >
                             Edit
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => onDeletePayment(payment.id)}
-                            className="rounded-lg px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
-                          >
-                            Delete
-                          </button>
+                          <DeleteAction
+                            itemName="this payment"
+                            onConfirm={() => onDeletePayment(payment.id)}
+                            successMessage="Payment deleted."
+                            errorMessage="Could not delete the payment. Try again."
+                          />
                         </div>
                       </div>
                     );
@@ -368,12 +371,12 @@ export default function BookingDialog({
           )}
 
           <div className="mt-8 flex justify-end gap-3">
-            <Button type="button" variant="outline" onClick={handleClose}>
+            <Button type="button" variant="outline" disabled={action.pending} onClick={handleClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <ActionButton type="submit" loading={action.pending || isSubmitting} loadingText={booking ? "Updating…" : "Saving…"}>
               {booking ? "Update Booking" : "Save Booking"}
-            </Button>
+            </ActionButton>
           </div>
         </form>
       </div>

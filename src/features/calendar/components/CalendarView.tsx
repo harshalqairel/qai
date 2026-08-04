@@ -1,7 +1,8 @@
 import type { CalendarBooking, CalendarView } from "../types";
+import EmptyState from "@/components/system/EmptyState";
+import { CalendarX } from "lucide-react";
 
 const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 function toDateKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -286,6 +287,10 @@ export default function CalendarView({
   onBookingClick,
   onDateClick,
 }: CalendarViewProps) {
+  const hasBookingsThisMonth = bookings.some((booking) => {
+    const date = new Date(`${booking.bookingDate}T00:00:00`);
+    return date.getFullYear() === activeDate.getFullYear() && date.getMonth() === activeDate.getMonth();
+  });
   const bookingsByDate = bookings.reduce((map, booking) => {
     const group = map.get(booking.bookingDate) ?? [];
     group.push(booking);
@@ -297,6 +302,9 @@ export default function CalendarView({
 
   return (
     <>
+      {view === "month" && !hasBookingsThisMonth && (
+        <EmptyState icon={CalendarX} title="No bookings this month." className="mb-4 p-6 sm:p-8" />
+      )}
       {/* On phones (<md): always show Agenda */}
       <div className="block md:hidden">
         <AgendaView bookings={bookings} onBookingClick={onBookingClick} onDateClick={onDateClick} />

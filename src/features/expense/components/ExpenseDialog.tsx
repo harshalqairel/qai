@@ -15,6 +15,9 @@ import { expenseSchema, ExpenseFormValues } from "@/features/expense/schema";
 import { Expense, CreateExpenseInput, UpdateExpenseInput } from "@/features/expense/types";
 import { XIcon } from "lucide-react";
 import type { ExpenseCategory } from "@/features/expense-category/types";
+import ActionButton from "@/components/system/ActionButton";
+import { useActionGuard } from "@/hooks/useActionGuard";
+import { notify } from "@/lib/notifications";
 
 type BookingOption = { id: string; label: string };
 
@@ -23,8 +26,8 @@ type ExpenseDialogProps = {
   expense: Expense | null;
   bookingOptions: BookingOption[];
   onClose: () => void;
-  onCreate: (input: CreateExpenseInput) => void;
-  onUpdate: (input: UpdateExpenseInput) => void;
+  onCreate: (input: CreateExpenseInput) => boolean;
+  onUpdate: (input: UpdateExpenseInput) => boolean;
   categories: ExpenseCategory[];
 };
 
@@ -49,6 +52,7 @@ export default function ExpenseDialog({
   categories,
 }: ExpenseDialogProps) {
   const isEdit = expense !== null;
+  const action = useActionGuard();
 
   const {
     register,
@@ -94,18 +98,18 @@ export default function ExpenseDialog({
     onClose();
   }
 
-  function onSubmit(values: ExpenseFormValues) {
+  async function onSubmit(values: ExpenseFormValues) {
     const input = {
       ...values,
       bookingId: isBookingExpense ? values.bookingId : null,
     };
 
-    if (isEdit && expense) {
-      onUpdate({ id: expense.id, ...input });
-    } else {
-      onCreate(input);
+    const succeeded = await action.run(() => isEdit && expense ? onUpdate({ id: expense.id, ...input }) : onCreate(input));
+    if (!succeeded) {
+      notify.error("Could not save the expense. Try again.");
+      return;
     }
-
+    notify.success(isEdit ? "Expense updated." : "Expense added.");
     handleClose();
   }
 
@@ -114,7 +118,7 @@ export default function ExpenseDialog({
   return (
     <div
       className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm"
-      onClick={handleClose}
+      onClick={() => !action.pending && handleClose()}
     >
       <div
         className="h-dvh w-full max-w-xl overflow-y-auto border-l border-border bg-white p-5 shadow-xl sm:p-8"
@@ -281,12 +285,12 @@ export default function ExpenseDialog({
           </div>
 
           <div className="mt-8 flex justify-end gap-3">
-            <Button type="button" variant="outline" onClick={handleClose}>
+            <Button type="button" variant="outline" disabled={action.pending} onClick={handleClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <ActionButton type="submit" loading={action.pending || isSubmitting} loadingText={isEdit ? "Updating…" : "Saving…"}>
               {isEdit ? "Update Expense" : "Save Expense"}
-            </Button>
+            </ActionButton>
           </div>
         </form>
       </div>

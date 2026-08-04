@@ -1,24 +1,19 @@
 import { Expense } from "@/features/expense/types";
 import ExpenseCard, { ExpenseBookingDetails } from "./ExpenseCard";
+import EmptyState from "@/components/system/EmptyState";
+import { ReceiptText } from "lucide-react";
 
 type ExpenseListProps = {
   expenses: Expense[];
   getBookingDetails: (bookingId: string) => ExpenseBookingDetails | null;
   getCategoryName: (categoryId: string) => string;
   onEdit: (expense: Expense) => void;
-  onDelete: (expense: Expense) => void;
+  onDelete: (expense: Expense) => boolean;
 };
 
 export default function ExpenseList({ expenses, getBookingDetails, getCategoryName, onEdit, onDelete }: ExpenseListProps) {
   if (expenses.length === 0) {
-    return (
-      <div className="empty-state">
-        <h3 className="text-xl font-semibold text-zinc-800">No expenses yet</h3>
-        <p className="mt-2 text-zinc-500">
-          Click <strong>Add Expense</strong> to record your first expense.
-        </p>
-      </div>
-    );
+    return <EmptyState icon={ReceiptText} title="No expenses found." description="Add an expense when you are ready." />;
   }
 
   return (
