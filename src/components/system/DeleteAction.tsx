@@ -18,12 +18,19 @@ import { notify } from "@/lib/notifications";
 
 type DeleteActionProps = {
   itemName: string;
-  onConfirm: () => boolean;
+  onConfirm: () => boolean | "blocked";
   successMessage: string;
   errorMessage: string;
+  blockedMessage?: string;
 };
 
-export default function DeleteAction({ itemName, onConfirm, successMessage, errorMessage }: DeleteActionProps) {
+export default function DeleteAction({
+  itemName,
+  onConfirm,
+  successMessage,
+  errorMessage,
+  blockedMessage,
+}: DeleteActionProps) {
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const locked = useRef(false);
@@ -34,6 +41,10 @@ export default function DeleteAction({ itemName, onConfirm, successMessage, erro
     setDeleting(true);
     try {
       const succeeded = await Promise.resolve(onConfirm());
+      if (succeeded === "blocked") {
+        notify.error(blockedMessage ?? errorMessage);
+        return;
+      }
       if (!succeeded) {
         notify.error(errorMessage);
         return;

@@ -46,7 +46,7 @@ export default function TodaySchedule({ items }: TodayScheduleProps) {
               </div>
               <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 border-t border-[var(--dashboard-border)] pt-3 text-sm text-[var(--dashboard-muted-text)]">
                 <span className="font-medium text-[var(--dashboard-text)]">
-                  {formatBookingTime(booking.startTime, booking.endTime)}
+                  {formatBookingTime(booking.bookingDate, booking.startTime, booking.endTime)}
                 </span>
                 {booking.location.trim() && <span>{booking.location}</span>}
               </div>

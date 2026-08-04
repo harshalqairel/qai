@@ -1,6 +1,11 @@
 import type { CalendarBooking, CalendarView } from "../types";
 import EmptyState from "@/components/system/EmptyState";
 import { CalendarX } from "lucide-react";
+import {
+  compareByBookingStartDateTime,
+  formatBookingTimeRange,
+  getBookingCoveredDateKeys,
+} from "@/features/booking/utils/bookingDateRange";
 
 const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -40,10 +45,7 @@ type CalendarViewProps = {
 
 // ── Agenda / list view (chronological) ─────────────────────────────────────
 function AgendaView({ bookings, onBookingClick, onDateClick }: Pick<CalendarViewProps, "bookings" | "onBookingClick" | "onDateClick">) {
-  const sorted = [...bookings].sort((a, b) => {
-    if (a.bookingDate !== b.bookingDate) return a.bookingDate.localeCompare(b.bookingDate);
-    return (a.startTime || "").localeCompare(b.startTime || "");
-  });
+  const sorted = [...bookings].sort(compareByBookingStartDateTime);
 
   if (sorted.length === 0) {
     return (
@@ -90,7 +92,7 @@ function AgendaView({ bookings, onBookingClick, onDateClick }: Pick<CalendarView
                     <div className="min-w-0">
                       <div className="truncate font-semibold text-slate-900">{b.customerName} — {b.serviceName}</div>
                       <div className="mt-0.5 text-xs text-zinc-600">
-                        {b.startTime ? `${b.startTime}${b.endTime ? ` – ${b.endTime}` : ""}` : ""}
+                        {formatBookingTimeRange(b.bookingDate, b.startTime, b.endTime)}
                         {b.location ? ` · ${b.location}` : ""}
                       </div>
                     </div>
@@ -149,7 +151,7 @@ function MonthView({ activeDate, bookingsByDate, onBookingClick, onDateClick }: 
                   >
                     <div className="truncate font-semibold">{booking.customerName}</div>
                     <div className="hidden truncate text-zinc-600 lg:block">{booking.serviceName}</div>
-                    <div className="hidden text-zinc-500 lg:block">{booking.startTime}{booking.endTime ? ` – ${booking.endTime}` : ""}</div>
+                    <div className="hidden text-zinc-500 lg:block">{formatBookingTimeRange(booking.bookingDate, booking.startTime, booking.endTime)}</div>
                   </button>
                 ))}
                 {dayBookings.length > 2 && (
@@ -211,7 +213,7 @@ function WeekView({ activeDate, bookingsByDate, onBookingClick, onDateClick }: {
                   >
                     <div className="truncate text-xs font-semibold text-slate-900">{booking.customerName}</div>
                     <div className="truncate text-[11px] text-zinc-600">{booking.serviceName}</div>
-                    <div className="mt-0.5 text-[11px] text-zinc-500">{booking.startTime}{booking.endTime ? ` – ${booking.endTime}` : ""}</div>
+                    <div className="mt-0.5 text-[11px] text-zinc-500">{formatBookingTimeRange(booking.bookingDate, booking.startTime, booking.endTime)}</div>
                   </button>
                 ))}
               </div>
@@ -266,7 +268,7 @@ function DayView({ activeDate, bookingsByDate, onBookingClick, onDateClick }: {
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0">
                   <h3 className="truncate text-base font-semibold text-slate-900 sm:text-lg">{booking.customerName} — {booking.serviceName}</h3>
-                  <p className="mt-0.5 text-sm text-zinc-700">{booking.startTime}{booking.endTime ? ` – ${booking.endTime}` : ""}</p>
+                  <p className="mt-0.5 text-sm text-zinc-700">{formatBookingTimeRange(booking.bookingDate, booking.startTime, booking.endTime)}</p>
                 </div>
                 <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${statusClasses(booking.bookingStatus)}`}>{booking.bookingStatus}</span>
               </div>
@@ -287,16 +289,28 @@ export default function CalendarView({
   onBookingClick,
   onDateClick,
 }: CalendarViewProps) {
-  const hasBookingsThisMonth = bookings.some((booking) => {
-    const date = new Date(`${booking.bookingDate}T00:00:00`);
-    return date.getFullYear() === activeDate.getFullYear() && date.getMonth() === activeDate.getMonth();
-  });
   const bookingsByDate = bookings.reduce((map, booking) => {
-    const group = map.get(booking.bookingDate) ?? [];
-    group.push(booking);
-    map.set(booking.bookingDate, group);
+    const coveredDates = getBookingCoveredDateKeys({
+      bookingDate: booking.bookingDate,
+      startTime: booking.startTime,
+      endTime: booking.endTime,
+    });
+    for (const dateKey of coveredDates) {
+      const group = map.get(dateKey) ?? [];
+      group.push(booking);
+      map.set(dateKey, group);
+    }
     return map;
   }, new Map<string, CalendarBooking[]>());
+
+  for (const [dateKey, groupedBookings] of bookingsByDate.entries()) {
+    bookingsByDate.set(dateKey, [...groupedBookings].sort(compareByBookingStartDateTime));
+  }
+
+  const hasBookingsThisMonth = Array.from(bookingsByDate.keys()).some((dateKey) => {
+    const date = new Date(`${dateKey}T00:00:00`);
+    return date.getFullYear() === activeDate.getFullYear() && date.getMonth() === activeDate.getMonth();
+  });
 
   const shared = { bookingsByDate, onBookingClick, onDateClick };
 

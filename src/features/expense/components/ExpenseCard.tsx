@@ -1,3 +1,4 @@
+import { formatBookingTimeRange } from "@/features/booking/utils/bookingDateRange";
 import { Expense } from "@/features/expense/types";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
 import DeleteAction from "@/components/system/DeleteAction";
@@ -5,7 +6,8 @@ import DeleteAction from "@/components/system/DeleteAction";
 export type ExpenseBookingDetails = {
   customerName: string;
   serviceName: string;
-  bookingDate: string;
+  bookingDateLabel: string;
+  bookingDateKey: string;
   startTime: string;
   endTime: string;
 };
@@ -88,7 +90,11 @@ export default function ExpenseCard({
               <p className="font-semibold text-foreground">{bookingDetails.customerName}</p>
               <p className="mt-0.5 text-sm text-muted-foreground">{bookingDetails.serviceName}</p>
               <p className="mt-2 text-sm font-medium text-foreground">
-                {bookingDetails.bookingDate} · {bookingDetails.startTime}–{bookingDetails.endTime}
+                {bookingDetails.bookingDateLabel} · {formatBookingTimeRange(
+                  bookingDetails.bookingDateKey,
+                  bookingDetails.startTime,
+                  bookingDetails.endTime,
+                )}
               </p>
             </div>
           ) : (

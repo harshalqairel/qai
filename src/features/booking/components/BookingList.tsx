@@ -15,7 +15,7 @@ type BookingWithNames = Booking & {
 type BookingListProps = {
   bookings: BookingWithNames[];
   onEdit: (booking: BookingWithNames) => void;
-  onDelete: (booking: BookingWithNames) => boolean;
+  onDelete: (booking: BookingWithNames) => boolean | "blocked";
 };
 
 export default function BookingList({ bookings, onEdit, onDelete }: BookingListProps) {

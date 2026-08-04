@@ -14,6 +14,7 @@ import { usePayments } from "@/features/payment/hooks/usePayments";
 import { Payment } from "@/features/payment/types";
 import { useExpenses } from "@/features/expense/hooks/useExpenses";
 import { summarizeBookingPayments } from "@/features/payment/utils/paymentCalculations";
+import { compareByBookingStartDateTime } from "@/features/booking/utils/bookingDateRange";
 import PageSkeleton from "@/components/system/PageSkeleton";
 import DataErrorState from "@/components/system/DataErrorState";
 
@@ -84,10 +85,10 @@ export default function BookingsPage() {
   const sortedBookings = [...filteredBookings];
   switch (sort) {
     case "date-asc":
-      sortedBookings.sort((a, b) => a.bookingDate.localeCompare(b.bookingDate));
+      sortedBookings.sort(compareByBookingStartDateTime);
       break;
     case "date-desc":
-      sortedBookings.sort((a, b) => b.bookingDate.localeCompare(a.bookingDate));
+      sortedBookings.sort((a, b) => compareByBookingStartDateTime(b, a));
       break;
     case "oldest":
       sortedBookings.sort((a, b) => a.createdAt - b.createdAt);
@@ -144,7 +145,12 @@ export default function BookingsPage() {
               setSelectedBooking(booking);
               setDialogOpen(true);
             }}
-            onDelete={(booking) => deleteBooking(booking.id)}
+            onDelete={(booking) => {
+              const result = deleteBooking(booking.id);
+              if (result === "deleted") return true;
+              if (result === "blocked") return "blocked";
+              return false;
+            }}
           />
         </div>
       </main>

@@ -1,6 +1,7 @@
 import { Booking } from "@/features/booking/types";
 import { DerivedPaymentStatus } from "@/features/payment/types";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
+import { formatBookingTimeRange } from "@/features/booking/utils/bookingDateRange";
 import DeleteAction from "@/components/system/DeleteAction";
 
 type BookingWithNames = Booking & {
@@ -14,7 +15,7 @@ type BookingWithNames = Booking & {
 type BookingCardProps = {
   booking: BookingWithNames;
   onEdit: (booking: BookingWithNames) => void;
-  onDelete: (booking: BookingWithNames) => boolean;
+  onDelete: (booking: BookingWithNames) => boolean | "blocked";
 };
 
 function formatBookingDate(date: string) {
@@ -82,7 +83,7 @@ export default function BookingCard({ booking, onEdit, onDelete }: BookingCardPr
             </div>
             <div>
               <p className="font-semibold text-slate-900">Time</p>
-              <p>{booking.startTime} – {booking.endTime}</p>
+              <p>{formatBookingTimeRange(booking.bookingDate, booking.startTime, booking.endTime)}</p>
             </div>
             <div>
               <p className="font-semibold text-slate-900">Location</p>
@@ -138,6 +139,7 @@ export default function BookingCard({ booking, onEdit, onDelete }: BookingCardPr
           onConfirm={() => onDelete(booking)}
           successMessage="Booking deleted."
           errorMessage="Could not delete the booking. Try again."
+          blockedMessage={"This booking has payment or expense records.\n\nRemove those records before deleting the booking."}
         />
       </div>
     </article>

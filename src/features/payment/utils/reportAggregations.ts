@@ -53,26 +53,36 @@ export function getRevenueByCategory(
   const serviceMap = new Map(services.map((service) => [service.id, service]));
   const categoryMap = new Map(categories.map((category) => [category.id, category]));
   const revenueByCategory = new Map<string, number>();
-  const missingCategoryKey = "__missing_category__";
 
   for (const payment of payments) {
     const booking = bookingMap.get(payment.bookingId);
     if (!booking || booking.bookingStatus === "Cancelled") continue;
 
     const service = serviceMap.get(booking.serviceId);
-    const categoryId = service?.categoryId ?? missingCategoryKey;
+    if (!service) continue;
+
+    const categoryId = service.categoryId;
+    if (!categoryMap.has(categoryId)) continue;
     revenueByCategory.set(categoryId, (revenueByCategory.get(categoryId) ?? 0) + payment.amount);
   }
 
   return Array.from(revenueByCategory.entries()).map(([categoryId, revenue]) => {
     const category = categoryMap.get(categoryId);
+    if (!category) {
+      return null;
+    }
     return {
       categoryId,
-      categoryName: category?.name ?? "Category not found",
-      categoryColor: category?.color,
+      categoryName: category.name,
+      categoryColor: category.color,
       revenue,
     };
-  });
+  }).filter((item): item is {
+    categoryId: string;
+    categoryName: string;
+    categoryColor: string;
+    revenue: number;
+  } => item !== null);
 }
 
 export function getRevenueByCustomer(bookings: Booking[], customers: Customer[], payments: Payment[]) {

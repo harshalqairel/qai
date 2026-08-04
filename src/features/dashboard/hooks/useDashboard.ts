@@ -9,6 +9,7 @@ import { useServiceCategories } from "@/features/service-category/hooks/useServi
 import { usePayments } from "@/features/payment/hooks/usePayments";
 import { useExpenses } from "@/features/expense/hooks/useExpenses";
 import { summarizeBookingPayments } from "@/features/payment/utils/paymentCalculations";
+import { partitionPaymentsByBookingIntegrity } from "@/features/payment/utils/paymentIntegrity";
 import {
   getMonthlyRealizedRevenue,
   getRevenueByCategory,
@@ -17,6 +18,12 @@ import {
   getMonthlyExpenses,
   getExpensesByCategory,
 } from "@/features/expense/utils/expenseAggregations";
+import { partitionExpensesByBookingIntegrity } from "@/features/expense/utils/expenseIntegrity";
+import {
+  bookingOverlapsWindow,
+  compareByBookingStartDateTime,
+  getBookingDateRange,
+} from "@/features/booking/utils/bookingDateRange";
 import type { ExpenseCategoryItem } from "@/features/expense/utils/expenseAggregations";
 import { useExpenseCategories } from "@/features/expense-category/hooks/useExpenseCategories";
 
@@ -72,14 +79,27 @@ export function useDashboard({ selectedYear }: UseDashboardArgs) {
   const { expenses } = expenseData;
   const { categories: expenseCategories } = expenseCategoryData;
 
-  const todayKey = useMemo(() => {
-    const today = new Date();
-    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const todayContext = useMemo(() => {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    return { now, todayKey, startOfToday, endOfToday };
   }, []);
 
+  const { validPayments } = useMemo(
+    () => partitionPaymentsByBookingIntegrity(payments, bookings),
+    [payments, bookings],
+  );
+
+  const { validExpenses } = useMemo(
+    () => partitionExpensesByBookingIntegrity(expenses, bookings),
+    [expenses, bookings],
+  );
+
   const paymentSummaries = useMemo(
-    () => summarizeBookingPayments(bookings, payments),
-    [bookings, payments],
+    () => summarizeBookingPayments(bookings, validPayments),
+    [bookings, validPayments],
   );
 
   const enrichedBookings = useMemo<EnrichedBooking[]>(() => {
@@ -105,24 +125,34 @@ export function useDashboard({ selectedYear }: UseDashboardArgs) {
 
   const todaysSchedule = useMemo(() => {
     return enrichedBookings
-      .filter((booking) => booking.bookingDate === todayKey)
-      .sort((a, b) => a.startTime.localeCompare(b.startTime));
-  }, [enrichedBookings, todayKey]);
+      .filter((booking) =>
+        bookingOverlapsWindow(
+          {
+            bookingDate: booking.bookingDate,
+            startTime: booking.startTime,
+            endTime: booking.endTime,
+          },
+          todayContext.startOfToday,
+          todayContext.endOfToday,
+        ))
+      .sort(compareByBookingStartDateTime);
+  }, [enrichedBookings, todayContext]);
 
   const upcomingJobs = useMemo(() => {
     return enrichedBookings
-      .filter(
-        (booking) =>
-          booking.bookingStatus !== "Cancelled" && booking.bookingDate > todayKey,
-      )
-      .sort((a, b) => {
-        if (a.bookingDate !== b.bookingDate) {
-          return a.bookingDate.localeCompare(b.bookingDate);
-        }
-        return a.startTime.localeCompare(b.startTime);
+      .filter((booking) => {
+        if (booking.bookingStatus === "Cancelled") return false;
+        const range = getBookingDateRange({
+          bookingDate: booking.bookingDate,
+          startTime: booking.startTime,
+          endTime: booking.endTime,
+        });
+        if (!range) return false;
+        return range.start > todayContext.now;
       })
+      .sort(compareByBookingStartDateTime)
       .slice(0, 6);
-  }, [enrichedBookings, todayKey]);
+  }, [enrichedBookings, todayContext.now]);
 
   const paymentsDueSoon = useMemo(() => {
     return enrichedBookings
@@ -130,11 +160,11 @@ export function useDashboard({ selectedYear }: UseDashboardArgs) {
         (booking) =>
           booking.bookingStatus !== "Cancelled" &&
           booking.remainingAmount > 0 &&
-          booking.fullPaymentDueDate >= todayKey,
+          booking.fullPaymentDueDate >= todayContext.todayKey,
       )
       .sort((a, b) => a.fullPaymentDueDate.localeCompare(b.fullPaymentDueDate))
       .slice(0, 6);
-  }, [enrichedBookings, todayKey]);
+  }, [enrichedBookings, todayContext.todayKey]);
 
   const latePayments = useMemo(() => {
     return enrichedBookings
@@ -142,11 +172,11 @@ export function useDashboard({ selectedYear }: UseDashboardArgs) {
         (booking) =>
           booking.bookingStatus !== "Cancelled" &&
           booking.remainingAmount > 0 &&
-          booking.fullPaymentDueDate < todayKey,
+          booking.fullPaymentDueDate < todayContext.todayKey,
       )
       .sort((a, b) => a.fullPaymentDueDate.localeCompare(b.fullPaymentDueDate))
       .slice(0, 6);
-  }, [enrichedBookings, todayKey]);
+  }, [enrichedBookings, todayContext.todayKey]);
 
   const statusCounts = useMemo<Record<Booking["bookingStatus"], number>>(() => {
     const counts = { Scheduled: 0, Completed: 0, Cancelled: 0 };
@@ -157,26 +187,31 @@ export function useDashboard({ selectedYear }: UseDashboardArgs) {
   }, [bookings]);
 
   const thisYearRealized = useMemo(() => {
-    return payments.reduce((sum, payment) => {
+    return validPayments.reduce((sum, payment) => {
       const date = new Date(`${payment.date}T00:00:00`);
       return date.getFullYear() === selectedYear ? sum + payment.amount : sum;
     }, 0);
-  }, [payments, selectedYear]);
+  }, [validPayments, selectedYear]);
 
   const thisYearExpenses = useMemo(() => {
-    return expenses.reduce((sum, expense) => {
+    return validExpenses.reduce((sum, expense) => {
       const date = new Date(`${expense.date}T00:00:00`);
       return date.getFullYear() === selectedYear ? sum + expense.amount : sum;
     }, 0);
-  }, [expenses, selectedYear]);
+  }, [validExpenses, selectedYear]);
 
   const thisYearNet = thisYearRealized - thisYearExpenses;
 
   const thisYearPotential = useMemo(() => {
     return enrichedBookings.reduce((sum, booking) => {
       if (booking.bookingStatus === "Cancelled") return sum;
-      const date = new Date(`${booking.bookingDate}T00:00:00`);
-      if (date.getFullYear() !== selectedYear) return sum;
+      const range = getBookingDateRange({
+        bookingDate: booking.bookingDate,
+        startTime: booking.startTime,
+        endTime: booking.endTime,
+      });
+      const year = range?.start.getFullYear();
+      if (year !== selectedYear) return sum;
       return sum + Math.max(booking.remainingAmount, 0);
     }, 0);
   }, [enrichedBookings, selectedYear]);
@@ -212,8 +247,8 @@ export function useDashboard({ selectedYear }: UseDashboardArgs) {
   );
 
   const revenueSeries = useMemo<RevenuePoint[]>(() => {
-    const realizedMonthly = getMonthlyRealizedRevenue(payments, selectedYear);
-    const expensesMonthly = getMonthlyExpenses(expenses, selectedYear);
+    const realizedMonthly = getMonthlyRealizedRevenue(validPayments, selectedYear);
+    const expensesMonthly = getMonthlyExpenses(validExpenses, selectedYear);
 
     return realizedMonthly.map((realized, index) => ({
       label: new Date(selectedYear, index, 1).toLocaleString("en-US", {
@@ -223,10 +258,10 @@ export function useDashboard({ selectedYear }: UseDashboardArgs) {
       expenses: expensesMonthly[index],
       net: realized - expensesMonthly[index],
     }));
-  }, [payments, expenses, selectedYear]);
+  }, [validPayments, validExpenses, selectedYear]);
 
   const incomeByCategory = useMemo<IncomeByCategoryItem[]>(() => {
-    const byCategory = getRevenueByCategory(bookings, services, serviceCategories, payments)
+    const byCategory = getRevenueByCategory(bookings, services, serviceCategories, validPayments)
       .filter((item) => item.revenue > 0)
       .sort((a, b) => b.revenue - a.revenue);
     const totalRevenue = byCategory.reduce((sum, item) => sum + item.revenue, 0);
@@ -235,11 +270,11 @@ export function useDashboard({ selectedYear }: UseDashboardArgs) {
       ...item,
       percentage: totalRevenue > 0 ? Math.round((item.revenue / totalRevenue) * 100) : 0,
     }));
-  }, [bookings, services, serviceCategories, payments]);
+  }, [bookings, services, serviceCategories, validPayments]);
 
   const expenseByCategory = useMemo<ExpenseCategoryItem[]>(
-    () => getExpensesByCategory(expenses, expenseCategories),
-    [expenses, expenseCategories],
+    () => getExpensesByCategory(validExpenses, expenseCategories),
+    [validExpenses, expenseCategories],
   );
 
   return {
@@ -254,7 +289,7 @@ export function useDashboard({ selectedYear }: UseDashboardArgs) {
     expenseByCategory,
     isLoading: bookingData.isLoading || customerData.isLoading || serviceData.isLoading || serviceCategoryData.isLoading || paymentData.isLoading || expenseData.isLoading || expenseCategoryData.isLoading,
     loadError: bookingData.loadError || customerData.loadError || serviceData.loadError || serviceCategoryData.loadError || paymentData.loadError || expenseData.loadError || expenseCategoryData.loadError,
-    hasData: bookings.length > 0 || payments.length > 0 || expenses.length > 0,
+    hasData: bookings.length > 0 || validPayments.length > 0 || validExpenses.length > 0,
     retry: () => {
       bookingData.retry(); customerData.retry(); serviceData.retry(); serviceCategoryData.retry();
       paymentData.retry(); expenseData.retry(); expenseCategoryData.retry();

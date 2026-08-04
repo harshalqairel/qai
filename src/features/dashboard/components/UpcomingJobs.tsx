@@ -28,7 +28,7 @@ export default function UpcomingJobs({ items }: UpcomingJobsProps) {
                   <p className="mt-0.5 text-sm text-[var(--dashboard-muted-text)]">{booking.serviceName}</p>
                   <p className="mt-2 text-sm font-medium text-[var(--dashboard-text)]">
                     {formatDashboardDate(booking.bookingDate)} {"\u00b7"}{" "}
-                    {formatBookingTime(booking.startTime, booking.endTime)}
+                    {formatBookingTime(booking.bookingDate, booking.startTime, booking.endTime)}
                   </p>
                   {booking.location.trim() && (
                     <p className="mt-1 text-sm text-[var(--dashboard-muted-text)]">{booking.location}</p>

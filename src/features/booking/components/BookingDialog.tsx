@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import type { z } from "zod";
 import { Booking, CreateBookingInput, UpdateBookingInput } from "@/features/booking/types";
 import { bookingSchema, BookingFormValues } from "@/features/booking/schema";
+import { doesBookingEndNextDay } from "@/features/booking/utils/bookingDateRange";
 import { Service } from "@/features/service/types";
 import { Payment } from "@/features/payment/types";
 import { formatRupiah, getPaymentLabel } from "@/features/payment/utils/paymentCalculations";
@@ -20,7 +21,7 @@ import ActionButton from "@/components/system/ActionButton";
 import DeleteAction from "@/components/system/DeleteAction";
 import { useActionGuard } from "@/hooks/useActionGuard";
 import { notify } from "@/lib/notifications";
-import { XIcon } from "lucide-react";
+import { Info, XIcon } from "lucide-react";
 
 type BookingDialogProps = {
   open: boolean;
@@ -107,7 +108,9 @@ export default function BookingDialog({
   }, [open, booking, initialValues, reset]);
 
   const selectedServiceId = watch("serviceId");
+  const bookingDateValue = watch("bookingDate");
   const startTimeValue = watch("startTime");
+  const endTimeValue = watch("endTime");
   const servicePriceValue = watch("servicePrice");
   const selectedService = services.find((service) => service.id === selectedServiceId);
   const bookingPayments = booking ? payments.filter((payment) => payment.bookingId === booking.id) : [];
@@ -118,6 +121,7 @@ export default function BookingDialog({
   const effectivePrice = Number(servicePriceValue) || 0;
   const outstanding = Math.max(effectivePrice - totalPaid, 0);
   const netRevenue = totalPaid - bookingExpensesTotal;
+  const endsNextDay = doesBookingEndNextDay(startTimeValue, endTimeValue);
 
   useEffect(() => {
     if (!selectedService) return;
@@ -247,6 +251,12 @@ export default function BookingDialog({
               {errors.endTime && <p className="mt-2 text-sm text-destructive">{errors.endTime.message}</p>}
             </div>
           </div>
+          {bookingDateValue && startTimeValue && endTimeValue && endsNextDay === true && (
+            <p className="mt-1.5 flex items-center gap-2 text-sm text-muted-foreground">
+              <Info className="size-4 shrink-0" aria-hidden="true" />
+              <span>Ends the next day.</span>
+            </p>
+          )}
 
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div>

@@ -1,3 +1,5 @@
+import { formatBookingTimeRange } from "@/features/booking/utils/bookingDateRange";
+
 export function formatDashboardDate(value: string): string {
   return new Intl.DateTimeFormat("en-US", {
     day: "numeric",
@@ -7,13 +9,9 @@ export function formatDashboardDate(value: string): string {
 }
 
 export function formatBookingTime(
+  bookingDate: string | null | undefined,
   startTime: string | null | undefined,
   endTime: string | null | undefined,
 ): string {
-  const start = startTime?.trim();
-  const end = endTime?.trim();
-
-  if (!start) return "Time not set";
-  if (!end) return start;
-  return `${start}\u2013${end}`;
+  return formatBookingTimeRange(bookingDate, startTime, endTime);
 }
