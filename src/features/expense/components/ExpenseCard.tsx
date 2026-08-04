@@ -11,6 +11,7 @@ export type ExpenseBookingDetails = {
 
 type ExpenseCardProps = {
   expense: Expense;
+  categoryName: string;
   bookingDetails?: ExpenseBookingDetails | null;
   onEdit: (expense: Expense) => void;
   onDelete: (expense: Expense) => void;
@@ -32,6 +33,7 @@ const TYPE_BADGE: Record<string, string> = {
 
 export default function ExpenseCard({
   expense,
+  categoryName,
   bookingDetails,
   onEdit,
   onDelete,
@@ -40,7 +42,7 @@ export default function ExpenseCard({
     <article className="rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h2 className="text-xl font-bold tracking-tight text-foreground">{expense.category}</h2>
+          <h2 className="text-xl font-bold tracking-tight text-foreground">{categoryName}</h2>
           <div className="mt-2 flex flex-wrap gap-2">
             <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${TYPE_BADGE[expense.expenseType] ?? "border border-border bg-muted text-muted-foreground"}`}>
               {expense.expenseType}

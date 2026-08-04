@@ -108,7 +108,7 @@ export default function Sidebar() {
         <div className="flex-1 overflow-y-auto p-4">
           <NavLinks pathname={pathname} onClick={() => setDrawerOpen(false)} />
         </div>
-        <div className="border-t border-border p-4 text-xs text-muted-foreground">v0.1 · MVP</div>
+        <div className="border-t border-border p-4 text-xs text-muted-foreground">Qai Business OS</div>
       </aside>
 
       <aside className="hidden h-screen w-64 shrink-0 flex-col border-r border-border bg-card p-5 lg:sticky lg:top-0 lg:flex">
@@ -116,7 +116,7 @@ export default function Sidebar() {
           <Brand />
         </div>
         <NavLinks pathname={pathname} />
-        <div className="mt-auto border-t border-border px-2 pt-5 text-xs text-muted-foreground">v0.1 · MVP</div>
+        <div className="mt-auto border-t border-border px-2 pt-5 text-xs text-muted-foreground">Qai Business OS</div>
       </aside>
     </>
   );

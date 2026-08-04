@@ -2,12 +2,14 @@ import { Service } from "@/features/service/types";
 
 type ServiceCardProps = {
   service: Service;
+  categoryName: string;
   onEdit: (service: Service) => void;
   onDelete: (service: Service) => void;
 };
 
 export default function ServiceCard({
   service,
+  categoryName,
   onEdit,
   onDelete,
 }: ServiceCardProps) {
@@ -42,7 +44,7 @@ export default function ServiceCard({
               text-[var(--support-blue)]
               "
             >
-              {service.category}
+              {categoryName}
             </span>
           </div>
         </div>

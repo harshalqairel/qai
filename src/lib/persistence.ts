@@ -3,7 +3,7 @@ import { z } from "zod";
 export const CURRENT_STORAGE_VERSION = 1;
 
 export type StorageEnvelope<T> = {
-  version: typeof CURRENT_STORAGE_VERSION;
+  version: number;
   data: T;
   updatedAt: number;
 };
@@ -56,7 +56,19 @@ export const storedTimeSchema = z
   .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
 
 type ReadCollectionOptions = {
+  version?: number;
   migrateLegacy?: (records: unknown[]) => unknown[];
+  migrateVersioned?: (records: unknown[], fromVersion: number) => unknown[];
+};
+
+type WriteCollectionOptions = {
+  version?: number;
+};
+
+export type CollectionSnapshot = {
+  exists: boolean;
+  version: number | null;
+  records: unknown[];
 };
 
 const envelopeSchema = z
@@ -143,9 +155,9 @@ function setStoredValue(storage: Storage, storageKey: string, serialized: string
   }
 }
 
-function createEnvelope<T>(data: T): StorageEnvelope<T> {
+function createEnvelope<T>(data: T, version: number): StorageEnvelope<T> {
   return {
-    version: CURRENT_STORAGE_VERSION,
+    version,
     data,
     updatedAt: Date.now(),
   };
@@ -157,6 +169,7 @@ export function readVersionedCollection<T>(
   options: ReadCollectionOptions = {},
 ): T[] {
   const storage = getStorage(storageKey);
+  const targetVersion = options.version ?? CURRENT_STORAGE_VERSION;
 
   let raw: string | null;
   try {
@@ -180,7 +193,7 @@ export function readVersionedCollection<T>(
     }
 
     const validated = validateRecords(legacyRecords, recordSchema, storageKey);
-    const serialized = serializeEnvelope(createEnvelope(validated), storageKey);
+    const serialized = serializeEnvelope(createEnvelope(validated, targetVersion), storageKey);
     setStoredValue(storage, storageKey, serialized);
     return validated;
   }
@@ -190,8 +203,32 @@ export function readVersionedCollection<T>(
     throw new PersistenceError("VALIDATION_FAILURE", storageKey);
   }
 
-  if (envelopeResult.data.version !== CURRENT_STORAGE_VERSION) {
+  if (envelopeResult.data.version > targetVersion) {
     throw new PersistenceError("UNSUPPORTED_VERSION", storageKey);
+  }
+
+  if (envelopeResult.data.version < targetVersion) {
+    if (!options.migrateVersioned || !Array.isArray(envelopeResult.data.data)) {
+      throw new PersistenceError("UNSUPPORTED_VERSION", storageKey);
+    }
+
+    let migratedRecords: unknown[];
+    try {
+      migratedRecords = options.migrateVersioned(
+        envelopeResult.data.data,
+        envelopeResult.data.version,
+      );
+    } catch {
+      throw new PersistenceError("MIGRATION_FAILURE", storageKey);
+    }
+
+    const validated = validateRecords(migratedRecords, recordSchema, storageKey);
+    const serialized = serializeEnvelope(
+      createEnvelope(validated, targetVersion),
+      storageKey,
+    );
+    setStoredValue(storage, storageKey, serialized);
+    return validated;
   }
 
   return validateRecords(envelopeResult.data.data, recordSchema, storageKey);
@@ -201,11 +238,46 @@ export function writeVersionedCollection<T>(
   storageKey: string,
   recordSchema: z.ZodType<T>,
   records: readonly T[],
+  options: WriteCollectionOptions = {},
 ): void {
   const validated = validateRecords(records, recordSchema, storageKey);
-  const serialized = serializeEnvelope(createEnvelope(validated), storageKey);
+  const serialized = serializeEnvelope(
+    createEnvelope(validated, options.version ?? CURRENT_STORAGE_VERSION),
+    storageKey,
+  );
   const storage = getStorage(storageKey);
   setStoredValue(storage, storageKey, serialized);
+}
+
+export function readCollectionSnapshot(storageKey: string): CollectionSnapshot {
+  const storage = getStorage(storageKey);
+
+  let raw: string | null;
+  try {
+    raw = storage.getItem(storageKey);
+  } catch {
+    throw new PersistenceError("STORAGE_UNAVAILABLE", storageKey);
+  }
+
+  if (raw === null) {
+    return { exists: false, version: null, records: [] };
+  }
+
+  const parsed = parseJson(raw, storageKey);
+  if (Array.isArray(parsed)) {
+    return { exists: true, version: 0, records: parsed };
+  }
+
+  const envelopeResult = envelopeSchema.safeParse(parsed);
+  if (!envelopeResult.success || !Array.isArray(envelopeResult.data.data)) {
+    throw new PersistenceError("VALIDATION_FAILURE", storageKey);
+  }
+
+  return {
+    exists: true,
+    version: envelopeResult.data.version,
+    records: envelopeResult.data.data,
+  };
 }
 
 export function toPersistenceError(

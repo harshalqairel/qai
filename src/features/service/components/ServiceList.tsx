@@ -3,12 +3,14 @@ import ServiceCard from "./ServiceCard";
 
 type ServiceListProps = {
   services: Service[];
+  getCategoryName: (categoryId: string) => string;
   onEdit: (service: Service) => void;
   onDelete: (service: Service) => void;
 };
 
 export default function ServiceList({
   services,
+  getCategoryName,
   onEdit,
   onDelete,
 }: ServiceListProps) {
@@ -32,6 +34,7 @@ export default function ServiceList({
         <ServiceCard
           key={service.id}
           service={service}
+          categoryName={getCategoryName(service.categoryId)}
           onEdit={onEdit}
           onDelete={onDelete}
         />

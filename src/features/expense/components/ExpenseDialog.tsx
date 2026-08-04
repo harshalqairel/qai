@@ -9,11 +9,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { EXPENSE_CATEGORIES, EXPENSE_TYPES } from "@/features/expense/constants";
+import { EXPENSE_TYPES } from "@/features/expense/constants";
 import { PAYMENT_METHODS } from "@/features/payment/constants";
 import { expenseSchema, ExpenseFormValues } from "@/features/expense/schema";
 import { Expense, CreateExpenseInput, UpdateExpenseInput } from "@/features/expense/types";
 import { XIcon } from "lucide-react";
+import type { ExpenseCategory } from "@/features/expense-category/types";
 
 type BookingOption = { id: string; label: string };
 
@@ -24,11 +25,12 @@ type ExpenseDialogProps = {
   onClose: () => void;
   onCreate: (input: CreateExpenseInput) => void;
   onUpdate: (input: UpdateExpenseInput) => void;
+  categories: ExpenseCategory[];
 };
 
 const defaultValues: ExpenseFormValues = {
   date: "",
-  category: "Other",
+  categoryId: "",
   amount: 0,
   paymentMethod: "Cash",
   expenseType: "Business Expense",
@@ -44,6 +46,7 @@ export default function ExpenseDialog({
   onClose,
   onCreate,
   onUpdate,
+  categories,
 }: ExpenseDialogProps) {
   const isEdit = expense !== null;
 
@@ -54,7 +57,7 @@ export default function ExpenseDialog({
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<z.input<typeof expenseSchema>, any, ExpenseFormValues>({
+  } = useForm<z.input<typeof expenseSchema>, undefined, ExpenseFormValues>({
     resolver: zodResolver(expenseSchema),
     defaultValues,
     mode: "onTouched",
@@ -66,7 +69,7 @@ export default function ExpenseDialog({
     if (expense) {
       reset({
         date: expense.date,
-        category: expense.category,
+        categoryId: expense.categoryId,
         amount: expense.amount,
         paymentMethod: expense.paymentMethod,
         expenseType: expense.expenseType,
@@ -78,9 +81,10 @@ export default function ExpenseDialog({
       reset({
         ...defaultValues,
         date: new Date().toISOString().slice(0, 10),
+        categoryId: categories.find((category) => category.active)?.id ?? "",
       });
     }
-  }, [open, expense, reset]);
+  }, [open, expense, reset, categories]);
 
   const expenseType = watch("expenseType");
   const isBookingExpense = expenseType === "Booking Expense";
@@ -190,20 +194,35 @@ export default function ExpenseDialog({
             <Label className="mb-2 block font-semibold">Category</Label>
             <Controller
               control={control}
-              name="category"
+              name="categoryId"
               render={({ field }) => (
                 <Select value={field.value} onValueChange={field.onChange}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select category" />
+                    <SelectValue placeholder="Select category">
+                      {field.value
+                        ? categories.find((category) => category.id === field.value)?.name ?? "Category not found"
+                        : undefined}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {EXPENSE_CATEGORIES.map((cat) => (
-                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                    ))}
+                    {categories
+                      .filter((category) => category.active || category.id === expense?.categoryId)
+                      .map((category) => (
+                        <SelectItem
+                          key={category.id}
+                          value={category.id}
+                          disabled={!category.active}
+                        >
+                          {category.name}{!category.active ? " (Hidden)" : ""}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               )}
             />
+            {errors.categoryId && (
+              <p className="mt-2 text-sm text-destructive">{errors.categoryId.message}</p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">

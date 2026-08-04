@@ -1,4 +1,5 @@
 import { Expense } from "../types";
+import type { ExpenseCategory } from "@/features/expense-category/types";
 
 export type ExpenseCategoryItem = {
   category: string;
@@ -27,11 +28,16 @@ export function getBookingExpenses(bookingId: string, expenses: Expense[]): numb
 }
 
 /** Revenue by expense category, sorted by amount descending. */
-export function getExpensesByCategory(expenses: Expense[]): ExpenseCategoryItem[] {
+export function getExpensesByCategory(
+  expenses: Expense[],
+  categories: readonly ExpenseCategory[],
+): ExpenseCategoryItem[] {
   const categoryMap = new Map<string, number>();
+  const categoryNameById = new Map(categories.map((category) => [category.id, category.name]));
 
   for (const expense of expenses) {
-    categoryMap.set(expense.category, (categoryMap.get(expense.category) ?? 0) + expense.amount);
+    const categoryName = categoryNameById.get(expense.categoryId) ?? "Category not found";
+    categoryMap.set(categoryName, (categoryMap.get(categoryName) ?? 0) + expense.amount);
   }
 
   const total = Array.from(categoryMap.values()).reduce((sum, v) => sum + v, 0);

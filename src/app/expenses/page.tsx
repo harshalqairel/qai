@@ -11,6 +11,7 @@ import { useBookings } from "@/features/booking/hooks/useBookings";
 import { useCustomers } from "@/features/customer/hooks/useCustomers";
 import { useServices } from "@/features/service/hooks/useServices";
 import { Expense } from "@/features/expense/types";
+import { useExpenseCategories } from "@/features/expense-category/hooks/useExpenseCategories";
 
 type BookingOption = ExpenseBookingDetails & {
   id: string;
@@ -30,6 +31,7 @@ export default function ExpensesPage() {
   const { bookings } = useBookings();
   const { customers } = useCustomers();
   const { services } = useServices();
+  const { categories } = useExpenseCategories();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
@@ -64,13 +66,14 @@ export default function ExpensesPage() {
   );
 
   const keyword = search.trim().toLowerCase();
+  const categoryNameById = new Map(categories.map((item) => [item.id, item.name]));
   const filtered = expenses.filter((expense) => {
     const matchesSearch =
       keyword === "" ||
-      expense.category.toLowerCase().includes(keyword) ||
+      (categoryNameById.get(expense.categoryId) ?? "Category not found").toLowerCase().includes(keyword) ||
       expense.vendor.toLowerCase().includes(keyword) ||
       expense.notes.toLowerCase().includes(keyword);
-    const matchesCategory = category === "" || expense.category === category;
+    const matchesCategory = category === "" || expense.categoryId === category;
     const matchesType = expenseType === "" || expense.expenseType === expenseType;
     return matchesSearch && matchesCategory && matchesType;
   });
@@ -116,10 +119,12 @@ export default function ExpensesPage() {
             onExpenseTypeChange={setExpenseType}
             sort={sort}
             onSortChange={setSort}
+            categories={categories}
           />
           <ExpenseList
             expenses={sorted}
             getBookingDetails={(id) => bookingDisplayMap.get(id) ?? null}
+            getCategoryName={(categoryId) => categoryNameById.get(categoryId) ?? "Category not found"}
             onEdit={(expense) => {
               setSelectedExpense(expense);
               setDialogOpen(true);
@@ -133,6 +138,7 @@ export default function ExpensesPage() {
         open={dialogOpen}
         expense={selectedExpense}
         bookingOptions={bookingOptions}
+        categories={categories}
         onClose={() => {
           setDialogOpen(false);
           setSelectedExpense(null);

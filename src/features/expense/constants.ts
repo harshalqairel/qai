@@ -1,6 +1,8 @@
 export const EXPENSE_STORAGE_KEY = "qai:expenses";
+export const EXPENSE_STORAGE_VERSION = 2;
+export const EXPENSE_CATEGORY_STORAGE_KEY = "qai:expense-categories";
 
-export const EXPENSE_CATEGORIES = [
+export const DEFAULT_EXPENSE_CATEGORY_NAMES = [
   "Transportation",
   "Accommodation",
   "Studio",

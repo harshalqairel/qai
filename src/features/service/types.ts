@@ -1,7 +1,7 @@
 export type Service = {
   id: string;
   name: string;
-  category: ServiceCategory;
+  categoryId: string;
   price: number;
   duration: number;
   description: string;
@@ -10,16 +10,8 @@ export type Service = {
 
 export type CreateServiceInput = {
   name: string;
-  category: ServiceCategory;
+  categoryId: string;
   price: number;
   duration: number;
   description: string;
 };
-
-export enum ServiceCategory {
-  WEDDING = "Wedding",
-  STUDIO = "Studio Rental",
-  SELF = "Self Makeup Class",
-  COURSE = "Professional Class",
-  FNB = "Food & Beverage",
-}

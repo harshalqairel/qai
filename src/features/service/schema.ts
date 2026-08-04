@@ -1,14 +1,12 @@
 import { z } from "zod";
 
-import { ServiceCategory } from "./types";
-
 export const serviceSchema = z.object({
   name: z
     .string()
     .trim()
     .min(1, "Service name is required."),
 
-  category: z.enum(ServiceCategory),
+  categoryId: z.string().min(1, "Please choose a category."),
 
   price: z.coerce
     .number()
@@ -29,7 +27,7 @@ export const serviceRecordSchema = z
   .object({
     id: z.string().min(1),
     name: z.string().min(1),
-    category: z.enum(ServiceCategory),
+    categoryId: z.string().min(1),
     price: z.number().finite().positive(),
     duration: z.number().finite().positive(),
     description: z.string(),

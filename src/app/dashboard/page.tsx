@@ -6,7 +6,7 @@ import KPIGrid from "@/features/dashboard/components/KPIGrid";
 import TodaySchedule from "@/features/dashboard/components/TodaySchedule";
 import UpcomingJobs from "@/features/dashboard/components/UpcomingJobs";
 import RevenueChart from "@/features/dashboard/components/RevenueChart";
-import IncomeByService from "@/features/dashboard/components/IncomeByService";
+import IncomeByCategory from "@/features/dashboard/components/IncomeByCategory";
 import ExpenseByCategory from "@/features/dashboard/components/ExpenseByCategory";
 import PaymentDueList from "@/features/dashboard/components/PaymentDueList";
 import { useDashboard } from "@/features/dashboard/hooks/useDashboard";
@@ -60,7 +60,7 @@ export default function DashboardPage() {
 
         <div className="grid min-w-0 gap-5 lg:grid-cols-2 lg:gap-6">
           <div className={CARD_CLASS}>
-            <IncomeByService items={dashboard.incomeByService} />
+            <IncomeByCategory items={dashboard.incomeByCategory} />
           </div>
           <div className={CARD_CLASS}>
             <ExpenseByCategory items={dashboard.expenseByCategory} />

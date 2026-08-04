@@ -1,58 +1,62 @@
-import { EXPENSE_CATEGORIES, EXPENSE_TYPES } from "@/features/expense/constants";
+import { EXPENSE_TYPES } from "@/features/expense/constants";
+import type { ExpenseCategory } from "@/features/expense-category/types";
 
 type ExpenseToolbarProps = {
   search: string;
-  onSearchChange: (v: string) => void;
+  onSearchChange: (value: string) => void;
   category: string;
-  onCategoryChange: (v: string) => void;
+  onCategoryChange: (value: string) => void;
   expenseType: string;
-  onExpenseTypeChange: (v: string) => void;
+  onExpenseTypeChange: (value: string) => void;
   sort: string;
-  onSortChange: (v: string) => void;
+  onSortChange: (value: string) => void;
+  categories: ExpenseCategory[];
 };
 
 export default function ExpenseToolbar({
-  search, onSearchChange,
-  category, onCategoryChange,
-  expenseType, onExpenseTypeChange,
-  sort, onSortChange,
+  search,
+  onSearchChange,
+  category,
+  onCategoryChange,
+  expenseType,
+  onExpenseTypeChange,
+  sort,
+  onSortChange,
+  categories,
 }: ExpenseToolbarProps) {
   return (
     <div className="filter-bar">
       <input
         type="text"
         placeholder="Search expenses..."
-        className="w-full rounded-xl border border-zinc-300 px-4 py-2 lg:flex-1"
+        className="native-control lg:flex-1"
         value={search}
-        onChange={(e) => onSearchChange(e.target.value)}
+        onChange={(event) => onSearchChange(event.target.value)}
       />
-
       <select
-        className="rounded-xl border border-zinc-300 px-4 py-2"
+        className="native-control lg:w-auto"
         value={category}
-        onChange={(e) => onCategoryChange(e.target.value)}
+        onChange={(event) => onCategoryChange(event.target.value)}
       >
         <option value="">All Categories</option>
-        {EXPENSE_CATEGORIES.map((cat) => (
-          <option key={cat} value={cat}>{cat}</option>
+        {categories.map((item) => (
+          <option key={item.id} value={item.id}>{item.name}</option>
         ))}
       </select>
-
       <select
-        className="rounded-xl border border-zinc-300 px-4 py-2"
+        className="native-control lg:w-auto"
         value={expenseType}
-        onChange={(e) => onExpenseTypeChange(e.target.value)}
+        onChange={(event) => onExpenseTypeChange(event.target.value)}
       >
         <option value="">All Types</option>
-        {EXPENSE_TYPES.map((t) => (
-          <option key={t} value={t}>{t}</option>
+        {EXPENSE_TYPES.map((type) => (
+          <option key={type} value={type}>{type}</option>
         ))}
       </select>
-
       <select
-        className="rounded-xl border border-zinc-300 px-4 py-2"
+        className="native-control lg:w-auto"
         value={sort}
-        onChange={(e) => onSortChange(e.target.value)}
+        onChange={(event) => onSortChange(event.target.value)}
       >
         <option value="newest">Newest</option>
         <option value="oldest">Oldest</option>

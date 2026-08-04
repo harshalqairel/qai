@@ -1,6 +1,7 @@
 import { Booking } from "@/features/booking/types";
 import { Customer } from "@/features/customer/types";
 import { Service } from "@/features/service/types";
+import type { ServiceCategory } from "@/features/service-category/types";
 import { Payment } from "../types";
 import { summarizeBookingPayments } from "./paymentCalculations";
 
@@ -40,6 +41,38 @@ export function getRevenueByService(bookings: Booking[], services: Service[], pa
     serviceName: service.name,
     revenue: revenueByService.get(service.id) ?? 0,
   }));
+}
+
+export function getRevenueByCategory(
+  bookings: Booking[],
+  services: Service[],
+  categories: readonly ServiceCategory[],
+  payments: Payment[],
+) {
+  const bookingMap = new Map(bookings.map((booking) => [booking.id, booking]));
+  const serviceMap = new Map(services.map((service) => [service.id, service]));
+  const categoryMap = new Map(categories.map((category) => [category.id, category]));
+  const revenueByCategory = new Map<string, number>();
+  const missingCategoryKey = "__missing_category__";
+
+  for (const payment of payments) {
+    const booking = bookingMap.get(payment.bookingId);
+    if (!booking || booking.bookingStatus === "Cancelled") continue;
+
+    const service = serviceMap.get(booking.serviceId);
+    const categoryId = service?.categoryId ?? missingCategoryKey;
+    revenueByCategory.set(categoryId, (revenueByCategory.get(categoryId) ?? 0) + payment.amount);
+  }
+
+  return Array.from(revenueByCategory.entries()).map(([categoryId, revenue]) => {
+    const category = categoryMap.get(categoryId);
+    return {
+      categoryId,
+      categoryName: category?.name ?? "Category not found",
+      categoryColor: category?.color,
+      revenue,
+    };
+  });
 }
 
 export function getRevenueByCustomer(bookings: Booking[], customers: Customer[], payments: Payment[]) {

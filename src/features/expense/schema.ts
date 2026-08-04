@@ -1,12 +1,12 @@
 import { z } from "zod";
-import { EXPENSE_CATEGORIES, EXPENSE_TYPES } from "./constants";
+import { EXPENSE_TYPES } from "./constants";
 import { PAYMENT_METHODS } from "@/features/payment/constants";
 import { storedDateSchema, storedTimestampSchema } from "@/lib/persistence";
 
 export const expenseSchema = z
   .object({
     date: z.string().min(1, "Date is required."),
-    category: z.enum(EXPENSE_CATEGORIES),
+    categoryId: z.string().min(1, "Please choose a category."),
     amount: z.coerce.number().positive("Amount must be greater than 0."),
     paymentMethod: z.enum(PAYMENT_METHODS),
     expenseType: z.enum(EXPENSE_TYPES),
@@ -30,7 +30,7 @@ export const expenseRecordSchema = z
   .object({
     id: z.string().min(1),
     date: storedDateSchema,
-    category: z.enum(EXPENSE_CATEGORIES),
+    categoryId: z.string().min(1),
     amount: z.number().finite().positive(),
     paymentMethod: z.enum(PAYMENT_METHODS),
     expenseType: z.enum(EXPENSE_TYPES),

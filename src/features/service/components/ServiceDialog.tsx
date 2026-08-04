@@ -17,8 +17,8 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
-import { Service, ServiceCategory } from "@/features/service/types";
-import { SERVICE_CATEGORIES } from "@/features/service/constants";
+import { Service } from "@/features/service/types";
+import type { ServiceCategory } from "@/features/service-category/types";
 import {
   serviceSchema,
   ServiceFormValues,
@@ -30,13 +30,12 @@ type ServiceDialogProps = {
   onClose: () => void;
   onCreate: (service: Service) => void;
   onUpdate: (service: Service) => void;
+  categories: ServiceCategory[];
 };
-
-const INITIAL_CATEGORY = ServiceCategory.WEDDING;
 
 const defaultValues: ServiceFormValues = {
   name: "",
-  category: INITIAL_CATEGORY,
+  categoryId: "",
   price: 0,
   duration: 0,
   description: "",
@@ -49,6 +48,7 @@ export default function ServiceDialog({
   onClose,
   onCreate,
   onUpdate,
+  categories,
 }: ServiceDialogProps) {
   const isEdit = service !== null;
 
@@ -63,7 +63,7 @@ export default function ServiceDialog({
     },
   } = useForm<
     z.input<typeof serviceSchema>,
-    any,
+    undefined,
     ServiceFormValues
   >({
     resolver: zodResolver(serviceSchema),
@@ -77,7 +77,7 @@ export default function ServiceDialog({
     if (service) {
       reset({
         name: service.name,
-        category: service.category,
+        categoryId: service.categoryId,
         price: service.price,
         duration: service.duration,
         description: service.description,
@@ -87,8 +87,11 @@ export default function ServiceDialog({
       return;
     }
 
-    reset(defaultValues);
-  }, [open, service, reset]);
+    reset({
+      ...defaultValues,
+      categoryId: categories.find((category) => category.active)?.id ?? "",
+    });
+  }, [open, service, reset, categories]);
 
   function resetForm() {
     reset(defaultValues);
@@ -103,7 +106,7 @@ export default function ServiceDialog({
     const serviceData: Service = {
       id: service?.id ?? crypto.randomUUID(),
       name: values.name.trim(),
-      category: values.category,
+      categoryId: values.categoryId,
       price: values.price,
       duration: values.duration,
       description: values.description.trim(),
@@ -164,23 +167,30 @@ export default function ServiceDialog({
 
             <Controller
               control={control}
-              name="category"
+              name="categoryId"
               render={({ field }) => (
                 <Select
                   value={field.value}
                   onValueChange={field.onChange}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select a category" />
+                    <SelectValue placeholder="Select a category">
+                      {field.value
+                        ? categories.find((category) => category.id === field.value)?.name ?? "Category not found"
+                        : undefined}
+                    </SelectValue>
                   </SelectTrigger>
 
                   <SelectContent>
-                    {SERVICE_CATEGORIES.map((item) => (
+                    {categories
+                      .filter((item) => item.active || item.id === service?.categoryId)
+                      .map((item) => (
                       <SelectItem
-                        key={item}
-                        value={item}
+                        key={item.id}
+                        value={item.id}
+                        disabled={!item.active}
                       >
-                        {item}
+                        {item.name}{!item.active ? " (Hidden)" : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -188,9 +198,9 @@ export default function ServiceDialog({
               )}
             />
 
-            {errors.category && (
+            {errors.categoryId && (
               <p className="mt-2 text-sm text-destructive">
-                {errors.category.message}
+                {errors.categoryId.message}
               </p>
             )}
           </div>

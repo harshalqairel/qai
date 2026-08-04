@@ -4,11 +4,12 @@ import ExpenseCard, { ExpenseBookingDetails } from "./ExpenseCard";
 type ExpenseListProps = {
   expenses: Expense[];
   getBookingDetails: (bookingId: string) => ExpenseBookingDetails | null;
+  getCategoryName: (categoryId: string) => string;
   onEdit: (expense: Expense) => void;
   onDelete: (expense: Expense) => void;
 };
 
-export default function ExpenseList({ expenses, getBookingDetails, onEdit, onDelete }: ExpenseListProps) {
+export default function ExpenseList({ expenses, getBookingDetails, getCategoryName, onEdit, onDelete }: ExpenseListProps) {
   if (expenses.length === 0) {
     return (
       <div className="empty-state">
@@ -26,6 +27,7 @@ export default function ExpenseList({ expenses, getBookingDetails, onEdit, onDel
         <ExpenseCard
           key={expense.id}
           expense={expense}
+          categoryName={getCategoryName(expense.categoryId)}
           bookingDetails={expense.bookingId ? getBookingDetails(expense.bookingId) : null}
           onEdit={onEdit}
           onDelete={onDelete}

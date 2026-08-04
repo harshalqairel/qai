@@ -33,7 +33,7 @@ export function useServices(): {
       id: crypto.randomUUID(),
       active: true,
       name: input.name,
-      category: input.category,
+      categoryId: input.categoryId,
       price: input.price,
       duration: input.duration,
       description: input.description,

@@ -5,18 +5,20 @@ import type { Booking } from "@/features/booking/types";
 import { useBookings } from "@/features/booking/hooks/useBookings";
 import { useCustomers } from "@/features/customer/hooks/useCustomers";
 import { useServices } from "@/features/service/hooks/useServices";
+import { useServiceCategories } from "@/features/service-category/hooks/useServiceCategories";
 import { usePayments } from "@/features/payment/hooks/usePayments";
 import { useExpenses } from "@/features/expense/hooks/useExpenses";
 import { summarizeBookingPayments } from "@/features/payment/utils/paymentCalculations";
 import {
   getMonthlyRealizedRevenue,
-  getRevenueByService,
+  getRevenueByCategory,
 } from "@/features/payment/utils/reportAggregations";
 import {
   getMonthlyExpenses,
   getExpensesByCategory,
 } from "@/features/expense/utils/expenseAggregations";
 import type { ExpenseCategoryItem } from "@/features/expense/utils/expenseAggregations";
+import { useExpenseCategories } from "@/features/expense-category/hooks/useExpenseCategories";
 
 export type KPITone = "received" | "unpaid" | "expenses" | "profit";
 
@@ -34,10 +36,12 @@ export type RevenuePoint = {
   net: number;
 };
 
-export type IncomeByServiceItem = {
-  serviceId: string;
-  serviceName: string;
+export type IncomeByCategoryItem = {
+  categoryId: string;
+  categoryName: string;
+  categoryColor?: string;
   revenue: number;
+  percentage: number;
 };
 
 export type EnrichedBooking = Booking & {
@@ -56,8 +60,10 @@ export function useDashboard({ selectedYear }: UseDashboardArgs) {
   const { bookings } = useBookings();
   const { customers } = useCustomers();
   const { services } = useServices();
+  const { categories: serviceCategories } = useServiceCategories();
   const { payments } = usePayments();
   const { expenses } = useExpenses();
+  const { categories: expenseCategories } = useExpenseCategories();
 
   const todayKey = useMemo(() => {
     const today = new Date();
@@ -212,15 +218,21 @@ export function useDashboard({ selectedYear }: UseDashboardArgs) {
     }));
   }, [payments, expenses, selectedYear]);
 
-  const incomeByService = useMemo<IncomeByServiceItem[]>(() => {
-    return getRevenueByService(bookings, services, payments)
+  const incomeByCategory = useMemo<IncomeByCategoryItem[]>(() => {
+    const byCategory = getRevenueByCategory(bookings, services, serviceCategories, payments)
       .filter((item) => item.revenue > 0)
       .sort((a, b) => b.revenue - a.revenue);
-  }, [bookings, services, payments]);
+    const totalRevenue = byCategory.reduce((sum, item) => sum + item.revenue, 0);
+
+    return byCategory.map((item) => ({
+      ...item,
+      percentage: totalRevenue > 0 ? Math.round((item.revenue / totalRevenue) * 100) : 0,
+    }));
+  }, [bookings, services, serviceCategories, payments]);
 
   const expenseByCategory = useMemo<ExpenseCategoryItem[]>(
-    () => getExpensesByCategory(expenses),
-    [expenses],
+    () => getExpensesByCategory(expenses, expenseCategories),
+    [expenses, expenseCategories],
   );
 
   return {
@@ -231,7 +243,7 @@ export function useDashboard({ selectedYear }: UseDashboardArgs) {
     latePayments,
     statusCounts,
     revenueSeries,
-    incomeByService,
+    incomeByCategory,
     expenseByCategory,
   };
 }

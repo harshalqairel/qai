@@ -9,9 +9,11 @@ import ServiceDialog from "@/features/service/components/ServiceDialog";
 
 import { Service, CreateServiceInput } from "@/features/service/types";
 import { useServices } from "@/features/service/hooks/useServices";
+import { useServiceCategories } from "@/features/service-category/hooks/useServiceCategories";
 
 export default function ServicesPage() {
   const { services, createService, updateService, deleteService } = useServices();
+  const { categories } = useServiceCategories();
 
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -23,15 +25,16 @@ export default function ServicesPage() {
   const [sort, setSort] = useState("");
 
   const keyword = search.trim().toLowerCase();
+  const categoryNameById = new Map(categories.map((item) => [item.id, item.name]));
 
   const filteredServices = services.filter((service) => {
     const matchesSearch =
       keyword === "" ||
       service.name.toLowerCase().includes(keyword) ||
-      service.category.toLowerCase().includes(keyword) ||
+      (categoryNameById.get(service.categoryId) ?? "Category not found").toLowerCase().includes(keyword) ||
       service.description.toLowerCase().includes(keyword);
 
-    const matchesCategory = category === "" || service.category === category;
+    const matchesCategory = category === "" || service.categoryId === category;
 
     return matchesSearch && matchesCategory;
   });
@@ -87,10 +90,12 @@ export default function ServicesPage() {
             onCategoryChange={setCategory}
             sort={sort}
             onSortChange={setSort}
+            categories={categories}
           />
 
           <ServiceList
             services={sortedServices}
+            getCategoryName={(categoryId) => categoryNameById.get(categoryId) ?? "Category not found"}
             onEdit={(service) => {
               setSelectedService(service);
               setDialogOpen(true);
@@ -104,6 +109,7 @@ export default function ServicesPage() {
       <ServiceDialog
         open={dialogOpen}
         service={selectedService}
+        categories={categories}
         onClose={() => {
           setDialogOpen(false);
           setSelectedService(null);
@@ -111,7 +117,7 @@ export default function ServicesPage() {
         onCreate={(service: Service) => {
           const input: CreateServiceInput = {
             name: service.name,
-            category: service.category,
+            categoryId: service.categoryId,
             price: service.price,
             duration: service.duration,
             description: service.description,
