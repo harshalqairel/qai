@@ -26,12 +26,19 @@ const NAV = [
   { href: "/settings", label: "Settings", Icon: Settings },
 ];
 
-function Brand() {
+function Brand({ onClick }: { onClick?: () => void }) {
   return (
-    <div>
-      <QaiLogo size="md" />
-      <div className="mt-1 text-xs text-muted-foreground">Creative business manager</div>
-    </div>
+    <Link
+      href="/dashboard"
+      onClick={onClick}
+      aria-label="Go to Dashboard"
+      className="inline-flex min-h-10 w-full rounded-lg px-2 py-1 transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+    >
+      <span>
+        <QaiLogo size="md" decorative />
+        <span className="mt-1 block text-xs text-muted-foreground">Creative business manager</span>
+      </span>
+    </Link>
   );
 }
 
@@ -68,7 +75,13 @@ export default function Sidebar() {
   return (
     <>
       <header className="fixed inset-x-0 top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-card/95 px-4 backdrop-blur lg:hidden">
-        <QaiLogo size="sm" />
+        <Link
+          href="/dashboard"
+          aria-label="Go to Dashboard"
+          className="inline-flex min-h-10 items-center rounded-lg px-2 py-1 transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+        >
+          <QaiLogo size="sm" decorative />
+        </Link>
         <button
           type="button"
           aria-label="Open menu"
@@ -94,7 +107,7 @@ export default function Sidebar() {
         }`}
       >
         <div className="flex h-16 items-center justify-between border-b border-border px-5">
-          <Brand />
+          <Brand onClick={() => setDrawerOpen(false)} />
           <button
             type="button"
             aria-label="Close menu"
