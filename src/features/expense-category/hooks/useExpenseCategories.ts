@@ -6,6 +6,7 @@ import { normalizeCategoryName } from "@/features/category/utils";
 import type { ExpenseCategory } from "../types";
 import { expenseCategoryRepository } from "../api/expenseCategoryRepository";
 import { expenseRepository } from "@/features/expense/api/expenseRepository";
+import { subscribeToDataRefresh } from "@/lib/dataRefresh";
 
 function assertUnique(
   categories: readonly ExpenseCategory[],
@@ -49,7 +50,11 @@ export function useExpenseCategories() {
 
   useEffect(() => {
     const timeoutId = window.setTimeout(refresh, 0);
-    return () => window.clearTimeout(timeoutId);
+    const unsubscribe = subscribeToDataRefresh(refresh);
+    return () => {
+      window.clearTimeout(timeoutId);
+      unsubscribe();
+    };
   }, [refresh]);
 
   const createCategory = useCallback((input: CategoryInput) => {

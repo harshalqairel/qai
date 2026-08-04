@@ -8,6 +8,7 @@ import {
   UpdateCustomerInput,
 } from "../types";
 import { customerRepository } from "../api/customerRepository";
+import { subscribeToDataRefresh } from "@/lib/dataRefresh";
 
 export function useCustomers() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -28,7 +29,11 @@ export function useCustomers() {
 
   useEffect(() => {
     const timeoutId = window.setTimeout(retry, 0);
-    return () => window.clearTimeout(timeoutId);
+    const unsubscribe = subscribeToDataRefresh(retry);
+    return () => {
+      window.clearTimeout(timeoutId);
+      unsubscribe();
+    };
   }, [retry]);
 
   const createCustomer = useCallback((input: CreateCustomerInput): boolean => {

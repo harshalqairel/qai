@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Service, CreateServiceInput } from "../types";
 import { serviceRepository } from "../api/serviceRepository";
+import { subscribeToDataRefresh } from "@/lib/dataRefresh";
 
 export function useServices(): {
   services: Service[];
@@ -31,7 +32,11 @@ export function useServices(): {
 
   useEffect(() => {
     const timeoutId = window.setTimeout(retry, 0);
-    return () => window.clearTimeout(timeoutId);
+    const unsubscribe = subscribeToDataRefresh(retry);
+    return () => {
+      window.clearTimeout(timeoutId);
+      unsubscribe();
+    };
   }, [retry]);
 
   const createService = useCallback((input: CreateServiceInput): boolean => {

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { paymentRepository } from "../api/paymentRepository";
 import { CreatePaymentInput, Payment, UpdatePaymentInput } from "../types";
+import { emitDataRefresh, subscribeToDataRefresh } from "@/lib/dataRefresh";
 
 export function usePayments() {
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -23,7 +24,11 @@ export function usePayments() {
 
   useEffect(() => {
     const timeoutId = window.setTimeout(retry, 0);
-    return () => window.clearTimeout(timeoutId);
+    const unsubscribe = subscribeToDataRefresh(retry);
+    return () => {
+      window.clearTimeout(timeoutId);
+      unsubscribe();
+    };
   }, [retry]);
 
   const createPayment = useCallback((input: CreatePaymentInput): boolean => {
@@ -36,6 +41,7 @@ export function usePayments() {
     try {
       paymentRepository.create(payment);
       setPayments((prev) => [...prev, payment]);
+      emitDataRefresh();
       return true;
     } catch {
       return false;
@@ -52,6 +58,7 @@ export function usePayments() {
       setPayments((prev) =>
         prev.map((payment) => (payment.id === updated.id ? updated : payment)),
       );
+      emitDataRefresh();
       return true;
     } catch {
       return false;
@@ -62,6 +69,7 @@ export function usePayments() {
     try {
       paymentRepository.delete(id);
       setPayments((prev) => prev.filter((payment) => payment.id !== id));
+      emitDataRefresh();
       return true;
     } catch {
       return false;

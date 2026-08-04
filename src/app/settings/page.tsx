@@ -5,12 +5,25 @@ import { Button } from "@/components/ui/button";
 import CategoryManager from "@/features/category/components/CategoryManager";
 import { useServiceCategories } from "@/features/service-category/hooks/useServiceCategories";
 import { useExpenseCategories } from "@/features/expense-category/hooks/useExpenseCategories";
-import { CalendarDays, CircleUserRound, CreditCard, Info, Bell, Link2, ReceiptText, Tags, WalletCards } from "lucide-react";
+import DataBackupSection from "@/features/backup/components/DataBackupSection";
+import {
+  Bell,
+  CalendarDays,
+  CircleUserRound,
+  CreditCard,
+  Database,
+  Info,
+  Link2,
+  ReceiptText,
+  Tags,
+  WalletCards,
+} from "lucide-react";
 import PageSkeleton from "@/components/system/PageSkeleton";
 import { QaiLogo } from "@/components/brand/QaiLogo";
 
 const SECTIONS = [
   { id: "business-profile", label: "Business Profile", Icon: CircleUserRound },
+  { id: "data-backup", label: "Data Backup", Icon: Database },
   { id: "service-categories", label: "Service Categories", Icon: Tags },
   { id: "expense-categories", label: "Expense Categories", Icon: ReceiptText },
   { id: "payment-terms", label: "Payment Terms", Icon: WalletCards },
@@ -33,7 +46,14 @@ function Placeholder({ title, message }: { title: string; message: string }) {
 }
 
 export default function SettingsPage() {
-  const [section, setSection] = useState<SectionId>("business-profile");
+  const [section, setSection] = useState<SectionId>(() => {
+    if (typeof window === "undefined") return "business-profile";
+    const requested = new URLSearchParams(window.location.search).get("section");
+    if (requested && SECTIONS.some((item) => item.id === requested)) {
+      return requested as SectionId;
+    }
+    return "business-profile";
+  });
   const serviceCategories = useServiceCategories();
   const expenseCategories = useExpenseCategories();
 
@@ -87,6 +107,7 @@ export default function SettingsPage() {
             {section === "business-profile" && (
               <Placeholder title="Business Profile" message="Not set up yet" />
             )}
+            {section === "data-backup" && <DataBackupSection />}
             {section === "service-categories" && (
               <CategoryManager
                 title="Service Categories"

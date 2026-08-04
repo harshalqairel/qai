@@ -6,6 +6,7 @@ import { normalizeCategoryName } from "@/features/category/utils";
 import type { ServiceCategory } from "../types";
 import { serviceCategoryRepository } from "../api/serviceCategoryRepository";
 import { serviceRepository } from "@/features/service/api/serviceRepository";
+import { subscribeToDataRefresh } from "@/lib/dataRefresh";
 
 function assertUnique(
   categories: readonly ServiceCategory[],
@@ -49,7 +50,11 @@ export function useServiceCategories() {
 
   useEffect(() => {
     const timeoutId = window.setTimeout(refresh, 0);
-    return () => window.clearTimeout(timeoutId);
+    const unsubscribe = subscribeToDataRefresh(refresh);
+    return () => {
+      window.clearTimeout(timeoutId);
+      unsubscribe();
+    };
   }, [refresh]);
 
   const createCategory = useCallback((input: CategoryInput) => {

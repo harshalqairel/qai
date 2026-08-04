@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 
 import { Booking, CreateBookingInput, UpdateBookingInput } from "../types";
 import { bookingRepository } from "../api/bookingRepository";
+import type { BookingDeleteResult } from "../api/bookingRepository";
+import { emitDataRefresh, subscribeToDataRefresh } from "@/lib/dataRefresh";
 
 export function useBookings() {
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -24,7 +26,11 @@ export function useBookings() {
 
   useEffect(() => {
     const timeoutId = window.setTimeout(retry, 0);
-    return () => window.clearTimeout(timeoutId);
+    const unsubscribe = subscribeToDataRefresh(retry);
+    return () => {
+      window.clearTimeout(timeoutId);
+      unsubscribe();
+    };
   }, [retry]);
 
   const createBooking = useCallback((input: CreateBookingInput): boolean => {
@@ -39,6 +45,7 @@ export function useBookings() {
     try {
       bookingRepository.create(newBooking);
       setBookings((prev) => [...prev, newBooking]);
+      emitDataRefresh();
       return true;
     } catch {
       return false;
@@ -55,19 +62,24 @@ export function useBookings() {
       setBookings((prev) =>
         prev.map((booking) => (booking.id === updated.id ? updated : booking)),
       );
+      emitDataRefresh();
       return true;
     } catch {
       return false;
     }
   }, [bookings]);
 
-  const deleteBooking = useCallback((id: string): boolean => {
+  const deleteBooking = useCallback((id: string): BookingDeleteResult | "error" => {
     try {
-      bookingRepository.delete(id);
+      const result = bookingRepository.delete(id);
+      if (result === "blocked") {
+        return "blocked";
+      }
       setBookings((prev) => prev.filter((booking) => booking.id !== id));
-      return true;
+      emitDataRefresh();
+      return "deleted";
     } catch {
-      return false;
+      return "error";
     }
   }, []);
 

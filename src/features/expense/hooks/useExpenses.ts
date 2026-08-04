@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Expense, CreateExpenseInput, UpdateExpenseInput } from "../types";
 import { expenseRepository } from "../api/expenseRepository";
+import { emitDataRefresh, subscribeToDataRefresh } from "@/lib/dataRefresh";
 
 export function useExpenses() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -23,7 +24,11 @@ export function useExpenses() {
 
   useEffect(() => {
     const timeoutId = window.setTimeout(retry, 0);
-    return () => window.clearTimeout(timeoutId);
+    const unsubscribe = subscribeToDataRefresh(retry);
+    return () => {
+      window.clearTimeout(timeoutId);
+      unsubscribe();
+    };
   }, [retry]);
 
   const createExpense = useCallback((input: CreateExpenseInput): boolean => {
@@ -38,6 +43,7 @@ export function useExpenses() {
     try {
       expenseRepository.create(expense);
       setExpenses((prev) => [...prev, expense]);
+      emitDataRefresh();
       return true;
     } catch {
       return false;
@@ -54,6 +60,7 @@ export function useExpenses() {
       setExpenses((prev) =>
         prev.map((expense) => (expense.id === updated.id ? updated : expense)),
       );
+      emitDataRefresh();
       return true;
     } catch {
       return false;
@@ -64,6 +71,7 @@ export function useExpenses() {
     try {
       expenseRepository.delete(id);
       setExpenses((prev) => prev.filter((expense) => expense.id !== id));
+      emitDataRefresh();
       return true;
     } catch {
       return false;
