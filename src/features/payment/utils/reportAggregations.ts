@@ -32,7 +32,7 @@ export function getRevenueByService(bookings: Booking[], services: Service[], pa
 
   for (const payment of payments) {
     const booking = bookingMap.get(payment.bookingId);
-    if (!booking || booking.bookingStatus === "Cancelled") continue;
+    if (!booking) continue;
     revenueByService.set(booking.serviceId, (revenueByService.get(booking.serviceId) ?? 0) + payment.amount);
   }
 
@@ -56,7 +56,7 @@ export function getRevenueByCategory(
 
   for (const payment of payments) {
     const booking = bookingMap.get(payment.bookingId);
-    if (!booking || booking.bookingStatus === "Cancelled") continue;
+    if (!booking) continue;
 
     const service = serviceMap.get(booking.serviceId);
     if (!service) continue;
@@ -91,7 +91,7 @@ export function getRevenueByCustomer(bookings: Booking[], customers: Customer[],
 
   for (const payment of payments) {
     const booking = bookingMap.get(payment.bookingId);
-    if (!booking || booking.bookingStatus === "Cancelled") continue;
+    if (!booking) continue;
     revenueByCustomer.set(booking.customerId, (revenueByCustomer.get(booking.customerId) ?? 0) + payment.amount);
   }
 

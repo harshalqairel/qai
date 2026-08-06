@@ -61,7 +61,9 @@ export function summarizeBookingPayments(
 
   for (const booking of bookings) {
     const totalPaid = sumPaymentsForBooking(booking.id, payments);
-    const remainingAmount = Math.max(booking.servicePrice - totalPaid, 0);
+    const remainingAmount = booking.bookingStatus === "Cancelled"
+      ? 0
+      : Math.max(booking.servicePrice - totalPaid, 0);
     const paymentStatus = derivePaymentStatus(booking.bookingStatus, totalPaid, booking.servicePrice);
 
     byBookingId[booking.id] = {

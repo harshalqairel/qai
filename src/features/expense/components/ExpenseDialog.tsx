@@ -25,6 +25,7 @@ type ExpenseDialogProps = {
   open: boolean;
   expense: Expense | null;
   bookingOptions: BookingOption[];
+  initialValues?: Partial<ExpenseFormValues>;
   onClose: () => void;
   onCreate: (input: CreateExpenseInput) => boolean;
   onUpdate: (input: UpdateExpenseInput) => boolean;
@@ -46,6 +47,7 @@ export default function ExpenseDialog({
   open,
   expense,
   bookingOptions,
+  initialValues,
   onClose,
   onCreate,
   onUpdate,
@@ -62,6 +64,7 @@ export default function ExpenseDialog({
     watch,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<z.input<typeof expenseSchema>, undefined, ExpenseFormValues>({
     resolver: zodResolver(expenseSchema),
@@ -86,11 +89,12 @@ export default function ExpenseDialog({
     } else {
       reset({
         ...defaultValues,
+        ...initialValues,
         date: new Date().toISOString().slice(0, 10),
         categoryId: categories.find((category) => category.active)?.id ?? "",
       });
     }
-  }, [open, expense, reset, categories]);
+  }, [open, expense, initialValues, reset, categories]);
 
   const expenseType = watch("expenseType");
   const isBookingExpense = expenseType === "Booking Expense";
@@ -162,38 +166,40 @@ export default function ExpenseDialog({
             />
           </div>
 
-          {/* Booking selector — only when Booking Expense */}
-          {isBookingExpense && (
-            <div>
-              <Label className="mb-2 block font-semibold">Booking</Label>
-              <Controller
-                control={control}
-                name="bookingId"
-                render={({ field }) => (
-                  <Select
-                    value={field.value ?? ""}
-                    onValueChange={(v) => field.onChange(v || null)}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select a booking">
-                        {field.value
-                          ? bookingOptions.find((option) => option.id === field.value)?.label ?? "Booking not found"
-                          : undefined}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {bookingOptions.map((opt) => (
-                        <SelectItem key={opt.id} value={opt.id}>{opt.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-              {errors.bookingId && (
-                <p className="mt-2 text-sm text-destructive">{errors.bookingId.message}</p>
+          <div>
+            <Label className="mb-2 block font-semibold">Related Booking (optional)</Label>
+            <Controller
+              control={control}
+              name="bookingId"
+              render={({ field }) => (
+                <Select
+                  value={field.value ?? "none"}
+                  onValueChange={(value) => {
+                    const bookingId = value === "none" ? null : value;
+                    field.onChange(bookingId);
+                    setValue("expenseType", bookingId ? "Booking Expense" : "Business Expense");
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="No related booking">
+                      {field.value
+                        ? bookingOptions.find((option) => option.id === field.value)?.label ?? "Booking not found"
+                        : "No related booking"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No related booking</SelectItem>
+                    {bookingOptions.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>{option.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
-            </div>
-          )}
+            />
+            {errors.bookingId && (
+              <p className="mt-2 text-sm text-destructive">{errors.bookingId.message}</p>
+            )}
+          </div>
 
           {/* Category */}
           <div>

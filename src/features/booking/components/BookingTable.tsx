@@ -36,27 +36,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { Booking, BookingStatus } from "@/features/booking/types";
+import type { BookingStatus } from "@/features/booking/types";
 import type { DerivedPaymentStatus } from "@/features/payment/types";
 import {
   formatRupiah,
 } from "@/features/payment/utils/paymentCalculations";
 import { formatBookingTimeRange } from "@/features/booking/utils/bookingDateRange";
+import type { BookingFinancialDetails } from "./BookingFinancialDetailsDialog";
 
-type BookingWithNames = Booking & {
-  customerName: string;
-  serviceName: string;
-  paymentStatus: DerivedPaymentStatus;
-  totalPaid: number;
-  remainingAmount: number;
-};
+type BookingWithNames = BookingFinancialDetails;
 
 type BookingTableProps = {
   bookings: BookingWithNames[];
   onEdit: (booking: BookingWithNames) => void;
   onDelete: (booking: BookingWithNames) => boolean | "blocked";
   onStatusChange: (booking: BookingWithNames, status: BookingStatus) => boolean;
-  onPaymentStatusClick: (booking: BookingWithNames) => void;
+  onFinancialDetailsClick: (booking: BookingWithNames) => void;
 };
 
 const BOOKING_STATUS_STYLES: Record<BookingStatus, string> = {
@@ -160,8 +155,6 @@ function PaymentStatusControl({
   booking: BookingWithNames;
   onClick: (booking: BookingWithNames) => void;
 }) {
-  const canQuickPay = booking.bookingStatus !== "Cancelled" && booking.remainingAmount > 0;
-
   return (
     <Button
       type="button"
@@ -170,14 +163,20 @@ function PaymentStatusControl({
       className={`rounded-full px-3 ${PAYMENT_STATUS_STYLES[booking.paymentStatus]}`}
       onClick={() => onClick(booking)}
       aria-label={
-        canQuickPay
-          ? `Record the remaining ${formatRupiah(booking.remainingAmount)} for ${booking.customerName}`
-          : `View payment details for ${booking.customerName}`
+        `View payment details for ${booking.customerName}`
       }
     >
       {PAYMENT_STATUS_LABELS[booking.paymentStatus]}
     </Button>
   );
+}
+
+function formatFinancialValue(value: number | null): string {
+  return value === null ? "—" : formatRupiah(value);
+}
+
+function financialValueClass(value: number | null): string {
+  return value !== null && value < 0 ? "text-destructive" : "text-foreground";
 }
 
 type BookingActionsProps = {
@@ -239,7 +238,7 @@ export default function BookingTable({
   onEdit,
   onDelete,
   onStatusChange,
-  onPaymentStatusClick,
+  onFinancialDetailsClick,
 }: BookingTableProps) {
   if (bookings.length === 0) {
     return (
@@ -257,12 +256,11 @@ export default function BookingTable({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="px-4">Customer</TableHead>
-              <TableHead>Service</TableHead>
-              <TableHead>Date & time</TableHead>
+              <TableHead className="px-4">Customer & Service</TableHead>
+              <TableHead>Schedule</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Payment</TableHead>
-              <TableHead className="text-right">Total</TableHead>
+              <TableHead className="text-right">Est. Profit</TableHead>
               <TableHead className="w-16 px-4 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -270,35 +268,46 @@ export default function BookingTable({
             {bookings.map((booking) => (
               <TableRow key={booking.id}>
                 <TableCell className="px-4 py-3 font-semibold whitespace-normal">
-                  {booking.customerName}
-                </TableCell>
-                <TableCell className="max-w-48 py-3 whitespace-normal">
-                  <span className="block truncate">{booking.serviceName}</span>
-                  {booking.location && (
-                    <span className="mt-1 block truncate text-sm text-muted-foreground">
-                      {booking.location}
-                    </span>
-                  )}
+                  <span className="block">{booking.customerName}</span>
+                  <span className="mt-1 block text-sm font-normal text-muted-foreground">
+                    {booking.serviceName}
+                  </span>
                 </TableCell>
                 <TableCell className="py-3 whitespace-normal">
                   <span className="block">{booking.bookingDate}</span>
                   <span className="mt-1 block text-sm text-muted-foreground">
                     {formatBookingTimeRange(booking.bookingDate, booking.startTime, booking.endTime)}
                   </span>
+                  {booking.location && (
+                    <span className="mt-1 block text-sm text-muted-foreground">{booking.location}</span>
+                  )}
                 </TableCell>
                 <TableCell className="py-3">
                   <BookingStatusControl booking={booking} onStatusChange={onStatusChange} />
                 </TableCell>
                 <TableCell className="py-3">
-                  <PaymentStatusControl booking={booking} onClick={onPaymentStatusClick} />
+                  <PaymentStatusControl booking={booking} onClick={onFinancialDetailsClick} />
                   <span className="mt-1 block text-sm text-muted-foreground">
-                    {formatRupiah(booking.remainingAmount)} remaining
+                    {booking.remainingAmount === null
+                      ? "—"
+                      : `${formatRupiah(booking.remainingAmount)} remaining`}
                   </span>
                 </TableCell>
-                <TableCell className="py-3 text-right font-medium">
-                  <span className="block">{formatRupiah(booking.totalPaid)}</span>
-                  <span className="mt-1 block text-sm font-normal text-muted-foreground">
-                    of {formatRupiah(booking.servicePrice)}
+                <TableCell className="py-3 text-right">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className={`h-auto px-2 py-1 font-semibold ${financialValueClass(booking.estimatedProfit)}`}
+                    onClick={() => onFinancialDetailsClick(booking)}
+                    aria-label={`View financial details for ${booking.customerName}`}
+                  >
+                    {formatFinancialValue(booking.estimatedProfit)}
+                  </Button>
+                  <span className="mt-1 block text-sm text-muted-foreground">
+                    {booking.estimatedProfit === null
+                      ? "Cancelled"
+                      : `Expenses: ${formatRupiah(booking.directExpenses)}`}
                   </span>
                 </TableCell>
                 <TableCell className="px-4 py-2 text-right">
@@ -328,16 +337,22 @@ export default function BookingTable({
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               <BookingStatusControl booking={booking} onStatusChange={onStatusChange} />
-              <PaymentStatusControl booking={booking} onClick={onPaymentStatusClick} />
+              <PaymentStatusControl booking={booking} onClick={onFinancialDetailsClick} />
             </div>
-            <dl className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3 text-sm">
+            <dl className="mt-3 grid grid-cols-3 gap-2 border-t border-border pt-3 text-sm">
               <div>
                 <dt className="text-xs text-muted-foreground">Paid</dt>
                 <dd className="mt-1 font-semibold text-foreground">{formatRupiah(booking.totalPaid)}</dd>
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">Remaining</dt>
-                <dd className="mt-1 font-semibold text-foreground">{formatRupiah(booking.remainingAmount)}</dd>
+                <dd className="mt-1 font-semibold text-foreground">{formatFinancialValue(booking.remainingAmount)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">Est. Profit</dt>
+                <dd className={`mt-1 font-semibold ${financialValueClass(booking.estimatedProfit)}`}>
+                  {formatFinancialValue(booking.estimatedProfit)}
+                </dd>
               </div>
             </dl>
           </article>

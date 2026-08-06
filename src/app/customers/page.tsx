@@ -79,10 +79,6 @@ export default function CustomersPage() {
     }>();
 
     for (const booking of bookings) {
-      if (!FINANCIALLY_COMMITTED_BOOKING_STATUSES.has(booking.bookingStatus)) {
-        continue;
-      }
-
       const totals = totalsByCustomerId.get(booking.customerId) ?? {
         lifetimeRevenue: 0,
         outstanding: 0,
@@ -90,7 +86,9 @@ export default function CustomersPage() {
       const paymentSummary = paymentSummaries[booking.id];
 
       totals.lifetimeRevenue += paymentSummary?.totalPaid ?? 0;
-      totals.outstanding += paymentSummary?.remainingAmount ?? booking.servicePrice;
+      if (FINANCIALLY_COMMITTED_BOOKING_STATUSES.has(booking.bookingStatus)) {
+        totals.outstanding += paymentSummary?.remainingAmount ?? booking.servicePrice;
+      }
       totalsByCustomerId.set(booking.customerId, totals);
     }
 

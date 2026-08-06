@@ -119,8 +119,9 @@ export default function BookingDialog({
   const totalPaid = bookingPayments.reduce((sum, p) => sum + p.amount, 0);
   const bookingExpensesTotal = booking ? getBookingExpenses(booking.id, expenses) : 0;
   const effectivePrice = Number(servicePriceValue) || 0;
-  const outstanding = Math.max(effectivePrice - totalPaid, 0);
-  const canAddPayment = booking?.bookingStatus !== "Cancelled" && outstanding > 0;
+  const isCancelled = booking?.bookingStatus === "Cancelled";
+  const outstanding = isCancelled ? 0 : Math.max(effectivePrice - totalPaid, 0);
+  const canAddPayment = !isCancelled && outstanding > 0;
   const netRevenue = totalPaid - bookingExpensesTotal;
   const endsNextDay = doesBookingEndNextDay(startTimeValue, endTimeValue);
 
@@ -374,21 +375,28 @@ export default function BookingDialog({
                   <p className="text-zinc-500">Paid</p>
                   <p className="font-semibold text-emerald-700">{formatRupiah(totalPaid)}</p>
                 </div>
-                <div>
-                  <p className="text-zinc-500">Outstanding</p>
-                  <p className="font-semibold text-amber-700">{formatRupiah(outstanding)}</p>
-                </div>
+                {!isCancelled && (
+                  <div>
+                    <p className="text-zinc-500">Outstanding</p>
+                    <p className="font-semibold text-amber-700">{formatRupiah(outstanding)}</p>
+                  </div>
+                )}
                 <div>
                   <p className="text-zinc-500">Booking Expenses</p>
                   <p className="font-semibold text-rose-700">{formatRupiah(bookingExpensesTotal)}</p>
                 </div>
                 <div>
                   <p className="text-zinc-500">Net Revenue</p>
-                  <p className={`font-semibold ${netRevenue >= 0 ? "text-sky-700" : "text-red-700"}`}>
-                    {formatRupiah(netRevenue)}
+                  <p className={`font-semibold ${isCancelled ? "text-slate-900" : netRevenue >= 0 ? "text-sky-700" : "text-red-700"}`}>
+                    {isCancelled ? "Not applicable" : formatRupiah(netRevenue)}
                   </p>
                 </div>
               </div>
+              {isCancelled && (
+                <p className="mt-3 text-sm text-zinc-500">
+                  Cancelled bookings are excluded from profit and outstanding totals.
+                </p>
+              )}
             </div>
           )}
 

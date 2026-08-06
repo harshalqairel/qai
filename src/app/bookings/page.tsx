@@ -5,7 +5,11 @@ import BookingHeader from "@/features/booking/components/BookingHeader";
 import BookingToolbar from "@/features/booking/components/BookingToolbar";
 import BookingTable from "@/features/booking/components/BookingTable";
 import BookingDialog from "@/features/booking/components/BookingDialog";
+import BookingFinancialDetailsDialog, {
+  type BookingFinancialDetails,
+} from "@/features/booking/components/BookingFinancialDetailsDialog";
 import PaymentDialog from "@/features/payment/components/PaymentDialog";
+import ExpenseDialog from "@/features/expense/components/ExpenseDialog";
 import { Booking, CreateBookingInput, UpdateBookingInput } from "@/features/booking/types";
 import { useBookings } from "@/features/booking/hooks/useBookings";
 import { useCustomers } from "@/features/customer/hooks/useCustomers";
@@ -13,19 +17,13 @@ import { useServices } from "@/features/service/hooks/useServices";
 import { usePayments } from "@/features/payment/hooks/usePayments";
 import { Payment } from "@/features/payment/types";
 import { useExpenses } from "@/features/expense/hooks/useExpenses";
+import { useExpenseCategories } from "@/features/expense-category/hooks/useExpenseCategories";
 import { summarizeBookingPayments } from "@/features/payment/utils/paymentCalculations";
+import { getBookingExpenses } from "@/features/expense/utils/expenseAggregations";
 import { compareByBookingStartDateTime } from "@/features/booking/utils/bookingDateRange";
 import PageSkeleton from "@/components/system/PageSkeleton";
 import DataErrorState from "@/components/system/DataErrorState";
 import { notify } from "@/lib/notifications";
-
-type BookingWithNames = Booking & {
-  customerName: string;
-  serviceName: string;
-  paymentStatus: "Outstanding" | "Partial Paid" | "Fully Paid" | "Cancelled";
-  totalPaid: number;
-  remainingAmount: number;
-};
 
 export default function BookingsPage() {
   const bookingData = useBookings();
@@ -33,11 +31,13 @@ export default function BookingsPage() {
   const serviceData = useServices();
   const paymentData = usePayments();
   const expenseData = useExpenses();
+  const expenseCategoryData = useExpenseCategories();
   const { bookings, createBooking, updateBooking, deleteBooking } = bookingData;
   const { customers } = customerData;
   const { services } = serviceData;
   const { payments, createPayment, updatePayment, deletePayment } = paymentData;
-  const { expenses } = expenseData;
+  const { expenses, createExpense, updateExpense } = expenseData;
+  const { categories: expenseCategories } = expenseCategoryData;
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
@@ -45,6 +45,11 @@ export default function BookingsPage() {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   const [paymentDefaultAmount, setPaymentDefaultAmount] = useState<number | undefined>();
+  const [financialDetailsOpen, setFinancialDetailsOpen] = useState(false);
+  const [selectedBookingForFinancialDetails, setSelectedBookingForFinancialDetails] =
+    useState<BookingFinancialDetails | null>(null);
+  const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
+  const [selectedBookingIdForExpense, setSelectedBookingIdForExpense] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -54,11 +59,22 @@ export default function BookingsPage() {
   const paymentSummaries = useMemo(() => summarizeBookingPayments(bookings, payments), [bookings, payments]);
   const keyword = search.trim().toLowerCase();
 
-  const bookingsWithNames: BookingWithNames[] = bookings.map((booking) => {
+  const bookingOptions = useMemo(() => bookings.map((booking) => {
+    const customer = customers.find((item) => item.id === booking.customerId);
+    const service = services.find((item) => item.id === booking.serviceId);
+    return {
+      id: booking.id,
+      label: `${customer?.name ?? "Customer not found"} · ${service?.name ?? "Service not found"} · ${booking.bookingDate}`,
+    };
+  }), [bookings, customers, services]);
+
+  const bookingsWithNames: BookingFinancialDetails[] = bookings.map((booking) => {
     const customer = customers.find((item) => item.id === booking.customerId);
     const service = services.find((item) => item.id === booking.serviceId);
     const effectiveServicePrice = booking.servicePrice > 0 ? booking.servicePrice : service?.price ?? 0;
     const paymentSummary = paymentSummaries[booking.id];
+    const directExpenses = getBookingExpenses(booking.id, expenses);
+    const isCancelled = booking.bookingStatus === "Cancelled";
 
     return {
       ...booking,
@@ -67,7 +83,10 @@ export default function BookingsPage() {
       serviceName: service?.name ?? "Unknown Service",
       paymentStatus: paymentSummary?.paymentStatus ?? "Outstanding",
       totalPaid: paymentSummary?.totalPaid ?? 0,
-      remainingAmount: paymentSummary?.remainingAmount ?? effectiveServicePrice,
+      remainingAmount: isCancelled ? null : (paymentSummary?.remainingAmount ?? effectiveServicePrice),
+      directExpenses,
+      estimatedProfit: isCancelled ? null : effectiveServicePrice - directExpenses,
+      cashPosition: isCancelled ? null : (paymentSummary?.totalPaid ?? 0) - directExpenses,
     };
   });
 
@@ -115,7 +134,7 @@ export default function BookingsPage() {
     setPaymentDefaultAmount(undefined);
   }
 
-  function updateBookingStatus(booking: BookingWithNames, bookingStatus: Booking["bookingStatus"]) {
+  function updateBookingStatus(booking: BookingFinancialDetails, bookingStatus: Booking["bookingStatus"]) {
     const succeeded = updateBooking({
       id: booking.id,
       customerId: booking.customerId,
@@ -139,7 +158,17 @@ export default function BookingsPage() {
     return succeeded;
   }
 
-  const dataSources = [bookingData, customerData, serviceData, paymentData, expenseData];
+  function openFinancialDetails(booking: BookingFinancialDetails) {
+    setSelectedBookingForFinancialDetails(booking);
+    setFinancialDetailsOpen(true);
+  }
+
+  function closeFinancialDetails() {
+    setFinancialDetailsOpen(false);
+    setSelectedBookingForFinancialDetails(null);
+  }
+
+  const dataSources = [bookingData, customerData, serviceData, paymentData, expenseData, expenseCategoryData];
   if (dataSources.some((source) => source.isLoading)) return <main className="min-h-screen"><PageSkeleton variant="list" /></main>;
   if (dataSources.some((source) => source.loadError)) return (
     <main className="min-h-screen"><div className="page-shell"><DataErrorState onRetry={() => dataSources.forEach((source) => source.retry())} /></div></main>
@@ -180,15 +209,7 @@ export default function BookingsPage() {
               return false;
             }}
             onStatusChange={updateBookingStatus}
-            onPaymentStatusClick={(booking) => {
-              if (booking.bookingStatus !== "Cancelled" && booking.remainingAmount > 0) {
-                openPaymentDialog(booking.id, undefined, booking.remainingAmount);
-                return;
-              }
-
-              setSelectedBooking(booking);
-              setDialogOpen(true);
-            }}
+            onFinancialDetailsClick={openFinancialDetails}
           />
         </div>
       </main>
@@ -222,6 +243,39 @@ export default function BookingsPage() {
         onClose={closePaymentDialog}
         onCreate={(input) => createPayment(input)}
         onUpdate={(input) => updatePayment(input)}
+      />
+
+      <BookingFinancialDetailsDialog
+        open={financialDetailsOpen}
+        booking={selectedBookingForFinancialDetails}
+        payments={payments}
+        onClose={closeFinancialDetails}
+        onAddPayment={(bookingId, remainingAmount) => {
+          closeFinancialDetails();
+          openPaymentDialog(bookingId, undefined, remainingAmount);
+        }}
+        onAddExpense={(bookingId) => {
+          closeFinancialDetails();
+          setSelectedBookingIdForExpense(bookingId);
+          setExpenseDialogOpen(true);
+        }}
+      />
+
+      <ExpenseDialog
+        open={expenseDialogOpen}
+        expense={null}
+        bookingOptions={bookingOptions}
+        categories={expenseCategories}
+        initialValues={{
+          bookingId: selectedBookingIdForExpense,
+          expenseType: "Booking Expense",
+        }}
+        onClose={() => {
+          setExpenseDialogOpen(false);
+          setSelectedBookingIdForExpense(null);
+        }}
+        onCreate={(input) => createExpense(input)}
+        onUpdate={(input) => updateExpense(input)}
       />
     </>
   );
