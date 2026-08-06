@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import BookingHeader from "@/features/booking/components/BookingHeader";
 import BookingToolbar from "@/features/booking/components/BookingToolbar";
-import BookingList from "@/features/booking/components/BookingList";
+import BookingTable from "@/features/booking/components/BookingTable";
 import BookingDialog from "@/features/booking/components/BookingDialog";
 import PaymentDialog from "@/features/payment/components/PaymentDialog";
 import { Booking, CreateBookingInput, UpdateBookingInput } from "@/features/booking/types";
@@ -17,6 +17,7 @@ import { summarizeBookingPayments } from "@/features/payment/utils/paymentCalcul
 import { compareByBookingStartDateTime } from "@/features/booking/utils/bookingDateRange";
 import PageSkeleton from "@/components/system/PageSkeleton";
 import DataErrorState from "@/components/system/DataErrorState";
+import { notify } from "@/lib/notifications";
 
 type BookingWithNames = Booking & {
   customerName: string;
@@ -43,6 +44,7 @@ export default function BookingsPage() {
   const [selectedBookingIdForPayment, setSelectedBookingIdForPayment] = useState<string | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
+  const [paymentDefaultAmount, setPaymentDefaultAmount] = useState<number | undefined>();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -99,9 +101,10 @@ export default function BookingsPage() {
       break;
   }
 
-  function openPaymentDialog(bookingId: string, payment?: Payment) {
+  function openPaymentDialog(bookingId: string, payment?: Payment, defaultAmount?: number) {
     setSelectedBookingIdForPayment(bookingId);
     setEditingPayment(payment ?? null);
+    setPaymentDefaultAmount(defaultAmount);
     setPaymentDialogOpen(true);
   }
 
@@ -109,6 +112,31 @@ export default function BookingsPage() {
     setPaymentDialogOpen(false);
     setSelectedBookingIdForPayment(null);
     setEditingPayment(null);
+    setPaymentDefaultAmount(undefined);
+  }
+
+  function updateBookingStatus(booking: BookingWithNames, bookingStatus: Booking["bookingStatus"]) {
+    const succeeded = updateBooking({
+      id: booking.id,
+      customerId: booking.customerId,
+      serviceId: booking.serviceId,
+      bookingDate: booking.bookingDate,
+      startTime: booking.startTime,
+      endTime: booking.endTime,
+      location: booking.location,
+      servicePrice: booking.servicePrice,
+      bookingStatus,
+      fullPaymentDueDate: booking.fullPaymentDueDate,
+      notes: booking.notes,
+    });
+
+    if (succeeded) {
+      notify.success(`Booking marked as ${bookingStatus.toLowerCase()}.`);
+    } else {
+      notify.error("Could not update the booking status. Try again.");
+    }
+
+    return succeeded;
   }
 
   const dataSources = [bookingData, customerData, serviceData, paymentData, expenseData];
@@ -139,7 +167,7 @@ export default function BookingsPage() {
             onSortChange={setSort}
           />
 
-          <BookingList
+          <BookingTable
             bookings={sortedBookings}
             onEdit={(booking) => {
               setSelectedBooking(booking);
@@ -150,6 +178,16 @@ export default function BookingsPage() {
               if (result === "deleted") return true;
               if (result === "blocked") return "blocked";
               return false;
+            }}
+            onStatusChange={updateBookingStatus}
+            onPaymentStatusClick={(booking) => {
+              if (booking.bookingStatus !== "Cancelled" && booking.remainingAmount > 0) {
+                openPaymentDialog(booking.id, undefined, booking.remainingAmount);
+                return;
+              }
+
+              setSelectedBooking(booking);
+              setDialogOpen(true);
             }}
           />
         </div>
@@ -168,7 +206,9 @@ export default function BookingsPage() {
         }}
         onCreate={(input: CreateBookingInput) => createBooking(input)}
         onUpdate={(input: UpdateBookingInput) => updateBooking(input)}
-        onAddPaymentClick={(bookingId) => openPaymentDialog(bookingId)}
+        onAddPaymentClick={(bookingId, remainingAmount) =>
+          openPaymentDialog(bookingId, undefined, remainingAmount)
+        }
         onEditPaymentClick={(payment) => openPaymentDialog(payment.bookingId, payment)}
         onDeletePayment={(id) => deletePayment(id)}
       />
@@ -177,6 +217,8 @@ export default function BookingsPage() {
         open={paymentDialogOpen}
         bookingId={selectedBookingIdForPayment}
         payment={editingPayment}
+        defaultAmount={paymentDefaultAmount}
+        maxAmount={paymentDefaultAmount}
         onClose={closePaymentDialog}
         onCreate={(input) => createPayment(input)}
         onUpdate={(input) => updatePayment(input)}

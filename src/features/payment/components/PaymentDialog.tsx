@@ -22,6 +22,8 @@ type PaymentDialogProps = {
   open: boolean;
   bookingId: string | null;
   payment?: Payment | null;
+  defaultAmount?: number;
+  maxAmount?: number;
   onClose: () => void;
   onCreate: (input: CreatePaymentInput) => boolean;
   onUpdate?: (input: UpdatePaymentInput) => boolean;
@@ -35,7 +37,16 @@ const defaultValues: PaymentFormValues = {
   notes: "",
 };
 
-export default function PaymentDialog({ open, bookingId, payment, onClose, onCreate, onUpdate }: PaymentDialogProps) {
+export default function PaymentDialog({
+  open,
+  bookingId,
+  payment,
+  defaultAmount,
+  maxAmount,
+  onClose,
+  onCreate,
+  onUpdate,
+}: PaymentDialogProps) {
   const isEdit = !!payment;
   const action = useActionGuard();
 
@@ -61,9 +72,10 @@ export default function PaymentDialog({ open, bookingId, payment, onClose, onCre
         ...defaultValues,
         bookingId: bookingId ?? "",
         date: new Date().toISOString().slice(0, 10),
+        amount: defaultAmount ?? defaultValues.amount,
       });
     }
-  }, [open, bookingId, payment, form]);
+  }, [open, bookingId, payment, defaultAmount, form]);
 
   function handleClose() {
     form.reset(defaultValues);
@@ -71,6 +83,13 @@ export default function PaymentDialog({ open, bookingId, payment, onClose, onCre
   }
 
   async function onSubmit(values: PaymentFormValues) {
+    if (!isEdit && maxAmount !== undefined && values.amount > maxAmount) {
+      form.setError("amount", {
+        message: `Amount cannot exceed the remaining balance of ${maxAmount.toLocaleString("id-ID")}.`,
+      });
+      return;
+    }
+
     const succeeded = await action.run(() => isEdit && payment
       ? onUpdate?.({ id: payment.id, ...values }) ?? false
       : onCreate(values));
@@ -108,7 +127,12 @@ export default function PaymentDialog({ open, bookingId, payment, onClose, onCre
 
           <div>
             <Label className="mb-2 block font-semibold">Amount</Label>
-            <Input type="number" min={1} {...form.register("amount", { valueAsNumber: true })} />
+            <Input
+              type="number"
+              min={1}
+              max={maxAmount}
+              {...form.register("amount", { valueAsNumber: true })}
+            />
             {form.formState.errors.amount && <p className="mt-2 text-sm text-destructive">{form.formState.errors.amount.message}</p>}
           </div>
 

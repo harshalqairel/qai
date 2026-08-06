@@ -34,7 +34,7 @@ type BookingDialogProps = {
   onClose: () => void;
   onCreate: (input: CreateBookingInput) => boolean;
   onUpdate: (input: UpdateBookingInput) => boolean;
-  onAddPaymentClick: (bookingId: string) => void;
+  onAddPaymentClick: (bookingId: string, remainingAmount: number) => void;
   onEditPaymentClick: (payment: Payment) => void;
   onDeletePayment: (id: string) => boolean;
 };
@@ -120,6 +120,7 @@ export default function BookingDialog({
   const bookingExpensesTotal = booking ? getBookingExpenses(booking.id, expenses) : 0;
   const effectivePrice = Number(servicePriceValue) || 0;
   const outstanding = Math.max(effectivePrice - totalPaid, 0);
+  const canAddPayment = booking?.bookingStatus !== "Cancelled" && outstanding > 0;
   const netRevenue = totalPaid - bookingExpensesTotal;
   const endsNextDay = doesBookingEndNextDay(startTimeValue, endTimeValue);
 
@@ -304,48 +305,59 @@ export default function BookingDialog({
                 type="button"
                 variant="outline"
                 size="sm"
-                disabled={!booking}
-                onClick={() => booking && onAddPaymentClick(booking.id)}
+                disabled={!booking || !canAddPayment}
+                onClick={() => booking && onAddPaymentClick(booking.id, outstanding)}
               >
                 Add Payment
               </Button>
             </div>
             {!booking ? (
               <p className="text-sm text-zinc-500">Save booking first to add payments.</p>
-            ) : bookingPayments.length === 0 ? (
-              <p className="text-sm text-zinc-500">No payment transactions yet.</p>
             ) : (
-              <div className="space-y-2">
-                {[...bookingPayments]
-                  .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt - b.createdAt)
-                  .map((payment) => {
-                    const label = getPaymentLabel(payment, bookingPayments, Number(servicePriceValue) || 0);
-                    return (
-                      <div key={payment.id} className="flex items-center justify-between gap-3 rounded-xl bg-zinc-50 p-3 text-sm">
-                        <div className="min-w-0 flex-1">
-                          <div className="font-medium text-slate-900">{payment.date} · {label}</div>
-                          <div className="truncate text-zinc-600">{payment.method}{payment.notes ? ` · ${payment.notes}` : ""}</div>
-                        </div>
-                        <div className="shrink-0 font-semibold text-slate-900">{formatRupiah(payment.amount)}</div>
-                        <div className="flex shrink-0 gap-1">
-                          <button
-                            type="button"
-                            onClick={() => onEditPaymentClick(payment)}
-                            className="rounded-lg px-2 py-1 text-xs font-medium text-slate-600 hover:bg-zinc-200"
-                          >
-                            Edit
-                          </button>
-                          <DeleteAction
-                            itemName="this payment"
-                            onConfirm={() => onDeletePayment(payment.id)}
-                            successMessage="Payment deleted."
-                            errorMessage="Could not delete the payment. Try again."
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
+              <>
+                {bookingPayments.length === 0 ? (
+                  <p className="text-sm text-zinc-500">No payment transactions yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {[...bookingPayments]
+                      .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt - b.createdAt)
+                      .map((payment) => {
+                        const label = getPaymentLabel(payment, bookingPayments, Number(servicePriceValue) || 0);
+                        return (
+                          <div key={payment.id} className="flex items-center justify-between gap-3 rounded-xl bg-zinc-50 p-3 text-sm">
+                            <div className="min-w-0 flex-1">
+                              <div className="font-medium text-slate-900">{payment.date} · {label}</div>
+                              <div className="truncate text-zinc-600">{payment.method}{payment.notes ? ` · ${payment.notes}` : ""}</div>
+                            </div>
+                            <div className="shrink-0 font-semibold text-slate-900">{formatRupiah(payment.amount)}</div>
+                            <div className="flex shrink-0 gap-1">
+                              <button
+                                type="button"
+                                onClick={() => onEditPaymentClick(payment)}
+                                className="rounded-lg px-2 py-1 text-xs font-medium text-slate-600 hover:bg-zinc-200"
+                              >
+                                Edit
+                              </button>
+                              <DeleteAction
+                                itemName="this payment"
+                                onConfirm={() => onDeletePayment(payment.id)}
+                                successMessage="Payment deleted."
+                                errorMessage="Could not delete the payment. Try again."
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+                {!canAddPayment && (
+                  <p className="mt-3 text-sm text-zinc-500">
+                    {booking.bookingStatus === "Cancelled"
+                      ? "Cancelled bookings cannot accept payments."
+                      : "This booking is fully paid."}
+                  </p>
+                )}
+              </>
             )}
           </div>
 
