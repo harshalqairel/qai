@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { ReactNode, useRef, useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import {
   AlertDialog,
@@ -22,6 +22,11 @@ type DeleteActionProps = {
   successMessage: string;
   errorMessage: string;
   blockedMessage?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
+  triggerClassName?: string;
+  children?: ReactNode;
 };
 
 export default function DeleteAction({
@@ -30,10 +35,23 @@ export default function DeleteAction({
   successMessage,
   errorMessage,
   blockedMessage,
+  open,
+  onOpenChange,
+  hideTrigger = false,
+  triggerClassName,
+  children = "Delete",
 }: DeleteActionProps) {
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const locked = useRef(false);
+  const dialogOpen = open ?? uncontrolledOpen;
+
+  function setDialogOpen(nextOpen: boolean) {
+    if (open === undefined) {
+      setUncontrolledOpen(nextOpen);
+    }
+    onOpenChange?.(nextOpen);
+  }
 
   async function remove() {
     if (locked.current) return;
@@ -50,7 +68,7 @@ export default function DeleteAction({
         return;
       }
       notify.success(successMessage);
-      setOpen(false);
+      setDialogOpen(false);
     } catch {
       notify.error(errorMessage);
     } finally {
@@ -60,8 +78,14 @@ export default function DeleteAction({
   }
 
   return (
-    <AlertDialog open={open} onOpenChange={setOpen}>
-      <AlertDialogTrigger render={<Button type="button" variant="destructive" />}>Delete</AlertDialogTrigger>
+    <AlertDialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      {!hideTrigger && (
+        <AlertDialogTrigger
+          render={<Button type="button" variant="destructive" className={triggerClassName} />}
+        >
+          {children}
+        </AlertDialogTrigger>
+      )}
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Delete {itemName}?</AlertDialogTitle>

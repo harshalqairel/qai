@@ -1,10 +1,9 @@
 "use client";
 
-import { useState } from "react";
-
+import { useMemo, useState } from "react";
 import CustomerHeader from "@/features/customer/components/CustomerHeader";
 import CustomerToolbar from "@/features/customer/components/CustomerToolbar";
-import CustomerList from "@/features/customer/components/CustomerList";
+import CustomerTable from "@/features/customer/components/CustomerTable";
 import CustomerDialog from "@/features/customer/components/CustomerDialog";
 
 import {
@@ -12,24 +11,26 @@ import {
   CreateCustomerInput,
   UpdateCustomerInput,
 } from "@/features/customer/types";
+import type { Booking } from "@/features/booking/types";
 import { useCustomers } from "@/features/customer/hooks/useCustomers";
 import { useBookings } from "@/features/booking/hooks/useBookings";
 import { usePayments } from "@/features/payment/hooks/usePayments";
 import { summarizeBookingPayments } from "@/features/payment/utils/paymentCalculations";
-import { useMemo } from "react";
-import { useServices } from "@/features/service/hooks/useServices";
 import PageSkeleton from "@/components/system/PageSkeleton";
 import DataErrorState from "@/components/system/DataErrorState";
+
+const FINANCIALLY_COMMITTED_BOOKING_STATUSES: ReadonlySet<Booking["bookingStatus"]> = new Set([
+  "Scheduled",
+  "Completed",
+]);
 
 export default function CustomersPage() {
   const customerData = useCustomers();
   const bookingData = useBookings();
   const paymentData = usePayments();
-  const serviceData = useServices();
   const { customers, createCustomer, updateCustomer, deleteCustomer } = customerData;
   const { bookings } = bookingData;
   const { payments } = paymentData;
-  const { services } = serviceData;
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -49,37 +50,7 @@ export default function CustomersPage() {
     );
   });
 
-  const paymentSummaries = useMemo(() => summarizeBookingPayments(bookings, payments), [bookings, payments]);
-
-  const customersWithStats = filteredCustomers.map((customer) => {
-    const customerBookings = bookings.filter((booking) => booking.customerId === customer.id);
-    const lifetimeRevenue = customerBookings.reduce((sum, booking) => {
-      const summary = paymentSummaries[booking.id];
-      return sum + (summary?.totalPaid ?? 0);
-    }, 0);
-
-    const outstandingBalance = customerBookings.reduce((sum, booking) => {
-      if (booking.bookingStatus === "Cancelled") return sum;
-      const summary = paymentSummaries[booking.id];
-      const service = services.find((item) => item.id === booking.serviceId);
-      const effectivePrice = booking.servicePrice > 0 ? booking.servicePrice : service?.price ?? 0;
-      return sum + (summary?.remainingAmount ?? effectivePrice);
-    }, 0);
-
-    const upcoming = customerBookings
-      .filter((booking) => booking.bookingStatus !== "Cancelled" && new Date(`${booking.bookingDate}T00:00:00`) >= new Date())
-      .sort((a, b) => a.bookingDate.localeCompare(b.bookingDate))[0];
-
-    return {
-      ...customer,
-      bookingsCount: customerBookings.length,
-      lifetimeRevenue,
-      outstandingBalance,
-      upcomingBooking: upcoming ? `${upcoming.bookingDate} ${upcoming.startTime}` : null,
-    };
-  });
-
-  const sortedCustomers = [...customersWithStats];
+  const sortedCustomers = [...filteredCustomers];
 
   switch (sort) {
     case "name-asc":
@@ -100,13 +71,47 @@ export default function CustomersPage() {
       break;
   }
 
-  const isLoading = customerData.isLoading || bookingData.isLoading || paymentData.isLoading || serviceData.isLoading;
-  const loadError = customerData.loadError || bookingData.loadError || paymentData.loadError || serviceData.loadError;
+  const customerFinancials = useMemo(() => {
+    const paymentSummaries = summarizeBookingPayments(bookings, payments);
+    const totalsByCustomerId = new Map<string, {
+      lifetimeRevenue: number;
+      outstanding: number;
+    }>();
+
+    for (const booking of bookings) {
+      if (!FINANCIALLY_COMMITTED_BOOKING_STATUSES.has(booking.bookingStatus)) {
+        continue;
+      }
+
+      const totals = totalsByCustomerId.get(booking.customerId) ?? {
+        lifetimeRevenue: 0,
+        outstanding: 0,
+      };
+      const paymentSummary = paymentSummaries[booking.id];
+
+      totals.lifetimeRevenue += paymentSummary?.totalPaid ?? 0;
+      totals.outstanding += paymentSummary?.remainingAmount ?? booking.servicePrice;
+      totalsByCustomerId.set(booking.customerId, totals);
+    }
+
+    return totalsByCustomerId;
+  }, [bookings, payments]);
+
+  const customersWithFinancials = sortedCustomers.map((customer) => ({
+    ...customer,
+    lifetimeRevenue: customerFinancials.get(customer.id)?.lifetimeRevenue ?? 0,
+    outstanding: customerFinancials.get(customer.id)?.outstanding ?? 0,
+  }));
+
+  const isLoading = customerData.isLoading || bookingData.isLoading || paymentData.isLoading;
+  const loadError = customerData.loadError || bookingData.loadError || paymentData.loadError;
 
   if (isLoading) return <main className="min-h-screen"><PageSkeleton variant="list" /></main>;
   if (loadError) return (
     <main className="min-h-screen"><div className="page-shell"><DataErrorState onRetry={() => {
-      customerData.retry(); bookingData.retry(); paymentData.retry(); serviceData.retry();
+      customerData.retry();
+      bookingData.retry();
+      paymentData.retry();
     }} /></div></main>
   );
 
@@ -129,8 +134,8 @@ export default function CustomersPage() {
             onSortChange={setSort}
           />
 
-          <CustomerList
-            customers={sortedCustomers}
+          <CustomerTable
+            customers={customersWithFinancials}
             onEdit={(customer) => {
               setSelectedCustomer(customer);
               setDialogOpen(true);
