@@ -6,16 +6,21 @@ import { Booking, CreateBookingInput, UpdateBookingInput } from "../types";
 import { bookingRepository } from "../api/bookingRepository";
 import type { BookingDeleteResult } from "../api/bookingRepository";
 import { emitDataRefresh, subscribeToDataRefresh } from "@/lib/dataRefresh";
+import { isCloudModeEnabled } from "@/lib/supabase/config";
+import { cloudBookingRepository } from "@/lib/supabase/cloudRepositories";
 
 export function useBookings() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
-  const retry = useCallback(() => {
+  const retry = useCallback(async () => {
     setIsLoading(true);
     try {
-      setBookings(bookingRepository.getAll());
+      const loaded = isCloudModeEnabled()
+        ? await cloudBookingRepository.getAll()
+        : bookingRepository.getAll();
+      setBookings(loaded);
       setLoadError(false);
     } catch {
       setLoadError(true);
@@ -25,15 +30,16 @@ export function useBookings() {
   }, []);
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(retry, 0);
-    const unsubscribe = subscribeToDataRefresh(retry);
+    const refresh = () => { void retry(); };
+    const timeoutId = window.setTimeout(refresh, 0);
+    const unsubscribe = subscribeToDataRefresh(refresh);
     return () => {
       window.clearTimeout(timeoutId);
       unsubscribe();
     };
   }, [retry]);
 
-  const createBooking = useCallback((input: CreateBookingInput): boolean => {
+  const createBooking = useCallback(async (input: CreateBookingInput): Promise<boolean> => {
     const now = Date.now();
     const newBooking: Booking = {
       id: crypto.randomUUID(),
@@ -43,7 +49,8 @@ export function useBookings() {
     };
 
     try {
-      bookingRepository.create(newBooking);
+      if (isCloudModeEnabled()) await cloudBookingRepository.create(newBooking);
+      else bookingRepository.create(newBooking);
       setBookings((prev) => [...prev, newBooking]);
       emitDataRefresh();
       return true;
@@ -52,13 +59,14 @@ export function useBookings() {
     }
   }, []);
 
-  const updateBooking = useCallback((input: UpdateBookingInput): boolean => {
+  const updateBooking = useCallback(async (input: UpdateBookingInput): Promise<boolean> => {
     const current = bookings.find((booking) => booking.id === input.id);
     if (!current) return false;
     const updated: Booking = { ...current, ...input, updatedAt: Date.now() };
 
     try {
-      bookingRepository.update(updated);
+      if (isCloudModeEnabled()) await cloudBookingRepository.update(updated);
+      else bookingRepository.update(updated);
       setBookings((prev) =>
         prev.map((booking) => (booking.id === updated.id ? updated : booking)),
       );
@@ -69,9 +77,11 @@ export function useBookings() {
     }
   }, [bookings]);
 
-  const deleteBooking = useCallback((id: string): BookingDeleteResult | "error" => {
+  const deleteBooking = useCallback(async (id: string): Promise<BookingDeleteResult | "error"> => {
     try {
-      const result = bookingRepository.delete(id);
+      const result = isCloudModeEnabled()
+        ? await cloudBookingRepository.delete(id)
+        : bookingRepository.delete(id);
       if (result === "blocked") {
         return "blocked";
       }

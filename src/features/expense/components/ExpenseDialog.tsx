@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import type { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/money-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,8 +28,8 @@ type ExpenseDialogProps = {
   bookingOptions: BookingOption[];
   initialValues?: Partial<ExpenseFormValues>;
   onClose: () => void;
-  onCreate: (input: CreateExpenseInput) => boolean;
-  onUpdate: (input: UpdateExpenseInput) => boolean;
+  onCreate: (input: CreateExpenseInput) => boolean | Promise<boolean>;
+  onUpdate: (input: UpdateExpenseInput) => boolean | Promise<boolean>;
   categories: ExpenseCategory[];
 };
 
@@ -261,7 +262,21 @@ export default function ExpenseDialog({
             {/* Amount */}
             <div>
               <Label className="mb-2 block font-semibold">Amount</Label>
-              <Input type="number" min={1} {...register("amount", { valueAsNumber: true })} />
+              <Controller
+                control={control}
+                name="amount"
+                render={({ field }) => (
+                  <MoneyInput
+                    name={field.name}
+                    ref={field.ref}
+                    value={Number(field.value) || 0}
+                    onBlur={field.onBlur}
+                    onChange={field.onChange}
+                    aria-invalid={Boolean(errors.amount)}
+                    placeholder="0"
+                  />
+                )}
+              />
               {errors.amount && (
                 <p className="mt-2 text-sm text-destructive">{errors.amount.message}</p>
               )}

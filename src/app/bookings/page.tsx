@@ -134,8 +134,8 @@ export default function BookingsPage() {
     setPaymentDefaultAmount(undefined);
   }
 
-  function updateBookingStatus(booking: BookingFinancialDetails, bookingStatus: Booking["bookingStatus"]) {
-    const succeeded = updateBooking({
+  async function updateBookingStatus(booking: BookingFinancialDetails, bookingStatus: Booking["bookingStatus"]) {
+    const succeeded = await updateBooking({
       id: booking.id,
       customerId: booking.customerId,
       serviceId: booking.serviceId,
@@ -202,8 +202,8 @@ export default function BookingsPage() {
               setSelectedBooking(booking);
               setDialogOpen(true);
             }}
-            onDelete={(booking) => {
-              const result = deleteBooking(booking.id);
+            onDelete={async (booking) => {
+              const result = await deleteBooking(booking.id);
               if (result === "deleted") return true;
               if (result === "blocked") return "blocked";
               return false;

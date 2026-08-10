@@ -8,7 +8,7 @@ type ExpenseListProps = {
   getBookingDetails: (bookingId: string) => ExpenseBookingDetails | null;
   getCategoryName: (categoryId: string) => string;
   onEdit: (expense: Expense) => void;
-  onDelete: (expense: Expense) => boolean;
+  onDelete: (expense: Expense) => boolean | Promise<boolean>;
 };
 
 export default function ExpenseList({ expenses, getBookingDetails, getCategoryName, onEdit, onDelete }: ExpenseListProps) {

@@ -9,16 +9,21 @@ import {
 } from "../types";
 import { customerRepository } from "../api/customerRepository";
 import { subscribeToDataRefresh } from "@/lib/dataRefresh";
+import { isCloudModeEnabled } from "@/lib/supabase/config";
+import { cloudCustomerRepository } from "@/lib/supabase/cloudRepositories";
 
 export function useCustomers() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
-  const retry = useCallback(() => {
+  const retry = useCallback(async () => {
     setIsLoading(true);
     try {
-      setCustomers(customerRepository.getAll());
+      const loaded = isCloudModeEnabled()
+        ? await cloudCustomerRepository.getAll()
+        : customerRepository.getAll();
+      setCustomers(loaded);
       setLoadError(false);
     } catch {
       setLoadError(true);
@@ -28,15 +33,16 @@ export function useCustomers() {
   }, []);
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(retry, 0);
-    const unsubscribe = subscribeToDataRefresh(retry);
+    const refresh = () => { void retry(); };
+    const timeoutId = window.setTimeout(refresh, 0);
+    const unsubscribe = subscribeToDataRefresh(refresh);
     return () => {
       window.clearTimeout(timeoutId);
       unsubscribe();
     };
   }, [retry]);
 
-  const createCustomer = useCallback((input: CreateCustomerInput): boolean => {
+  const createCustomer = useCallback(async (input: CreateCustomerInput): Promise<boolean> => {
     const newCustomer: Customer = {
       id: crypto.randomUUID(),
       createdAt: Date.now(),
@@ -44,7 +50,8 @@ export function useCustomers() {
     };
 
     try {
-      customerRepository.create(newCustomer);
+      if (isCloudModeEnabled()) await cloudCustomerRepository.create(newCustomer);
+      else customerRepository.create(newCustomer);
       setCustomers((prev) => [...prev, newCustomer]);
       return true;
     } catch {
@@ -52,13 +59,14 @@ export function useCustomers() {
     }
   }, []);
 
-  const updateCustomer = useCallback((input: UpdateCustomerInput): boolean => {
+  const updateCustomer = useCallback(async (input: UpdateCustomerInput): Promise<boolean> => {
     const current = customers.find((customer) => customer.id === input.id);
     if (!current) return false;
     const updated: Customer = { ...current, ...input };
 
     try {
-      customerRepository.update(updated);
+      if (isCloudModeEnabled()) await cloudCustomerRepository.update(updated);
+      else customerRepository.update(updated);
       setCustomers((prev) =>
         prev.map((customer) => (customer.id === updated.id ? updated : customer)),
       );
@@ -68,9 +76,10 @@ export function useCustomers() {
     }
   }, [customers]);
 
-  const deleteCustomer = useCallback((id: string): boolean => {
+  const deleteCustomer = useCallback(async (id: string): Promise<boolean> => {
     try {
-      customerRepository.delete(id);
+      if (isCloudModeEnabled()) await cloudCustomerRepository.delete(id);
+      else customerRepository.delete(id);
       setCustomers((prev) => prev.filter((customer) => customer.id !== id));
       return true;
     } catch {

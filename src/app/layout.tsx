@@ -1,17 +1,26 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { cn } from "@/lib/utils";
-import AppStartup from "@/components/system/AppStartup";
+import AppFrame from "@/components/system/AppFrame";
 import { Toaster } from "@/components/ui/sonner";
-import Sidebar from "@/components/Sidebar";
 
 export const metadata: Metadata = {
   title: "Qai",
   description: "A simple business tool for bookings, customers, payments, and expenses.",
+  applicationName: "Qai",
+  manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/icon.svg",
-    shortcut: "/icon.svg",
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/icons/qai-icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    shortcut: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/icons/qai-icon-512.png", sizes: "512x512", type: "image/png" }],
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0D5C5A",
 };
 
 export default function RootLayout({
@@ -25,10 +34,7 @@ export default function RootLayout({
       className={cn("h-full", "antialiased", "font-sans")}
     >
       <body className="flex min-h-full bg-background">
-        <Sidebar />
-        <div className="app-canvas min-w-0 flex-1 pt-14 lg:pt-0">
-          <AppStartup>{children}</AppStartup>
-        </div>
+        <AppFrame>{children}</AppFrame>
         <Toaster position="top-right" closeButton />
       </body>
     </html>

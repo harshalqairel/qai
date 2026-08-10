@@ -32,7 +32,7 @@ type CustomerWithFinancials = Customer & {
 type CustomerTableProps = {
   customers: CustomerWithFinancials[];
   onEdit: (customer: CustomerWithFinancials) => void;
-  onDelete: (customer: CustomerWithFinancials) => boolean;
+  onDelete: (customer: CustomerWithFinancials) => boolean | Promise<boolean>;
 };
 
 function getWhatsAppUrl(phone: string): string | null {
@@ -48,7 +48,7 @@ function getWhatsAppUrl(phone: string): string | null {
 type CustomerActionsProps = {
   customer: CustomerWithFinancials;
   onEdit: (customer: CustomerWithFinancials) => void;
-  onDelete: (customer: CustomerWithFinancials) => boolean;
+  onDelete: (customer: CustomerWithFinancials) => boolean | Promise<boolean>;
 };
 
 function CustomerActions({ customer, onEdit, onDelete }: CustomerActionsProps) {

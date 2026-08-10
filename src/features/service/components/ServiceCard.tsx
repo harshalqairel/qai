@@ -5,7 +5,7 @@ type ServiceCardProps = {
   service: Service;
   categoryName: string;
   onEdit: (service: Service) => void;
-  onDelete: (service: Service) => boolean;
+  onDelete: (service: Service) => boolean | Promise<boolean>;
 };
 
 export default function ServiceCard({

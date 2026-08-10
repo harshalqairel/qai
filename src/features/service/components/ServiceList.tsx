@@ -7,7 +7,7 @@ type ServiceListProps = {
   services: Service[];
   getCategoryName: (categoryId: string) => string;
   onEdit: (service: Service) => void;
-  onDelete: (service: Service) => boolean;
+  onDelete: (service: Service) => boolean | Promise<boolean>;
 };
 
 export default function ServiceList({

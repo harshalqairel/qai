@@ -6,6 +6,9 @@ import CategoryManager from "@/features/category/components/CategoryManager";
 import { useServiceCategories } from "@/features/service-category/hooks/useServiceCategories";
 import { useExpenseCategories } from "@/features/expense-category/hooks/useExpenseCategories";
 import DataBackupSection from "@/features/backup/components/DataBackupSection";
+import LocalDataImportSection from "@/features/import/components/LocalDataImportSection";
+import { isCloudModeEnabled } from "@/lib/supabase/config";
+import BusinessProfileSection from "@/features/business/components/BusinessProfileSection";
 import HowToUseQai from "@/features/settings/components/HowToUseQai";
 import {
   Bell,
@@ -108,10 +111,14 @@ export default function SettingsPage() {
 
           <div className="min-w-0">
             {section === "business-profile" && (
-              <Placeholder title="Business Profile" message="Not set up yet" />
+              isCloudModeEnabled()
+                ? <BusinessProfileSection />
+                : <Placeholder title="Business Profile" message="Available after cloud setup" />
             )}
             {section === "how-to-use" && <HowToUseQai />}
-            {section === "data-backup" && <DataBackupSection />}
+            {section === "data-backup" && (
+              isCloudModeEnabled() ? <LocalDataImportSection /> : <DataBackupSection />
+            )}
             {section === "service-categories" && (
               <CategoryManager
                 title="Service Categories"

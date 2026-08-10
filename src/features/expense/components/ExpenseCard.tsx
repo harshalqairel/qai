@@ -17,7 +17,7 @@ type ExpenseCardProps = {
   categoryName: string;
   bookingDetails?: ExpenseBookingDetails | null;
   onEdit: (expense: Expense) => void;
-  onDelete: (expense: Expense) => boolean;
+  onDelete: (expense: Expense) => boolean | Promise<boolean>;
 };
 
 function formatDate(date: string) {

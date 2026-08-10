@@ -12,6 +12,16 @@ import { paymentRepository } from "@/features/payment/api/paymentRepository";
 import { serviceRepository } from "@/features/service/api/serviceRepository";
 import { serviceCategoryRepository } from "@/features/service-category/api/serviceCategoryRepository";
 import { PersistenceError } from "@/lib/persistence";
+import { isCloudModeEnabled } from "@/lib/supabase/config";
+import {
+  cloudBookingRepository,
+  cloudCustomerRepository,
+  cloudExpenseCategoryRepository,
+  cloudExpenseRepository,
+  cloudPaymentRepository,
+  cloudServiceCategoryRepository,
+  cloudServiceRepository,
+} from "@/lib/supabase/cloudRepositories";
 
 type StartupFailure = "migration" | "load" | null;
 
@@ -19,16 +29,28 @@ export default function AppStartup({ children }: { children: React.ReactNode }) 
   const [ready, setReady] = useState(false);
   const [failure, setFailure] = useState<StartupFailure>(null);
 
-  const prepare = useCallback(() => {
+  const prepare = useCallback(async () => {
     setFailure(null);
     try {
-      customerRepository.getAll();
-      serviceCategoryRepository.getAll();
-      serviceRepository.getAll();
-      bookingRepository.getAll();
-      paymentRepository.getAll();
-      expenseCategoryRepository.getAll();
-      expenseRepository.getAll();
+      if (isCloudModeEnabled()) {
+        await Promise.all([
+          cloudCustomerRepository.getAll(),
+          cloudServiceCategoryRepository.getAll(),
+          cloudServiceRepository.getAll(),
+          cloudBookingRepository.getAll(),
+          cloudPaymentRepository.getAll(),
+          cloudExpenseCategoryRepository.getAll(),
+          cloudExpenseRepository.getAll(),
+        ]);
+      } else {
+        customerRepository.getAll();
+        serviceCategoryRepository.getAll();
+        serviceRepository.getAll();
+        bookingRepository.getAll();
+        paymentRepository.getAll();
+        expenseCategoryRepository.getAll();
+        expenseRepository.getAll();
+      }
       setReady(true);
     } catch (error) {
       setFailure(error instanceof PersistenceError && error.code === "MIGRATION_FAILURE" ? "migration" : "load");
@@ -36,7 +58,7 @@ export default function AppStartup({ children }: { children: React.ReactNode }) 
   }, []);
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(prepare, 0);
+    const timeoutId = window.setTimeout(() => { void prepare(); }, 0);
     return () => window.clearTimeout(timeoutId);
   }, [prepare]);
 
@@ -54,7 +76,7 @@ export default function AppStartup({ children }: { children: React.ReactNode }) 
             <p className="mt-2 text-sm text-muted-foreground">
               {failure === "migration" ? "Your old data is still safe." : "Your saved data was not changed."}
             </p>
-            <Button className="mt-5" onClick={prepare}>Try again</Button>
+            <Button className="mt-5" onClick={() => { void prepare(); }}>Try again</Button>
           </div>
         ) : (
           <div className="mt-7 flex items-center justify-center gap-2 text-sm font-medium text-muted-foreground" role="status">

@@ -42,10 +42,10 @@ type CategoryManagerProps<T extends BaseCategory> = {
   recordName: "service" | "expense";
   categories: T[];
   usageCounts: Record<string, number>;
-  onCreate: (input: CategoryInput) => void;
-  onUpdate: (id: string, input: CategoryInput) => void;
-  onSetActive: (id: string, active: boolean) => void;
-  onDelete: (id: string, replacementId?: string) => void;
+  onCreate: (input: CategoryInput) => void | Promise<void>;
+  onUpdate: (id: string, input: CategoryInput) => void | Promise<void>;
+  onSetActive: (id: string, active: boolean) => void | Promise<void>;
+  onDelete: (id: string, replacementId?: string) => void | Promise<void>;
   loadError?: string;
   onRetry: () => void;
 };
@@ -101,7 +101,7 @@ export default function CategoryManager<T extends BaseCategory>({
     setFormOpen(true);
   }
 
-  function saveCategory() {
+  async function saveCategory() {
     if (actionLocked.current) return;
     const trimmed = name.trim();
     if (!trimmed) {
@@ -122,10 +122,10 @@ export default function CategoryManager<T extends BaseCategory>({
       actionLocked.current = true;
       setPendingAction({ kind: "saving", categoryId: editing?.id });
       if (editing) {
-        onUpdate(editing.id, { name: trimmed, color });
+        await onUpdate(editing.id, { name: trimmed, color });
         notify.success("Category updated.");
       } else {
-        onCreate({ name: trimmed, color });
+        await onCreate({ name: trimmed, color });
         notify.success("Category added.");
       }
       setFormOpen(false);
@@ -137,7 +137,7 @@ export default function CategoryManager<T extends BaseCategory>({
     }
   }
 
-  function confirmDelete() {
+  async function confirmDelete() {
     if (actionLocked.current) return;
     if (!deleteTarget) return;
     if (usageCount > 0 && !replacementId) {
@@ -147,7 +147,7 @@ export default function CategoryManager<T extends BaseCategory>({
     try {
       actionLocked.current = true;
       setPendingAction({ kind: usageCount > 0 ? "moving" : "deleting", categoryId: deleteTarget.id });
-      onDelete(deleteTarget.id, usageCount > 0 ? replacementId : undefined);
+      await onDelete(deleteTarget.id, usageCount > 0 ? replacementId : undefined);
       notify.success(usageCount > 0 ? "Records moved and category deleted." : "Category deleted.");
       setDeleteTarget(null);
       setReplacementId("");
@@ -160,13 +160,13 @@ export default function CategoryManager<T extends BaseCategory>({
     }
   }
 
-  function toggleCategory(category: T) {
+  async function toggleCategory(category: T) {
     if (actionLocked.current) return;
     try {
       actionLocked.current = true;
       const nextActive = !category.active;
       setPendingAction({ kind: nextActive ? "showing" : "hiding", categoryId: category.id });
-      onSetActive(category.id, nextActive);
+      await onSetActive(category.id, nextActive);
       notify.success(nextActive ? "Category shown again." : "Category hidden.");
       setActionError("");
     } catch {

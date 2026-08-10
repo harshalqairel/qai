@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { QaiLogo } from "@/components/brand/QaiLogo";
+import AuthControls from "@/components/auth/AuthControls";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
@@ -120,7 +121,10 @@ export default function Sidebar() {
         <div className="flex-1 overflow-y-auto p-4">
           <NavLinks pathname={pathname} onClick={() => setDrawerOpen(false)} />
         </div>
-        <div className="border-t border-border p-4 text-xs text-muted-foreground">Qai Business OS</div>
+        <div className="p-4">
+          <AuthControls />
+          <p className="mt-4 text-xs text-muted-foreground">Qai Business OS</p>
+        </div>
       </aside>
 
       <aside className="hidden h-screen w-64 shrink-0 flex-col border-r border-border bg-card p-5 lg:sticky lg:top-0 lg:flex">
@@ -128,7 +132,10 @@ export default function Sidebar() {
           <Brand />
         </div>
         <NavLinks pathname={pathname} />
-        <div className="mt-auto border-t border-border px-2 pt-5 text-xs text-muted-foreground">Qai Business OS</div>
+        <div className="mt-auto">
+          <AuthControls />
+          <p className="px-2 pt-5 text-xs text-muted-foreground">Qai Business OS</p>
+        </div>
       </aside>
     </>
   );

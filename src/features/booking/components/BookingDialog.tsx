@@ -14,6 +14,7 @@ import { Expense } from "@/features/expense/types";
 import { getBookingExpenses } from "@/features/expense/utils/expenseAggregations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/money-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,11 +33,11 @@ type BookingDialogProps = {
   payments: Payment[];
   expenses: Expense[];
   onClose: () => void;
-  onCreate: (input: CreateBookingInput) => boolean;
-  onUpdate: (input: UpdateBookingInput) => boolean;
+  onCreate: (input: CreateBookingInput) => boolean | Promise<boolean>;
+  onUpdate: (input: UpdateBookingInput) => boolean | Promise<boolean>;
   onAddPaymentClick: (bookingId: string, remainingAmount: number) => void;
   onEditPaymentClick: (payment: Payment) => void;
-  onDeletePayment: (id: string) => boolean;
+  onDeletePayment: (id: string) => boolean | Promise<boolean>;
 };
 
 const defaultValues: BookingFormValues = {
@@ -263,7 +264,21 @@ export default function BookingDialog({
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div>
               <Label className="mb-2 block font-semibold">Service Price</Label>
-              <Input type="number" min={0} {...register("servicePrice", { valueAsNumber: true })} />
+              <Controller
+                control={control}
+                name="servicePrice"
+                render={({ field }) => (
+                  <MoneyInput
+                    name={field.name}
+                    ref={field.ref}
+                    value={Number(field.value) || 0}
+                    onBlur={field.onBlur}
+                    onChange={field.onChange}
+                    aria-invalid={Boolean(errors.servicePrice)}
+                    placeholder="0"
+                  />
+                )}
+              />
               {errors.servicePrice && <p className="mt-2 text-sm text-destructive">{errors.servicePrice.message}</p>}
             </div>
             <div>

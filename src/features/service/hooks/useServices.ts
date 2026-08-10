@@ -4,12 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import { Service, CreateServiceInput } from "../types";
 import { serviceRepository } from "../api/serviceRepository";
 import { subscribeToDataRefresh } from "@/lib/dataRefresh";
+import { isCloudModeEnabled } from "@/lib/supabase/config";
+import { cloudServiceRepository } from "@/lib/supabase/cloudRepositories";
 
 export function useServices(): {
   services: Service[];
-  createService: (input: CreateServiceInput) => boolean;
-  updateService: (service: Service) => boolean;
-  deleteService: (id: string) => boolean;
+  createService: (input: CreateServiceInput) => Promise<boolean>;
+  updateService: (service: Service) => Promise<boolean>;
+  deleteService: (id: string) => Promise<boolean>;
   isLoading: boolean;
   loadError: boolean;
   retry: () => void;
@@ -18,10 +20,13 @@ export function useServices(): {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
-  const retry = useCallback(() => {
+  const retry = useCallback(async () => {
     setIsLoading(true);
     try {
-      setServices(serviceRepository.getAll());
+      const loaded = isCloudModeEnabled()
+        ? await cloudServiceRepository.getAll()
+        : serviceRepository.getAll();
+      setServices(loaded);
       setLoadError(false);
     } catch {
       setLoadError(true);
@@ -31,15 +36,16 @@ export function useServices(): {
   }, []);
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(retry, 0);
-    const unsubscribe = subscribeToDataRefresh(retry);
+    const refresh = () => { void retry(); };
+    const timeoutId = window.setTimeout(refresh, 0);
+    const unsubscribe = subscribeToDataRefresh(refresh);
     return () => {
       window.clearTimeout(timeoutId);
       unsubscribe();
     };
   }, [retry]);
 
-  const createService = useCallback((input: CreateServiceInput): boolean => {
+  const createService = useCallback(async (input: CreateServiceInput): Promise<boolean> => {
     const newService: Service = {
       id: crypto.randomUUID(),
       active: true,
@@ -51,7 +57,8 @@ export function useServices(): {
     };
 
     try {
-      serviceRepository.create(newService);
+      if (isCloudModeEnabled()) await cloudServiceRepository.create(newService);
+      else serviceRepository.create(newService);
       setServices((prev) => [...prev, newService]);
       return true;
     } catch {
@@ -59,9 +66,10 @@ export function useServices(): {
     }
   }, []);
 
-  const updateService = useCallback((service: Service): boolean => {
+  const updateService = useCallback(async (service: Service): Promise<boolean> => {
     try {
-      serviceRepository.update(service);
+      if (isCloudModeEnabled()) await cloudServiceRepository.update(service);
+      else serviceRepository.update(service);
       setServices((prev) => prev.map((item) => (item.id === service.id ? service : item)));
       return true;
     } catch {
@@ -69,9 +77,10 @@ export function useServices(): {
     }
   }, []);
 
-  const deleteService = useCallback((id: string): boolean => {
+  const deleteService = useCallback(async (id: string): Promise<boolean> => {
     try {
-      serviceRepository.delete(id);
+      if (isCloudModeEnabled()) await cloudServiceRepository.delete(id);
+      else serviceRepository.delete(id);
       setServices((prev) => prev.filter((service) => service.id !== id));
       return true;
     } catch {

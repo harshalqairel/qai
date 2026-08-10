@@ -1,7 +1,8 @@
 export type PaymentMethod =
+  | "Bank Transfer"
   | "Cash"
-  | "Transfer"
   | "QRIS"
+  | "E-Wallet"
   | "Credit Card"
   | "Other";
 

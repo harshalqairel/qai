@@ -4,16 +4,21 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { paymentRepository } from "../api/paymentRepository";
 import { CreatePaymentInput, Payment, UpdatePaymentInput } from "../types";
 import { emitDataRefresh, subscribeToDataRefresh } from "@/lib/dataRefresh";
+import { isCloudModeEnabled } from "@/lib/supabase/config";
+import { cloudPaymentRepository } from "@/lib/supabase/cloudRepositories";
 
 export function usePayments() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
-  const retry = useCallback(() => {
+  const retry = useCallback(async () => {
     setIsLoading(true);
     try {
-      setPayments(paymentRepository.getAll());
+      const loaded = isCloudModeEnabled()
+        ? await cloudPaymentRepository.getAll()
+        : paymentRepository.getAll();
+      setPayments(loaded);
       setLoadError(false);
     } catch {
       setLoadError(true);
@@ -23,15 +28,16 @@ export function usePayments() {
   }, []);
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(retry, 0);
-    const unsubscribe = subscribeToDataRefresh(retry);
+    const refresh = () => { void retry(); };
+    const timeoutId = window.setTimeout(refresh, 0);
+    const unsubscribe = subscribeToDataRefresh(refresh);
     return () => {
       window.clearTimeout(timeoutId);
       unsubscribe();
     };
   }, [retry]);
 
-  const createPayment = useCallback((input: CreatePaymentInput): boolean => {
+  const createPayment = useCallback(async (input: CreatePaymentInput): Promise<boolean> => {
     const payment: Payment = {
       id: crypto.randomUUID(),
       createdAt: Date.now(),
@@ -39,7 +45,8 @@ export function usePayments() {
     };
 
     try {
-      paymentRepository.create(payment);
+      if (isCloudModeEnabled()) await cloudPaymentRepository.create(payment);
+      else paymentRepository.create(payment);
       setPayments((prev) => [...prev, payment]);
       emitDataRefresh();
       return true;
@@ -48,13 +55,14 @@ export function usePayments() {
     }
   }, []);
 
-  const updatePayment = useCallback((input: UpdatePaymentInput): boolean => {
+  const updatePayment = useCallback(async (input: UpdatePaymentInput): Promise<boolean> => {
     const current = payments.find((payment) => payment.id === input.id);
     if (!current) return false;
     const updated: Payment = { ...current, ...input };
 
     try {
-      paymentRepository.update(updated);
+      if (isCloudModeEnabled()) await cloudPaymentRepository.update(updated);
+      else paymentRepository.update(updated);
       setPayments((prev) =>
         prev.map((payment) => (payment.id === updated.id ? updated : payment)),
       );
@@ -65,9 +73,10 @@ export function usePayments() {
     }
   }, [payments]);
 
-  const deletePayment = useCallback((id: string): boolean => {
+  const deletePayment = useCallback(async (id: string): Promise<boolean> => {
     try {
-      paymentRepository.delete(id);
+      if (isCloudModeEnabled()) await cloudPaymentRepository.delete(id);
+      else paymentRepository.delete(id);
       setPayments((prev) => prev.filter((payment) => payment.id !== id));
       emitDataRefresh();
       return true;

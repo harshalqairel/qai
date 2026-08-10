@@ -19,8 +19,8 @@ type CustomerDialogProps = {
   open: boolean;
   customer: Customer | null;
   onClose: () => void;
-  onCreate: (input: CreateCustomerInput) => boolean;
-  onUpdate: (input: UpdateCustomerInput) => boolean;
+  onCreate: (input: CreateCustomerInput) => boolean | Promise<boolean>;
+  onUpdate: (input: UpdateCustomerInput) => boolean | Promise<boolean>;
 };
 
 const defaultValues: CustomerFormValues = {

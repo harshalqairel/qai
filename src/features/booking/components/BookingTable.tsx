@@ -49,8 +49,8 @@ type BookingWithNames = BookingFinancialDetails;
 type BookingTableProps = {
   bookings: BookingWithNames[];
   onEdit: (booking: BookingWithNames) => void;
-  onDelete: (booking: BookingWithNames) => boolean | "blocked";
-  onStatusChange: (booking: BookingWithNames, status: BookingStatus) => boolean;
+  onDelete: (booking: BookingWithNames) => boolean | "blocked" | Promise<boolean | "blocked">;
+  onStatusChange: (booking: BookingWithNames, status: BookingStatus) => boolean | Promise<boolean>;
   onFinancialDetailsClick: (booking: BookingWithNames) => void;
 };
 
@@ -76,7 +76,7 @@ const PAYMENT_STATUS_STYLES: Record<DerivedPaymentStatus, string> = {
 
 type BookingStatusControlProps = {
   booking: BookingWithNames;
-  onStatusChange: (booking: BookingWithNames, status: BookingStatus) => boolean;
+  onStatusChange: (booking: BookingWithNames, status: BookingStatus) => boolean | Promise<boolean>;
 };
 
 function BookingStatusControl({
@@ -182,7 +182,7 @@ function financialValueClass(value: number | null): string {
 type BookingActionsProps = {
   booking: BookingWithNames;
   onEdit: (booking: BookingWithNames) => void;
-  onDelete: (booking: BookingWithNames) => boolean | "blocked";
+  onDelete: (booking: BookingWithNames) => boolean | "blocked" | Promise<boolean | "blocked">;
 };
 
 function BookingActions({

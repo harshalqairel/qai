@@ -18,7 +18,7 @@ import { notify } from "@/lib/notifications";
 
 type DeleteActionProps = {
   itemName: string;
-  onConfirm: () => boolean | "blocked";
+  onConfirm: () => boolean | "blocked" | Promise<boolean | "blocked">;
   successMessage: string;
   errorMessage: string;
   blockedMessage?: string;

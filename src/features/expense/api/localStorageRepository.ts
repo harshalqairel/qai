@@ -47,7 +47,9 @@ function migrateExpenses(
     return {
       ...rest,
       categoryId,
-      paymentMethod: expense.paymentMethod ?? "Cash",
+      paymentMethod: expense.paymentMethod === "Transfer"
+        ? "Bank Transfer"
+        : expense.paymentMethod ?? "Cash",
       expenseType:
         expense.expenseType ??
         (expense.bookingId ? "Booking Expense" : "Business Expense"),

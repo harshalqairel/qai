@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { z } from "zod";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/money-input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -23,6 +24,7 @@ import { XIcon } from "lucide-react";
 
 import { Service } from "@/features/service/types";
 import type { ServiceCategory } from "@/features/service-category/types";
+import { formatDuration } from "@/features/service/utils/duration";
 import {
   serviceSchema,
   ServiceFormValues,
@@ -32,8 +34,8 @@ type ServiceDialogProps = {
   open: boolean;
   service: Service | null;
   onClose: () => void;
-  onCreate: (service: Service) => boolean;
-  onUpdate: (service: Service) => boolean;
+  onCreate: (service: Service) => boolean | Promise<boolean>;
+  onUpdate: (service: Service) => boolean | Promise<boolean>;
   categories: ServiceCategory[];
 };
 
@@ -77,6 +79,7 @@ export default function ServiceDialog({
     defaultValues,
     mode: "onTouched",
   });
+  const durationValue = useWatch({ control, name: "duration" });
 
   useEffect(() => {
     if (!open) return;
@@ -249,11 +252,20 @@ export default function ServiceDialog({
                 Price
               </Label>
 
-              <Input
-                type="number"
-                {...register("price", {
-                  valueAsNumber: true,
-                })}
+              <Controller
+                control={control}
+                name="price"
+                render={({ field }) => (
+                  <MoneyInput
+                    name={field.name}
+                    ref={field.ref}
+                    value={Number(field.value) || 0}
+                    onBlur={field.onBlur}
+                    onChange={field.onChange}
+                    aria-invalid={Boolean(errors.price)}
+                    placeholder="0"
+                  />
+                )}
               />
 
               {errors.price && (
@@ -268,12 +280,17 @@ export default function ServiceDialog({
                 Duration
               </Label>
 
-              <Input
-                type="number"
-                {...register("duration", {
-                  valueAsNumber: true,
-                })}
-              />
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={1}
+                  {...register("duration", { valueAsNumber: true })}
+                />
+                <span className="shrink-0 text-sm text-muted-foreground">minutes</span>
+              </div>
+              {Number(durationValue) > 0 && (
+                <p className="mt-2 text-sm text-muted-foreground">{formatDuration(Number(durationValue))}</p>
+              )}
 
               {errors.duration && (
                 <p className="mt-2 text-sm text-destructive">
