@@ -30,6 +30,7 @@ export default function ServicesPage() {
 
   const keyword = search.trim().toLowerCase();
   const categoryNameById = new Map(categories.map((item) => [item.id, item.name]));
+  const categoryColorById = new Map(categories.map((item) => [item.id, item.color]));
 
   const filteredServices = services.filter((service) => {
     const matchesSearch =
@@ -104,7 +105,12 @@ export default function ServicesPage() {
 
           <ServiceList
             services={sortedServices}
+            onAdd={() => {
+              setSelectedService(null);
+              setDialogOpen(true);
+            }}
             getCategoryName={(categoryId) => categoryNameById.get(categoryId) ?? "Category not found"}
+            getCategoryColor={(categoryId) => categoryColorById.get(categoryId) ?? "category-slate"}
             onEdit={(service) => {
               setSelectedService(service);
               setDialogOpen(true);
@@ -119,6 +125,7 @@ export default function ServicesPage() {
         open={dialogOpen}
         service={selectedService}
         categories={categories}
+        onQuickCreateCategory={(input) => categoryData.createCategoryAndReturn(input)}
         onClose={() => {
           setDialogOpen(false);
           setSelectedService(null);

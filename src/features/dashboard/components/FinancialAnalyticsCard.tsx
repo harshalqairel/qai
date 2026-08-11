@@ -2,8 +2,9 @@ import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
 import { donutGradient, groupAnalyticsCategories, type AnalyticsCategory } from "../analytics";
+import { categoryColorCss } from "@/features/category/constants";
 
-const PALETTE = ["#0d7571", "#294c73", "#4d7c8a", "#7ea6a3", "#94a3b8"];
+const PALETTE = ["category-teal", "category-blue", "category-sky", "category-sage", "category-slate"];
 
 export default function FinancialAnalyticsCard({
   title,
@@ -51,7 +52,7 @@ export default function FinancialAnalyticsCard({
         <div className="mt-6 grid min-w-0 items-center gap-6 sm:grid-cols-[132px_minmax(0,1fr)]">
           <div className="relative mx-auto size-32 shrink-0" role="img" aria-label={`${title} category distribution`}>
             <div className="absolute inset-0 rounded-full" style={{ background: donutGradient(display, fallback) }} />
-            <div className="absolute inset-5 flex items-center justify-center rounded-full bg-white text-center">
+            <div className="absolute inset-5 flex items-center justify-center rounded-full bg-card text-center">
               <span className="text-xs font-semibold text-[var(--dashboard-muted-text)]">{display.length}<br />categor{display.length === 1 ? "y" : "ies"}</span>
             </div>
           </div>
@@ -59,7 +60,7 @@ export default function FinancialAnalyticsCard({
             {display.map((item) => (
               <li key={item.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 text-sm">
                 <span className="flex min-w-0 items-center gap-2 font-medium text-[var(--dashboard-text)]">
-                  <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color ?? fallback }} aria-hidden="true" />
+                  <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.id === "other" ? "var(--category-other)" : categoryColorCss(item.color, item.id) }} aria-hidden="true" />
                   <span className="truncate">{item.name}</span>
                 </span>
                 <span className="text-right font-semibold text-[var(--dashboard-text)] tabular-nums">{formatRupiah(item.amount)}</span>

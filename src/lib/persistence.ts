@@ -65,6 +65,13 @@ type WriteCollectionOptions = {
   version?: number;
 };
 
+export type VersionedCollectionTransactionWrite = {
+  storageKey: string;
+  recordSchema: z.ZodTypeAny;
+  records: readonly unknown[];
+  version?: number;
+};
+
 export type CollectionSnapshot = {
   exists: boolean;
   version: number | null;
@@ -247,6 +254,65 @@ export function writeVersionedCollection<T>(
   );
   const storage = getStorage(storageKey);
   setStoredValue(storage, storageKey, serialized);
+}
+
+/**
+ * Commits several localStorage collections as one coordinated operation.
+ * Every collection is validated and serialized before the first write. If any
+ * write fails, previously written keys are restored to their exact snapshots.
+ */
+export function writeVersionedCollectionsAtomically(
+  writes: readonly VersionedCollectionTransactionWrite[],
+): void {
+  if (writes.length === 0) return;
+  const seenKeys = new Set<string>();
+  const prepared = writes.map((write) => {
+    if (seenKeys.has(write.storageKey)) {
+      throw new PersistenceError("SERIALIZATION_FAILURE", write.storageKey);
+    }
+    seenKeys.add(write.storageKey);
+    const validated = validateRecords(write.records, write.recordSchema, write.storageKey);
+    return {
+      storageKey: write.storageKey,
+      serialized: serializeEnvelope(
+        createEnvelope(validated, write.version ?? CURRENT_STORAGE_VERSION),
+        write.storageKey,
+      ),
+    };
+  });
+
+  const storage = getStorage(prepared[0].storageKey);
+  const snapshots = new Map<string, string | null>();
+  try {
+    for (const write of prepared) {
+      snapshots.set(write.storageKey, storage.getItem(write.storageKey));
+    }
+  } catch {
+    throw new PersistenceError("STORAGE_UNAVAILABLE", prepared[0].storageKey);
+  }
+
+  const applied: string[] = [];
+  try {
+    for (const write of prepared) {
+      setStoredValue(storage, write.storageKey, write.serialized);
+      applied.push(write.storageKey);
+    }
+  } catch (error) {
+    let rollbackFailed = false;
+    for (const storageKey of applied.reverse()) {
+      try {
+        const snapshot = snapshots.get(storageKey) ?? null;
+        if (snapshot === null) storage.removeItem(storageKey);
+        else storage.setItem(storageKey, snapshot);
+      } catch {
+        rollbackFailed = true;
+      }
+    }
+    if (rollbackFailed) {
+      throw new PersistenceError("WRITE_FAILURE", prepared[0].storageKey);
+    }
+    throw error;
+  }
 }
 
 export function readCollectionSnapshot(storageKey: string): CollectionSnapshot {

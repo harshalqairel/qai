@@ -8,7 +8,7 @@ function session(bookingId: string, sequence: number, date: string): BookingSess
 }
 
 function calendarBooking(parent: Booking, item: BookingSession, date: string): CalendarBooking {
-  return { ...parent, session: item, bookingDate: date, startTime: "09:00", endTime: "10:00", location: "", customerName: "Sarah", serviceName: "Wedding" };
+  return { ...parent, session: item, bookingDate: date, startTime: "09:00", endTime: "10:00", location: "", customerName: "Sarah", serviceName: "Wedding", categoryColor: "category-mauve" };
 }
 
 describe("mobile calendar month domain", () => {

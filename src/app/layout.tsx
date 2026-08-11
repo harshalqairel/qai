@@ -3,10 +3,11 @@ import "./globals.css";
 import { cn } from "@/lib/utils";
 import AppFrame from "@/components/system/AppFrame";
 import { Toaster } from "@/components/ui/sonner";
+import { AppearanceThemeProvider } from "@/features/appearance/AppearanceThemeProvider";
 
 export const metadata: Metadata = {
   title: "Qai",
-  description: "A simple business tool for bookings, customers, payments, and expenses.",
+  description: "Manage bookings, clients, income, expenses, and reminders in one place.",
   applicationName: "Qai",
   manifest: "/manifest.webmanifest",
   icons: {
@@ -34,8 +35,10 @@ export default function RootLayout({
       className={cn("h-full", "antialiased", "font-sans")}
     >
       <body className="flex min-h-full bg-background">
-        <AppFrame>{children}</AppFrame>
-        <Toaster position="top-right" closeButton />
+        <AppearanceThemeProvider>
+          <AppFrame>{children}</AppFrame>
+          <Toaster position="top-right" closeButton />
+        </AppearanceThemeProvider>
       </body>
     </html>
   );

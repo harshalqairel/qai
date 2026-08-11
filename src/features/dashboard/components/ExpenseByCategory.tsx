@@ -1,5 +1,6 @@
 import type { ExpenseCategoryItem } from "@/features/expense/utils/expenseAggregations";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
+import { categoryColorCss } from "@/features/category/constants";
 
 type ExpenseByCategoryProps = {
   items: ExpenseCategoryItem[];
@@ -24,9 +25,10 @@ export default function ExpenseByCategory({ items }: ExpenseByCategoryProps) {
           {items.map((item) => {
             const width = max === 0 ? 0 : Math.max(3, (item.amount / max) * 100);
             return (
-              <li key={item.category}>
+              <li key={item.categoryId}>
                 <div className="flex items-baseline justify-between gap-4">
-                  <span className="min-w-0 truncate text-sm font-medium text-[var(--dashboard-text)]">
+                  <span className="flex min-w-0 items-center gap-2 truncate text-sm font-medium text-[var(--dashboard-text)]">
+                    <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: categoryColorCss(item.categoryColor, item.categoryId) }} aria-hidden="true" />
                     {item.category}
                   </span>
                   <div className="flex shrink-0 items-baseline gap-2">
@@ -38,8 +40,8 @@ export default function ExpenseByCategory({ items }: ExpenseByCategoryProps) {
                 </div>
                 <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--dashboard-surface-muted)]">
                   <div
-                    className="h-full rounded-full bg-[var(--dashboard-expense)]"
-                    style={{ width: `${width}%` }}
+                    className="h-full rounded-full"
+                    style={{ width: `${width}%`, backgroundColor: categoryColorCss(item.categoryColor, item.categoryId) }}
                   />
                 </div>
               </li>

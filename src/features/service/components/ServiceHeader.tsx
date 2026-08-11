@@ -15,7 +15,7 @@ export default function ServiceHeader({
         </h1>
 
         <p className="mt-3 text-sm leading-6 text-muted-foreground sm:text-base">
-          Manage all services offered by your business.
+          Add and update the services you offer.
         </p>
 
       </div>
@@ -33,7 +33,7 @@ export default function ServiceHeader({
         shadow-sm hover:bg-[var(--brand-hover)]
         "
       >
-        + Add Service
+        + Add service
       </button>
 
     </div>

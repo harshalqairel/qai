@@ -31,6 +31,7 @@ type CustomerWithFinancials = Customer & {
 
 type CustomerTableProps = {
   customers: CustomerWithFinancials[];
+  onAdd: () => void;
   onEdit: (customer: CustomerWithFinancials) => void;
   onDelete: (customer: CustomerWithFinancials) => boolean | Promise<boolean>;
 };
@@ -91,10 +92,10 @@ function CustomerActions({ customer, onEdit, onDelete }: CustomerActionsProps) {
         </DropdownMenuContent>
       </DropdownMenu>
       <DeleteAction
-        itemName="this customer"
+        itemName="this client"
         onConfirm={() => onDelete(customer)}
-        successMessage="Customer deleted."
-        errorMessage="Could not delete the customer. Try again."
+        successMessage="Client deleted."
+        errorMessage="Could not delete the client. Try again."
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         hideTrigger
@@ -105,6 +106,7 @@ function CustomerActions({ customer, onEdit, onDelete }: CustomerActionsProps) {
 
 export default function CustomerTable({
   customers,
+  onAdd,
   onEdit,
   onDelete,
 }: CustomerTableProps) {
@@ -112,22 +114,24 @@ export default function CustomerTable({
     return (
       <EmptyState
         icon={UsersIcon}
-        title="No customers yet."
-        description="Add a customer when you are ready."
+        title="No clients yet."
+        description="Add a client here or create one while adding a booking."
+        actionLabel="Add client"
+        onAction={onAdd}
       />
     );
   }
 
   return (
-    <section aria-label="Customers">
+    <section aria-label="Clients">
       <div className="hidden overflow-hidden rounded-xl border border-border bg-card sm:block">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="px-4">Customer</TableHead>
+              <TableHead className="px-4">Client</TableHead>
               <TableHead>Contact</TableHead>
-              <TableHead className="text-right">Total Paid</TableHead>
-              <TableHead className="text-right">Outstanding</TableHead>
+              <TableHead className="text-right">Income</TableHead>
+              <TableHead className="text-right">Unpaid amount</TableHead>
               <TableHead className="w-16 px-4 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -202,13 +206,13 @@ export default function CustomerTable({
               )}
               <dl className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3 text-sm">
                 <div>
-                  <dt className="text-xs text-muted-foreground">Total Paid</dt>
+                  <dt className="text-xs text-muted-foreground">Income</dt>
                   <dd className="mt-1 font-semibold text-foreground">
                     {formatRupiah(customer.lifetimeRevenue)}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-muted-foreground">Outstanding</dt>
+                  <dt className="text-xs text-muted-foreground">Unpaid amount</dt>
                   <dd className="mt-1 font-semibold text-foreground">
                     {formatRupiah(customer.outstanding)}
                   </dd>

@@ -5,7 +5,7 @@ export const customerSchema = z.object({
   name: z
     .string()
     .trim()
-    .min(1, "Customer name is required."),
+    .min(1, "Client name is required."),
 
   phone: z
     .string()
@@ -14,7 +14,7 @@ export const customerSchema = z.object({
 
   instagram: z.string().trim().or(z.literal("")),
 
-  email: z.string().trim().email("Invalid email address.").or(z.literal("")),
+  email: z.string().trim().email("Enter a valid email address.").or(z.literal("")),
 
   notes: z.string().trim().or(z.literal("")),
 });

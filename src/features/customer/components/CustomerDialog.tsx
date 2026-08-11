@@ -77,20 +77,20 @@ export default function CustomerDialog({
       };
       const succeeded = await action.run(() => onUpdate(updateInput));
       if (!succeeded) {
-        notify.error("Could not save the customer. Try again.");
+        notify.error("Couldn't save this client. Check the highlighted fields and try again.");
         return;
       }
-      notify.success("Customer updated.");
+      notify.success("Client updated.");
       handleClose();
       return;
     }
 
     const succeeded = await action.run(() => onCreate(values));
     if (!succeeded) {
-      notify.error("Could not save the customer. Try again.");
+      notify.error("Couldn't save this client. Check the highlighted fields and try again.");
       return;
     }
-    notify.success("Customer added.");
+    notify.success("Client added.");
     handleClose();
   }
 
@@ -110,15 +110,15 @@ export default function CustomerDialog({
         <div className="mb-10 flex items-center justify-between">
           <div>
             <h2 className="dialog-title">
-              {customer ? "Edit Customer" : "Add Customer"}
+              {customer ? "Edit client" : "Add client"}
             </h2>
 
             <p className="mt-2 text-slate-500">
-              {customer ? "Update your customer details." : "Create a new customer."}
+              {customer ? "Update client details." : "Add a client to use in bookings."}
             </p>
           </div>
 
-          <Button type="button" variant="ghost" size="icon" disabled={action.pending} onClick={handleClose} aria-label="Close customer form">
+          <Button type="button" variant="ghost" size="icon" disabled={action.pending} onClick={handleClose} aria-label="Close client form">
             <XIcon className="size-5" aria-hidden="true" />
           </Button>
         </div>
@@ -128,7 +128,7 @@ export default function CustomerDialog({
           className="space-y-6"
         >
           <div>
-            <Label className="mb-2 block font-semibold">Customer Name</Label>
+            <Label className="mb-2 block font-semibold">Name</Label>
             <Input {...form.register("name")} className="w-full" />
             {form.formState.errors.name && (
               <p className="mt-2 text-sm text-destructive">
@@ -183,7 +183,7 @@ export default function CustomerDialog({
             </Button>
 
             <ActionButton type="submit" loading={action.pending} loadingText={customer ? "Updating…" : "Saving…"}>
-              {customer ? "Update Customer" : "Save Customer"}
+              {customer ? "Save changes" : "Add client"}
             </ActionButton>
           </div>
         </form>

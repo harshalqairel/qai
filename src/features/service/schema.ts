@@ -18,9 +18,9 @@ export const serviceSchema = z.object({
 
   defaultSessionCount: z.coerce
     .number()
-    .int("Default session count must be a whole number.")
-    .min(1, "At least one default session is required.")
-    .max(50, "Default session count cannot exceed 50."),
+    .int("Usual number of schedules must be a whole number.")
+    .min(1, "Add at least one usual schedule.")
+    .max(50, "Usual number of schedules cannot exceed 50."),
 
   description: z.string().trim(),
 

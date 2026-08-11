@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { Booking, CreateBookingInput, UpdateBookingInput } from "../types";
+import { Booking, CreateBookingCommand, UpdateBookingInput } from "../types";
 import { bookingRepository } from "../api/bookingRepository";
+import { bookingCreationRepository } from "../api/bookingCreationRepository";
 import type { BookingDeleteResult } from "../api/bookingRepository";
 import { emitDataRefresh, subscribeToDataRefresh } from "@/lib/dataRefresh";
 import { isCloudModeEnabled } from "@/lib/supabase/config";
@@ -13,6 +14,7 @@ import {
   buildBookingSessions,
   getDeviceTimezone,
 } from "@/features/booking/utils/bookingSessions";
+import { prepareBookingCreation } from "@/features/booking/domain/bookingCreation";
 
 export function useBookings() {
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -48,32 +50,38 @@ export function useBookings() {
     };
   }, [retry]);
 
-  const createBooking = useCallback(async (input: CreateBookingInput): Promise<boolean> => {
-    const now = Date.now();
-    const bookingId = crypto.randomUUID();
-    const newBooking: Booking = {
-      id: bookingId,
-      createdAt: now,
-      updatedAt: now,
-      customerId: input.customerId,
-      serviceId: input.serviceId,
-      sessions: buildBookingSessions(bookingId, input.sessions, timezone, [], now),
-      servicePrice: input.servicePrice,
-      bookingStatus: input.bookingStatus,
-      fullPaymentDueDate: input.fullPaymentDueDate,
-      notes: input.notes,
-    };
-
+  const createBookingAndReturn = useCallback(async (command: CreateBookingCommand): Promise<Booking | null> => {
     try {
-      if (isCloudModeEnabled()) await cloudBookingRepository.create(newBooking);
-      else bookingRepository.create(newBooking);
-      setBookings((prev) => [...prev, newBooking]);
+      const prepared = prepareBookingCreation(
+        command,
+        timezone,
+        {
+          bookingId: crypto.randomUUID(),
+          paymentId: command.initialPayment ? crypto.randomUUID() : null,
+        },
+      );
+      let savedBooking = prepared.booking;
+      if (isCloudModeEnabled()) {
+        if (prepared.initialPayment) {
+          throw new Error("Cloud booking transaction is not enabled yet.");
+        }
+        await cloudBookingRepository.create(prepared.booking);
+      } else {
+        savedBooking = bookingCreationRepository.create(prepared).booking;
+      }
+      setBookings((prev) => prev.some((booking) => booking.id === savedBooking.id)
+        ? prev
+        : [...prev, savedBooking]);
       emitDataRefresh();
-      return true;
+      return savedBooking;
     } catch {
-      return false;
+      return null;
     }
   }, [timezone]);
+
+  const createBooking = useCallback(async (command: CreateBookingCommand): Promise<boolean> => {
+    return Boolean(await createBookingAndReturn(command));
+  }, [createBookingAndReturn]);
 
   const updateBooking = useCallback(async (input: UpdateBookingInput): Promise<boolean> => {
     const current = bookings.find((booking) => booking.id === input.id);
@@ -123,6 +131,7 @@ export function useBookings() {
   return {
     bookings,
     createBooking,
+    createBookingAndReturn,
     updateBooking,
     deleteBooking,
     isLoading,

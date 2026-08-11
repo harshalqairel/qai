@@ -162,7 +162,7 @@ export default function RevenueChart({ data }: RevenueChartProps) {
     <section>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-[var(--dashboard-text)]">Monthly Money Flow</h2>
+          <h2 className="text-lg font-semibold text-[var(--dashboard-text)]">Income, expenses, and profit</h2>
           <p className="mt-1 text-sm text-[var(--dashboard-muted-text)]">
             Income, expenses, and profit from January to December.
           </p>
@@ -203,7 +203,7 @@ export default function RevenueChart({ data }: RevenueChartProps) {
 
       {!hasData ? (
         <p className="mt-5 rounded-xl border border-dashed border-[var(--dashboard-border)] bg-[var(--dashboard-surface-muted)] p-4 text-center text-sm text-[var(--dashboard-muted-text)]">
-          No money flow recorded for this year.
+          No income or expenses recorded for this year.
         </p>
       ) : (
         <div className="mt-5 overflow-x-auto overscroll-x-contain rounded-xl bg-white">

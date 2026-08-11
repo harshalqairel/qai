@@ -37,7 +37,7 @@ import { isCloudModeEnabled } from "@/lib/supabase/config";
 export type KPITone = "received" | "unpaid" | "expenses" | "profit";
 
 export type KPI = {
-  label: "Income" | "Unpaid Amount" | "Expenses" | "Profit";
+  label: "Income" | "Unpaid amount" | "Expenses" | "Profit";
   value: number;
   period: string;
   tone: KPITone;
@@ -147,7 +147,7 @@ export function useDashboard({ period }: UseDashboardArgs) {
       return {
         ...booking,
         servicePrice: effectiveServicePrice,
-        customerName: customer?.name ?? "Customer not found",
+        customerName: customer?.name ?? "Client not found",
         customerPhone: customer?.phone ?? "",
         customerEmail: customer?.email ?? "",
         serviceName: service?.name ?? "Service not found",
@@ -231,7 +231,7 @@ export function useDashboard({ period }: UseDashboardArgs) {
         tone: "received",
       },
       {
-        label: "Unpaid Amount",
+        label: "Unpaid amount",
         value: financialReport.summary.outstanding,
         period: financialReport.period.label,
         tone: "unpaid",
@@ -309,7 +309,7 @@ export function useDashboard({ period }: UseDashboardArgs) {
     financialReport,
     currentMonth: todayContext.todayKey.slice(0, 7),
     todayKey: todayContext.todayKey,
-    businessName: "Qai Business",
+    businessName,
     showSetupGuide,
     setupGuideProgress,
     timezone: bookingData.timezone,

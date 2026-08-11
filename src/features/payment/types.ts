@@ -24,6 +24,8 @@ export type CreatePaymentInput = {
   notes: string;
 };
 
+export type InitialPaymentInput = Omit<CreatePaymentInput, "bookingId">;
+
 export type UpdatePaymentInput = CreatePaymentInput & {
   id: string;
 };

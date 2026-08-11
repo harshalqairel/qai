@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { z } from "zod";
@@ -20,10 +20,17 @@ import { Textarea } from "@/components/ui/textarea";
 import ActionButton from "@/components/system/ActionButton";
 import { useActionGuard } from "@/hooks/useActionGuard";
 import { notify } from "@/lib/notifications";
-import { XIcon } from "lucide-react";
+import { Plus, XIcon } from "lucide-react";
 
 import { Service } from "@/features/service/types";
 import type { ServiceCategory } from "@/features/service-category/types";
+import type { CategoryInput } from "@/features/category/types";
+import {
+  CATEGORY_COLORS,
+  categoryColorCss,
+  suggestCategoryColor,
+} from "@/features/category/constants";
+import { normalizeCategoryName } from "@/features/category/utils";
 import { formatDuration } from "@/features/service/utils/duration";
 import {
   serviceSchema,
@@ -37,6 +44,7 @@ type ServiceDialogProps = {
   onCreate: (service: Service) => boolean | Promise<boolean>;
   onUpdate: (service: Service) => boolean | Promise<boolean>;
   categories: ServiceCategory[];
+  onQuickCreateCategory?: (input: CategoryInput) => Promise<ServiceCategory | null>;
 };
 
 const defaultValues: ServiceFormValues = {
@@ -56,17 +64,26 @@ export default function ServiceDialog({
   onCreate,
   onUpdate,
   categories,
+  onQuickCreateCategory,
 }: ServiceDialogProps) {
   const action = useActionGuard();
   const isEdit = service !== null;
   const selectableCategories = categories.filter((category) => category.active || category.id === service?.categoryId);
   const hasSelectableCategory = selectableCategories.length > 0;
+  const initializedDialogRef = useRef<string | null>(null);
+  const categoryTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const [quickCategoryOpen, setQuickCategoryOpen] = useState(false);
+  const [quickCategoryName, setQuickCategoryName] = useState("");
+  const [quickCategoryColor, setQuickCategoryColor] = useState<string>(() => suggestCategoryColor([]));
+  const [quickCategoryError, setQuickCategoryError] = useState("");
+  const [quickCategoryPending, setQuickCategoryPending] = useState(false);
 
   const {
     register,
     control,
     handleSubmit,
     reset,
+    setValue,
     formState: {
       errors,
       isSubmitting,
@@ -83,7 +100,15 @@ export default function ServiceDialog({
   const durationValue = useWatch({ control, name: "duration" });
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      initializedDialogRef.current = null;
+      return;
+    }
+
+    const dialogKey = service?.id ?? "new";
+    if (initializedDialogRef.current === dialogKey) return;
+    initializedDialogRef.current = dialogKey;
+    setQuickCategoryColor(suggestCategoryColor(categories.map((category) => category.color)));
 
     if (service) {
       reset({
@@ -111,7 +136,43 @@ export default function ServiceDialog({
 
   function handleClose() {
     resetForm();
+    setQuickCategoryOpen(false);
+    setQuickCategoryName("");
+    setQuickCategoryError("");
     onClose();
+  }
+
+  async function createCategoryInline() {
+    const name = quickCategoryName.trim();
+    if (!onQuickCreateCategory || !name) {
+      setQuickCategoryError("Enter a category name.");
+      return;
+    }
+    if (categories.some((category) => normalizeCategoryName(category.name) === normalizeCategoryName(name))) {
+      setQuickCategoryError("A category with this name already exists.");
+      return;
+    }
+
+    setQuickCategoryPending(true);
+    setQuickCategoryError("");
+    try {
+      const created = await onQuickCreateCategory({ name, color: quickCategoryColor });
+      if (!created) throw new Error("CATEGORY_CREATE_FAILED");
+      setValue("categoryId", created.id, { shouldDirty: true, shouldValidate: true });
+      setQuickCategoryName("");
+      setQuickCategoryOpen(false);
+      setQuickCategoryColor(suggestCategoryColor([...categories.map((category) => category.color), created.color]));
+      notify.success("Service category added and selected.");
+      window.setTimeout(() => categoryTriggerRef.current?.focus(), 0);
+    } catch (error) {
+      setQuickCategoryError(
+        error instanceof Error && error.message === "DUPLICATE_CATEGORY"
+          ? "A category with this name already exists."
+          : "Could not add that category. Your service details are still here.",
+      );
+    } finally {
+      setQuickCategoryPending(false);
+    }
   }
 
   async function onSubmit(values: ServiceFormValues) {
@@ -177,7 +238,7 @@ export default function ServiceDialog({
         >
           <div>
             <Label className="mb-2 block font-semibold">
-              Service Category
+              Service category
             </Label>
 
             <Controller
@@ -189,7 +250,7 @@ export default function ServiceDialog({
                   onValueChange={field.onChange}
                   disabled={!hasSelectableCategory}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger ref={categoryTriggerRef} className="w-full">
                     <SelectValue placeholder="Select a category">
                       {field.value
                         ? categories.find((category) => category.id === field.value)?.name ?? "Category not found"
@@ -212,17 +273,7 @@ export default function ServiceDialog({
               )}
             />
             {!hasSelectableCategory && (
-              <div className="mt-2 space-y-1 text-sm">
-                <p className="text-muted-foreground">No service categories yet.</p>
-                <button
-                  type="button"
-                  className="font-medium text-[var(--status-info)] hover:underline"
-                  onClick={() => window.location.assign("/settings?section=service-categories")}
-                >
-                  Add a service category
-                </button>
-                <p className="text-muted-foreground">Add a service category before saving this service.</p>
-              </div>
+              <p className="mt-2 text-sm text-muted-foreground">No service categories yet. Add one below to continue.</p>
             )}
 
             {errors.categoryId && (
@@ -230,11 +281,81 @@ export default function ServiceDialog({
                 {errors.categoryId.message}
               </p>
             )}
+            {onQuickCreateCategory && (
+              <div className="mt-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  aria-expanded={quickCategoryOpen}
+                  aria-controls="inline-service-category"
+                  onClick={() => {
+                    setQuickCategoryOpen((value) => !value);
+                    setQuickCategoryError("");
+                  }}
+                >
+                  <Plus className="size-4" aria-hidden="true" /> Add category
+                </Button>
+                {quickCategoryOpen && (
+                  <div id="inline-service-category" className="mt-3 space-y-4 rounded-xl border border-border bg-muted/30 p-4">
+                    <div>
+                      <Label htmlFor="new-service-category" className="mb-2 block">Category name</Label>
+                      <Input
+                        id="new-service-category"
+                        value={quickCategoryName}
+                        onChange={(event) => {
+                          setQuickCategoryName(event.target.value);
+                          setQuickCategoryError("");
+                        }}
+                        placeholder="e.g. Bridal Makeup"
+                        autoFocus
+                      />
+                    </div>
+                    <fieldset>
+                      <legend className="mb-2 text-sm font-medium">Color</legend>
+                      <div className="grid grid-cols-6 gap-2 sm:grid-cols-12">
+                        {CATEGORY_COLORS.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            aria-label={option.label}
+                            aria-pressed={quickCategoryColor === option.value}
+                            onClick={() => setQuickCategoryColor(option.value)}
+                            className={`flex size-10 items-center justify-center rounded-lg border bg-card sm:size-11 ${quickCategoryColor === option.value ? "border-primary ring-2 ring-ring/30" : "border-border"}`}
+                          >
+                            <span className="size-5 rounded-full" style={{ backgroundColor: categoryColorCss(option.value) }} aria-hidden="true" />
+                          </button>
+                        ))}
+                      </div>
+                    </fieldset>
+                    {quickCategoryError && <p className="text-sm text-destructive" role="alert">{quickCategoryError}</p>}
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" size="sm" disabled={quickCategoryPending} onClick={createCategoryInline}>
+                        {quickCategoryPending ? "Adding..." : "Add category"}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        disabled={quickCategoryPending}
+                        onClick={() => {
+                          setQuickCategoryOpen(false);
+                          setQuickCategoryError("");
+                          window.setTimeout(() => categoryTriggerRef.current?.focus(), 0);
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div>
             <Label className="mb-2 block font-semibold">
-              Service Name
+              Service name
             </Label>
 
             <Input
@@ -280,7 +401,7 @@ export default function ServiceDialog({
 
             <div>
               <Label className="mb-2 block font-semibold">
-                Duration
+                Typical duration
               </Label>
 
               <div className="flex items-center gap-2">
@@ -304,7 +425,7 @@ export default function ServiceDialog({
           </div>
 
           <div>
-            <Label className="mb-2 block font-semibold">Default Session Count</Label>
+            <Label className="mb-2 block font-semibold">Usual number of schedules</Label>
             <Input
               type="number"
               min={1}
@@ -313,7 +434,7 @@ export default function ServiceDialog({
               {...register("defaultSessionCount", { valueAsNumber: true })}
             />
             <p className="mt-2 text-sm text-muted-foreground">
-              New bookings start with this many editable schedules. Users can add or remove them.
+              How many separate dates or time slots does this service usually need? You can change this for each booking.
             </p>
             {errors.defaultSessionCount && (
               <p className="mt-2 text-sm text-destructive">{errors.defaultSessionCount.message}</p>
@@ -322,7 +443,7 @@ export default function ServiceDialog({
 
           <div>
             <Label className="mb-2 block font-semibold">
-              Description
+              Description <span className="font-normal text-muted-foreground">(optional)</span>
             </Label>
 
             <Textarea
@@ -341,7 +462,7 @@ export default function ServiceDialog({
             <Button
               type="button"
               variant="outline"
-              disabled={action.pending}
+              disabled={action.pending || quickCategoryPending}
               onClick={handleClose}
             >
               Cancel
@@ -351,11 +472,11 @@ export default function ServiceDialog({
               type="submit"
               loading={action.pending || isSubmitting}
               loadingText={isEdit ? "Updating…" : "Saving…"}
-              disabled={!hasSelectableCategory}
+              disabled={!hasSelectableCategory || quickCategoryPending}
             >
               {isEdit
-                ? "Update Service"
-                : "Save Service"}
+                ? "Save changes"
+                : "Add service"}
             </ActionButton>
           </div>
         </form>

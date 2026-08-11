@@ -8,7 +8,7 @@ export default function BookingHeader({ onAdd }: BookingHeaderProps) {
       <div>
         <h1 className="page-title">Bookings</h1>
         <p className="mt-3 text-sm leading-6 text-muted-foreground sm:text-base">
-          Manage all appointment bookings and schedule details.
+          Track each booking, its schedules, and payments.
         </p>
       </div>
 
@@ -16,7 +16,7 @@ export default function BookingHeader({ onAdd }: BookingHeaderProps) {
         onClick={onAdd}
         className="min-h-11 rounded-lg bg-primary px-5 py-2.5 font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-[var(--brand-hover)]"
       >
-        + Add Booking
+        + Add booking
       </button>
     </div>
   );

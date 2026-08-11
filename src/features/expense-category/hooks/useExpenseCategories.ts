@@ -67,26 +67,33 @@ export function useExpenseCategories() {
     };
   }, [refresh]);
 
-  const createCategory = useCallback(async (input: CategoryInput) => {
+  const createCategoryAndReturn = useCallback(async (input: CategoryInput): Promise<ExpenseCategory> => {
     const current = isCloudModeEnabled()
       ? categories
       : expenseCategoryRepository.getAll();
     assertUnique(current, input.name);
+    let created: ExpenseCategory;
     if (isCloudModeEnabled()) {
       const now = new Date().toISOString();
-      await cloudExpenseCategoryRepository.create({
+      created = {
         id: crypto.randomUUID(),
         name: input.name.trim(),
         color: input.color,
         active: true,
         createdAt: now,
         updatedAt: now,
-      });
+      };
+      await cloudExpenseCategoryRepository.create(created);
     } else {
-      expenseCategoryRepository.create({ ...input, name: input.name.trim() });
+      created = expenseCategoryRepository.create({ ...input, name: input.name.trim() });
     }
     await refresh();
+    return created;
   }, [categories, refresh]);
+
+  const createCategory = useCallback(async (input: CategoryInput) => {
+    await createCategoryAndReturn(input);
+  }, [createCategoryAndReturn]);
 
   const updateCategory = useCallback(async (id: string, input: CategoryInput) => {
     const current = isCloudModeEnabled()
@@ -151,6 +158,7 @@ export function useExpenseCategories() {
     categories,
     usageCounts,
     createCategory,
+    createCategoryAndReturn,
     updateCategory,
     setCategoryActive,
     deleteCategory,

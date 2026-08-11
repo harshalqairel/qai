@@ -48,7 +48,7 @@ export default function KPICard({ metric, periodQuery }: KPICardProps) {
   const Icon = tone.Icon;
 
   return (
-    <Link href={metric.label === "Unpaid Amount" ? "/bookings?payment=outstanding" : `/reports${periodQuery ? `?${periodQuery}` : ""}`} className={`block min-w-0 rounded-2xl border border-[var(--dashboard-border)] bg-[var(--dashboard-card)] p-5 transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${tone.accentBorder}`}>
+    <Link href={metric.label === "Unpaid amount" ? "/bookings?payment=outstanding" : `/reports${periodQuery ? `?${periodQuery}` : ""}`} className={`block min-w-0 rounded-2xl border border-[var(--dashboard-border)] bg-[var(--dashboard-card)] p-5 transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${tone.accentBorder}`}>
       <div className="flex items-center justify-between gap-3">
         <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${tone.soft}`}>
           <Icon className={`h-5 w-5 ${tone.iconText}`} aria-hidden="true" />

@@ -46,6 +46,12 @@ export type CreateBookingInput = {
   notes: string;
 };
 
+export type CreateBookingCommand = {
+  requestId: string;
+  booking: CreateBookingInput;
+  initialPayment: import("@/features/payment/types").InitialPaymentInput | null;
+};
+
 export type UpdateBookingInput = CreateBookingInput & {
   id: string;
 };

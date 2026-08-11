@@ -1,11 +1,13 @@
 "use client";
 
 import { XIcon } from "lucide-react";
+import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import type { Booking } from "@/features/booking/types";
 import type { Payment, DerivedPaymentStatus } from "@/features/payment/types";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
+import ReminderHistoryList from "@/features/reminder/components/ReminderHistoryList";
 
 export type BookingFinancialDetails = Booking & {
   customerName: string;
@@ -166,6 +168,8 @@ export default function BookingFinancialDetailsDialog({
           )}
         </section>
 
+        <ReminderHistoryList bookingId={booking.id} />
+
         <section className="mt-6 border-t border-border pt-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -180,6 +184,14 @@ export default function BookingFinancialDetailsDialog({
               </Button>
             )}
           </div>
+        </section>
+
+        <section className="mt-6 border-t border-border pt-6">
+          <h3 className="font-semibold">Invoice</h3>
+          <p className="mt-1 text-sm text-muted-foreground">Create an invoice using this booking and its recorded payments.</p>
+          <Button className="mt-3" variant="outline" render={<Link href={`/invoices?booking=${encodeURIComponent(booking.id)}`} />}>
+            Create invoice
+          </Button>
         </section>
       </section>
     </div>

@@ -28,12 +28,12 @@ export const bookingSessionFormSchema = z.object({
     .min(1, "End time is required.")
     .refine((value) => storedTimeSchema.safeParse(value).success, "Invalid end time."),
   location: z.string().trim().max(240, "Location must be 240 characters or less."),
-  notes: z.string().trim().max(1000, "Session notes must be 1,000 characters or less."),
+  notes: z.string().trim().max(1000, "Schedule notes must be 1,000 characters or less."),
 });
 
 export const bookingSchema = z
   .object({
-    customerId: z.string().min(1, "Customer is required."),
+    customerId: z.string().min(1, "Client is required."),
     serviceId: z.string().min(1, "Service is required."),
     sessions: z
       .array(bookingSessionFormSchema)

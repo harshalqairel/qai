@@ -1,0 +1,116 @@
+import { z } from "zod";
+import type { BookingFormValues } from "@/features/booking/types";
+import type { Service } from "@/features/service/types";
+
+export type PublicPriceMode = "Fixed price" | "Starting from" | "Ask for price";
+export type PublicActionMode = "Booking request" | "Inquiry" | "Instant booking";
+export type PublicRequestStatus = "Pending" | "Accepted" | "Declined";
+
+export const publicScheduleSchema = z.object({
+  id: z.string().min(1).max(100),
+  label: z.string().trim().max(100),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/),
+  location: z.string().trim().max(300),
+});
+
+export const publicServiceSchema = z.object({
+  serviceId: z.string().min(1).max(100),
+  visible: z.boolean(),
+  title: z.string().trim().min(1).max(120),
+  description: z.string().trim().max(1000),
+  price: z.number().finite().nonnegative().max(1_000_000_000_000),
+  priceMode: z.enum(["Fixed price", "Starting from", "Ask for price"]),
+  actionMode: z.enum(["Booking request", "Inquiry", "Instant booking"]),
+  durationMinutes: z.number().int().positive().max(1440),
+});
+
+export const instantSlotSchema = z.object({
+  id: z.string().min(1).max(100), serviceId: z.string().min(1).max(100), startAt: z.string().datetime(), endAt: z.string().datetime(),
+  location: z.string().trim().max(300), status: z.enum(["Available", "Reserved"]), requestId: z.string().nullable(),
+});
+
+export const qaiPageSchema = z.object({
+  id: z.string().min(1).max(100), businessId: z.string().min(1).max(100), slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+  businessName: z.string().trim().min(1).max(160), shortDescription: z.string().trim().max(500), location: z.string().trim().max(200),
+  whatsapp: z.string().trim().max(50), email: z.string().trim().email().or(z.literal("")), instagram: z.string().trim().max(200),
+  logo: z.string().max(3_000_000), coverImage: z.string().max(3_000_000), services: z.array(publicServiceSchema).max(100), slots: z.array(instantSlotSchema).max(500),
+  timezone: z.string().trim().min(1).max(100).default("Asia/Jakarta"),
+  updatedAt: z.number().int().nonnegative(),
+});
+
+export const publicRequestSchema = z.object({
+  id: z.string().min(1).max(100), pageId: z.string().min(1).max(100), slug: z.string().min(1).max(120), serviceId: z.string().min(1).max(100),
+  serviceName: z.string().trim().min(1).max(160), type: z.enum(["Booking request", "Inquiry", "Instant booking"]),
+  clientName: z.string().trim().min(1).max(160), whatsapp: z.string().trim().min(6).max(50), email: z.string().trim().email().or(z.literal("")),
+  need: z.string().trim().max(1000), schedules: z.array(publicScheduleSchema).max(12), location: z.string().trim().max(300), budget: z.string().trim().max(100),
+  notes: z.string().trim().max(2000), status: z.enum(["Pending", "Accepted", "Declined"]), submittedAt: z.number().int().nonnegative(),
+  updatedAt: z.number().int().nonnegative(), bookingId: z.string().nullable(), instantSlotId: z.string().nullable(),
+});
+
+export type PublicSchedule = z.infer<typeof publicScheduleSchema>;
+export type PublicService = z.infer<typeof publicServiceSchema>;
+export type InstantSlot = z.infer<typeof instantSlotSchema>;
+export type QaiPageConfig = z.infer<typeof qaiPageSchema>;
+export type PublicRequest = z.infer<typeof publicRequestSchema>;
+
+export type ValidationStore = { pages: QaiPageConfig[]; requests: PublicRequest[] };
+
+export function normalizeSlug(value: string): string {
+  return value.normalize("NFKD").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+}
+
+export function normalizeContactPhone(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  if (digits.startsWith("0")) return `62${digits.slice(1)}`;
+  return digits;
+}
+
+export function publicPriceLabel(service: PublicService): string {
+  if (service.priceMode === "Ask for price") return "Ask for price";
+  const amount = `Rp ${Math.round(service.price).toLocaleString("id-ID")}`;
+  return service.priceMode === "Starting from" ? `Starting from ${amount}` : amount;
+}
+
+export function publicActionLabel(mode: PublicActionMode): string {
+  if (mode === "Instant booking") return "Book";
+  if (mode === "Inquiry") return "Ask about this service";
+  return "Request";
+}
+
+export function canShowBookedThroughQai(request: PublicRequest): boolean {
+  return request.type === "Instant booking" && request.status === "Accepted";
+}
+
+export function requestToBookingValues(request: PublicRequest, service: Service, customerId: string, fallbackDate: string): BookingFormValues {
+  const sourceSchedules = request.schedules.length ? request.schedules : [{ id: crypto.randomUUID(), label: "", date: fallbackDate, startTime: "09:00", endTime: "10:00", location: request.location }];
+  const sessions = sourceSchedules.map((item) => ({ label: item.label, date: item.date, startTime: item.startTime, endTime: item.endTime, location: item.location || request.location, notes: request.need }));
+  const finalDate = [...sessions].sort((left, right) => right.date.localeCompare(left.date))[0]?.date ?? fallbackDate;
+  return {
+    customerId, serviceId: service.id, sessions, servicePrice: service.price, bookingStatus: "Scheduled", fullPaymentDueDate: finalDate,
+    notes: [request.need, request.notes, "Source: Qai Page"].filter(Boolean).join("\n\n"),
+  };
+}
+
+export function defaultQaiPage(): QaiPageConfig {
+  return {
+    id: "local-page", businessId: "local-business", slug: "my-business", businessName: "My business", shortDescription: "", location: "",
+    whatsapp: "", email: "", instagram: "", logo: "", coverImage: "", services: [], slots: [], timezone: "Asia/Jakarta", updatedAt: Date.now(),
+  };
+}
+
+async function api<T>(url: string, options?: RequestInit): Promise<T> {
+  const response = await fetch(url, { ...options, headers: { "Content-Type": "application/json", ...(options?.headers ?? {}) }, cache: "no-store" });
+  const data = await response.json() as { data?: T; error?: string };
+  if (!response.ok) throw new Error(data.error ?? "Could not update validation data.");
+  return data.data as T;
+}
+
+export const validationClient = {
+  owner(): Promise<ValidationStore> { return api("/api/validation?scope=owner"); },
+  page(slug: string): Promise<QaiPageConfig> { return api(`/api/validation?scope=page&slug=${encodeURIComponent(slug)}`); },
+  savePage(page: QaiPageConfig): Promise<QaiPageConfig> { return api("/api/validation", { method: "POST", body: JSON.stringify({ action: "save-page", page }) }); },
+  submitRequest(request: Omit<PublicRequest, "id" | "status" | "submittedAt" | "updatedAt" | "bookingId">): Promise<PublicRequest> { return api("/api/validation", { method: "POST", body: JSON.stringify({ action: "submit-request", request }) }); },
+  updateRequest(requestId: string, status: PublicRequestStatus, bookingId: string | null): Promise<PublicRequest> { return api("/api/validation", { method: "POST", body: JSON.stringify({ action: "update-request", requestId, status, bookingId }) }); },
+};

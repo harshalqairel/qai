@@ -12,7 +12,7 @@ export default function TodaySchedule({ items, timezone }: TodayScheduleProps) {
     <section>
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-[var(--dashboard-text)]">Today&apos;s Schedule</h2>
+          <h2 className="text-lg font-semibold text-[var(--dashboard-text)]">Today&apos;s schedule</h2>
           <p className="mt-1 text-sm text-[var(--dashboard-muted-text)]">Work planned for today.</p>
         </div>
         <span className="rounded-full bg-[var(--dashboard-income-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--dashboard-income-text)]">
@@ -22,7 +22,7 @@ export default function TodaySchedule({ items, timezone }: TodayScheduleProps) {
 
       {items.length === 0 ? (
         <div className="mt-5 rounded-xl border border-dashed border-[var(--dashboard-border)] bg-[var(--dashboard-surface-muted)] p-6 text-center text-sm text-[var(--dashboard-muted-text)]">
-          Nothing is scheduled for today.
+          No bookings on this day.
         </div>
       ) : (
         <div className="mt-5 space-y-3">

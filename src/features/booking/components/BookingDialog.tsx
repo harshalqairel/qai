@@ -4,15 +4,17 @@ import { useEffect, useRef, useState } from "react";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { z } from "zod";
-import { Booking, CreateBookingInput, UpdateBookingInput } from "@/features/booking/types";
+import { Booking, CreateBookingCommand, UpdateBookingInput } from "@/features/booking/types";
 import { bookingSchema, BookingFormValues } from "@/features/booking/schema";
 import { doesBookingEndNextDay } from "@/features/booking/utils/bookingDateRange";
-import { sessionToFormValues } from "@/features/booking/utils/bookingSessions";
+import { instantParts, sessionToFormValues } from "@/features/booking/utils/bookingSessions";
 import { Service } from "@/features/service/types";
 import type { CreateServiceInput } from "@/features/service/types";
 import type { CreateCustomerInput, Customer } from "@/features/customer/types";
 import type { ServiceCategory } from "@/features/service-category/types";
-import { Payment } from "@/features/payment/types";
+import { InitialPaymentInput, Payment } from "@/features/payment/types";
+import { PAYMENT_METHODS } from "@/features/payment/constants";
+import { initialPaymentSchemaForBooking } from "@/features/payment/schema";
 import { formatRupiah, getPaymentLabel } from "@/features/payment/utils/paymentCalculations";
 import { Expense } from "@/features/expense/types";
 import { getBookingExpenses } from "@/features/expense/utils/expenseAggregations";
@@ -42,7 +44,7 @@ type BookingDialogProps = {
   onQuickCreateService?: (input: CreateServiceInput) => Promise<Service | null>;
   onQuickCreateServiceCategory?: (name: string) => Promise<ServiceCategory | null>;
   onClose: () => void;
-  onCreate: (input: CreateBookingInput) => boolean | Promise<boolean>;
+  onCreate: (command: CreateBookingCommand) => boolean | Promise<boolean>;
   onUpdate: (input: UpdateBookingInput) => boolean | Promise<boolean>;
   onAddPaymentClick: (bookingId: string, remainingAmount: number) => void;
   onEditPaymentClick: (payment: Payment) => void;
@@ -58,6 +60,15 @@ const defaultValues: BookingFormValues = {
   fullPaymentDueDate: "",
   notes: "",
 };
+
+function defaultInitialPayment(timezone: string): InitialPaymentInput {
+  return {
+    amount: 0,
+    method: "Bank Transfer",
+    date: instantParts(new Date().toISOString(), timezone).date,
+    notes: "",
+  };
+}
 
 export default function BookingDialog({
   open,
@@ -96,6 +107,7 @@ export default function BookingDialog({
   const { fields: scheduleFields, append, remove, replace } = useFieldArray({ control, name: "sessions" });
   const watchedSessions = useWatch({ control, name: "sessions" });
   const lastDefaultedServiceId = useRef<string | null>(null);
+  const creationRequestId = useRef("");
   const [quickCustomerOpen, setQuickCustomerOpen] = useState(false);
   const [quickServiceOpen, setQuickServiceOpen] = useState(false);
   const [quickPending, setQuickPending] = useState(false);
@@ -109,11 +121,16 @@ export default function BookingDialog({
     defaultSessionCount: 1,
   });
   const [quickCategoryName, setQuickCategoryName] = useState("");
+  const [initialPaymentOpen, setInitialPaymentOpen] = useState(false);
+  const [initialPayment, setInitialPayment] = useState<InitialPaymentInput>(() => defaultInitialPayment(timezone));
+  const [initialPaymentErrors, setInitialPaymentErrors] = useState<Partial<Record<keyof InitialPaymentInput, string>>>({});
 
   useEffect(() => {
     if (!open) return;
 
     if (booking) {
+      setInitialPaymentOpen(false);
+      setInitialPaymentErrors({});
       reset({
         customerId: booking.customerId,
         serviceId: booking.serviceId,
@@ -127,6 +144,10 @@ export default function BookingDialog({
     }
 
     lastDefaultedServiceId.current = null;
+    creationRequestId.current = crypto.randomUUID();
+    setInitialPaymentOpen(false);
+    setInitialPayment(defaultInitialPayment(timezone));
+    setInitialPaymentErrors({});
     reset({
       ...defaultValues,
       ...(initialValues ?? {}),
@@ -184,7 +205,7 @@ export default function BookingDialog({
 
   async function createCustomerInline() {
     if (!onQuickCreateCustomer || !quickCustomer.name.trim() || !quickCustomer.phone.trim()) {
-      setQuickError("Customer name and phone are required.");
+      setQuickError("Client name and phone are required.");
       return;
     }
     setQuickPending(true);
@@ -204,7 +225,7 @@ export default function BookingDialog({
     setValue("customerId", created.id, { shouldValidate: true });
     setQuickCustomer({ name: "", phone: "" });
     setQuickCustomerOpen(false);
-    notify.success("Customer added without losing the booking details.");
+    notify.success("Client added and selected.");
   }
 
   async function createServiceInline() {
@@ -259,11 +280,41 @@ export default function BookingDialog({
 
   function handleClose() {
     reset(defaultValues);
+    setInitialPaymentOpen(false);
+    setInitialPaymentErrors({});
     onClose();
   }
 
   async function onSubmit(values: BookingFormValues) {
-    const succeeded = await action.run(() => booking ? onUpdate({ id: booking.id, ...values }) : onCreate(values));
+    let createCommand: CreateBookingCommand | null = null;
+    if (!booking) {
+      let parsedInitialPayment: InitialPaymentInput | null = null;
+      if (initialPaymentOpen) {
+        const parsed = initialPaymentSchemaForBooking(values.servicePrice).safeParse(initialPayment);
+        if (!parsed.success) {
+          const nextErrors: Partial<Record<keyof InitialPaymentInput, string>> = {};
+          for (const issue of parsed.error.issues) {
+            const field = issue.path[0];
+            if (typeof field === "string" && !(field in nextErrors)) {
+              nextErrors[field as keyof InitialPaymentInput] = issue.message;
+            }
+          }
+          setInitialPaymentErrors(nextErrors);
+          return;
+        }
+        parsedInitialPayment = parsed.data;
+      }
+      setInitialPaymentErrors({});
+      createCommand = {
+        requestId: creationRequestId.current || crypto.randomUUID(),
+        booking: values,
+        initialPayment: parsedInitialPayment,
+      };
+    }
+
+    const succeeded = await action.run(() => booking
+      ? onUpdate({ id: booking.id, ...values })
+      : onCreate(createCommand!));
     if (!succeeded) {
       notify.error("Could not save the booking. Try again.");
       return;
@@ -294,15 +345,15 @@ export default function BookingDialog({
           className="space-y-6"
         >
           <div>
-            <Label className="mb-2 block font-semibold">Customer</Label>
+            <Label className="mb-2 block font-semibold">Client</Label>
             <Controller
               control={control}
               name="customerId"
               render={({ field }) => (
                 <Select value={field.value} onValueChange={field.onChange}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select a customer">
-                      {field.value ? (customers.find((c) => c.id === field.value)?.name ?? "Unknown customer") : undefined}
+                    <SelectValue placeholder="Select a client">
+                      {field.value ? (customers.find((c) => c.id === field.value)?.name ?? "Client not found") : undefined}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
@@ -319,14 +370,14 @@ export default function BookingDialog({
             {onQuickCreateCustomer && (
               <div className="mt-3">
                 <Button type="button" variant="outline" size="sm" onClick={() => { setQuickCustomerOpen((value) => !value); setQuickError(""); }}>
-                  <Plus className="size-4" aria-hidden="true" /> Add New Customer
+                  <Plus className="size-4" aria-hidden="true" /> Add new client
                 </Button>
                 {quickCustomerOpen && (
                   <div className="mt-3 space-y-3 rounded-xl border border-border bg-muted/30 p-4">
-                    <div><Label className="mb-2 block">Customer Name</Label><Input value={quickCustomer.name} onChange={(event) => setQuickCustomer((value) => ({ ...value, name: event.target.value }))} /></div>
+                    <div><Label className="mb-2 block">Client name</Label><Input value={quickCustomer.name} onChange={(event) => setQuickCustomer((value) => ({ ...value, name: event.target.value }))} /></div>
                     <div><Label className="mb-2 block">Phone</Label><Input inputMode="tel" value={quickCustomer.phone} onChange={(event) => setQuickCustomer((value) => ({ ...value, phone: event.target.value }))} /></div>
                     {quickError && <p className="text-sm text-destructive">{quickError}</p>}
-                    <div className="flex gap-2"><Button type="button" size="sm" disabled={quickPending} onClick={createCustomerInline}>{quickPending ? "Adding…" : "Add and Select"}</Button><Button type="button" size="sm" variant="ghost" onClick={() => setQuickCustomerOpen(false)}>Cancel</Button></div>
+                    <div className="flex gap-2"><Button type="button" size="sm" disabled={quickPending} onClick={createCustomerInline}>{quickPending ? "Adding…" : "Add and select"}</Button><Button type="button" size="sm" variant="ghost" onClick={() => setQuickCustomerOpen(false)}>Cancel</Button></div>
                   </div>
                 )}
               </div>
@@ -363,11 +414,11 @@ export default function BookingDialog({
                   setQuickError("");
                   setQuickService((value) => ({ ...value, categoryId: value.categoryId || serviceCategories.find((category) => category.active)?.id || "" }));
                 }}>
-                  <Plus className="size-4" aria-hidden="true" /> Add New Service
+                  <Plus className="size-4" aria-hidden="true" /> Add new service
                 </Button>
                 {quickServiceOpen && (
                   <div className="mt-3 space-y-3 rounded-xl border border-border bg-muted/30 p-4">
-                    <div><Label className="mb-2 block">Service Name</Label><Input value={quickService.name} onChange={(event) => setQuickService((value) => ({ ...value, name: event.target.value }))} /></div>
+                    <div><Label className="mb-2 block">Service name</Label><Input value={quickService.name} onChange={(event) => setQuickService((value) => ({ ...value, name: event.target.value }))} /></div>
                     <div>
                       <Label className="mb-2 block">Category</Label>
                       <Select value={quickService.categoryId} onValueChange={(categoryId) => setQuickService((value) => ({ ...value, categoryId: categoryId ?? "" }))}>
@@ -383,20 +434,20 @@ export default function BookingDialog({
                     </div>
                     {onQuickCreateServiceCategory && (
                       <div>
-                        <Label className="mb-2 block">New Category</Label>
+                        <Label className="mb-2 block">New category</Label>
                         <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
                           <Input value={quickCategoryName} onChange={(event) => setQuickCategoryName(event.target.value)} placeholder="e.g. Makeup" />
-                          <Button type="button" variant="outline" disabled={quickPending} onClick={createServiceCategoryInline}>Add Category</Button>
+                          <Button type="button" variant="outline" disabled={quickPending} onClick={createServiceCategoryInline}>Add category</Button>
                         </div>
                       </div>
                     )}
                     <div className="grid grid-cols-2 gap-3">
                       <div><Label className="mb-2 block">Price</Label><MoneyInput value={quickService.price} onChange={(price) => setQuickService((value) => ({ ...value, price }))} /></div>
-                      <div><Label className="mb-2 block">Duration</Label><Input type="number" min={1} inputMode="numeric" value={quickService.duration} onChange={(event) => setQuickService((value) => ({ ...value, duration: Number(event.target.value) }))} /></div>
+                      <div><Label className="mb-2 block">Typical duration</Label><Input type="number" min={1} inputMode="numeric" value={quickService.duration} onChange={(event) => setQuickService((value) => ({ ...value, duration: Number(event.target.value) }))} /></div>
                     </div>
-                    <div><Label className="mb-2 block">Default Sessions</Label><Input type="number" min={1} max={50} inputMode="numeric" value={quickService.defaultSessionCount} onChange={(event) => setQuickService((value) => ({ ...value, defaultSessionCount: Number(event.target.value) }))} /></div>
+                    <div><Label className="mb-2 block">Usual number of schedules</Label><Input type="number" min={1} max={50} inputMode="numeric" value={quickService.defaultSessionCount} onChange={(event) => setQuickService((value) => ({ ...value, defaultSessionCount: Number(event.target.value) }))} /></div>
                     {quickError && <p className="text-sm text-destructive">{quickError}</p>}
-                    <div className="flex gap-2"><Button type="button" size="sm" disabled={quickPending} onClick={createServiceInline}>{quickPending ? "Adding…" : "Add and Select"}</Button><Button type="button" size="sm" variant="ghost" onClick={() => setQuickServiceOpen(false)}>Cancel</Button></div>
+                    <div className="flex gap-2"><Button type="button" size="sm" disabled={quickPending} onClick={createServiceInline}>{quickPending ? "Adding…" : "Add and select"}</Button><Button type="button" size="sm" variant="ghost" onClick={() => setQuickServiceOpen(false)}>Cancel</Button></div>
                   </div>
                 )}
               </div>
@@ -416,7 +467,7 @@ export default function BookingDialog({
               return (
                 <div key={field.id} className="space-y-4 rounded-2xl border border-border bg-muted/30 p-4">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="font-semibold text-foreground">Session {index + 1}</p>
+                    <p className="font-semibold text-foreground">Schedule {index + 1}</p>
                     {scheduleFields.length > 1 && (
                       <Button
                         type="button"
@@ -424,7 +475,7 @@ export default function BookingDialog({
                         size="sm"
                         className="text-destructive"
                         onClick={() => remove(index)}
-                        aria-label={`Remove session ${index + 1}`}
+                        aria-label={`Remove schedule ${index + 1}`}
                       >
                         <Trash2 className="size-4" aria-hidden="true" /> Remove
                       </Button>
@@ -443,7 +494,7 @@ export default function BookingDialog({
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="min-w-0">
-                      <Label className="mb-2 block">Start</Label>
+                      <Label className="mb-2 block">Start time</Label>
                       <Input
                         type="time"
                         {...startTimeField}
@@ -455,7 +506,7 @@ export default function BookingDialog({
                       {sessionError?.startTime && <p className="mt-2 text-sm text-destructive">{sessionError.startTime.message}</p>}
                     </div>
                     <div className="min-w-0">
-                      <Label className="mb-2 block">End</Label>
+                      <Label className="mb-2 block">End time</Label>
                       <Input type="time" {...register(`sessions.${index}.endTime`)} />
                       {sessionError?.endTime && <p className="mt-2 text-sm text-destructive">{sessionError.endTime.message}</p>}
                     </div>
@@ -470,7 +521,7 @@ export default function BookingDialog({
                     <Input {...register(`sessions.${index}.location`)} />
                   </div>
                   <div>
-                    <Label className="mb-2 block">Session Notes <span className="font-normal text-muted-foreground">(optional)</span></Label>
+                    <Label className="mb-2 block">Notes <span className="font-normal text-muted-foreground">(optional)</span></Label>
                     <Textarea rows={2} {...register(`sessions.${index}.notes`)} />
                   </div>
                 </div>
@@ -486,13 +537,13 @@ export default function BookingDialog({
               disabled={scheduleFields.length >= 50}
               onClick={() => append({ label: "", date: "", startTime: "", endTime: "", location: "", notes: "" })}
             >
-              <Plus className="size-4" aria-hidden="true" /> Add Another Schedule
+              <Plus className="size-4" aria-hidden="true" /> Add another schedule
             </Button>
           </section>
 
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div>
-              <Label className="mb-2 block font-semibold">Service Price</Label>
+              <Label className="mb-2 block font-semibold">Price</Label>
               <Controller
                 control={control}
                 name="servicePrice"
@@ -511,14 +562,115 @@ export default function BookingDialog({
               {errors.servicePrice && <p className="mt-2 text-sm text-destructive">{errors.servicePrice.message}</p>}
             </div>
             <div>
-              <Label className="mb-2 block font-semibold">Full Payment Due Date</Label>
+              <Label className="mb-2 block font-semibold">Payment due date</Label>
               <Input type="date" {...register("fullPaymentDueDate")} />
               {errors.fullPaymentDueDate && <p className="mt-2 text-sm text-destructive">{errors.fullPaymentDueDate.message}</p>}
             </div>
           </div>
 
+          {!booking && (
+            <section className="rounded-2xl border border-border bg-muted/20 p-4" aria-labelledby="initial-payment-heading">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 id="initial-payment-heading" className="font-semibold text-foreground">
+                    Initial payment <span className="font-normal text-muted-foreground">(optional)</span>
+                  </h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Record a deposit received when this booking is created.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  aria-expanded={initialPaymentOpen}
+                  aria-controls="initial-payment-fields"
+                  onClick={() => {
+                    setInitialPaymentOpen((value) => !value);
+                    setInitialPaymentErrors({});
+                  }}
+                >
+                  {initialPaymentOpen ? "Remove initial payment" : "Add initial payment"}
+                </Button>
+              </div>
+
+              {initialPaymentOpen && (
+                <div id="initial-payment-fields" className="mt-5 space-y-4 border-t border-border pt-5">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <Label htmlFor="initial-payment-amount" className="mb-2 block">Amount</Label>
+                      <MoneyInput
+                        id="initial-payment-amount"
+                        value={initialPayment.amount}
+                        onChange={(amount) => setInitialPayment((value) => ({ ...value, amount }))}
+                        aria-invalid={Boolean(initialPaymentErrors.amount)}
+                        placeholder="0"
+                      />
+                      {initialPaymentErrors.amount && (
+                        <p className="mt-2 text-sm text-destructive">{initialPaymentErrors.amount}</p>
+                      )}
+                    </div>
+                    <div>
+                      <Label htmlFor="initial-payment-date" className="mb-2 block">Payment date</Label>
+                      <Input
+                        id="initial-payment-date"
+                        type="date"
+                        value={initialPayment.date}
+                        onChange={(event) => setInitialPayment((value) => ({ ...value, date: event.target.value }))}
+                        aria-invalid={Boolean(initialPaymentErrors.date)}
+                      />
+                      {initialPaymentErrors.date && (
+                        <p className="mt-2 text-sm text-destructive">{initialPaymentErrors.date}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="mb-2 block">Payment method</Label>
+                    <Select
+                      value={initialPayment.method}
+                      onValueChange={(method) => setInitialPayment((value) => ({
+                        ...value,
+                        method: method as InitialPaymentInput["method"],
+                      }))}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select method" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PAYMENT_METHODS.map((method) => (
+                          <SelectItem key={method} value={method}>{method}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {initialPaymentErrors.method && (
+                      <p className="mt-2 text-sm text-destructive">{initialPaymentErrors.method}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label htmlFor="initial-payment-notes" className="mb-2 block">
+                      Notes <span className="font-normal text-muted-foreground">(optional)</span>
+                    </Label>
+                    <Textarea
+                      id="initial-payment-notes"
+                      rows={2}
+                      value={initialPayment.notes}
+                      onChange={(event) => setInitialPayment((value) => ({ ...value, notes: event.target.value }))}
+                      placeholder="e.g. Deposit / DP"
+                    />
+                    {initialPaymentErrors.notes && (
+                      <p className="mt-2 text-sm text-destructive">{initialPaymentErrors.notes}</p>
+                    )}
+                  </div>
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    Payment status and remaining balance are calculated automatically.
+                  </p>
+                </div>
+              )}
+            </section>
+          )}
+
           <div>
-            <Label className="mb-2 block font-semibold">Booking Status</Label>
+            <Label className="mb-2 block font-semibold">Booking status</Label>
             <Controller
               control={control}
               name="bookingStatus"
@@ -543,6 +695,7 @@ export default function BookingDialog({
             <Textarea rows={4} {...register("notes")} />
           </div>
 
+          {booking && (
           <div className="rounded-2xl border border-zinc-200 p-4">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="font-semibold text-slate-900">Payment History</h3>
@@ -550,15 +703,12 @@ export default function BookingDialog({
                 type="button"
                 variant="outline"
                 size="sm"
-                disabled={!booking || !canAddPayment}
-                onClick={() => booking && onAddPaymentClick(booking.id, outstanding)}
+                disabled={!canAddPayment}
+                onClick={() => onAddPaymentClick(booking.id, outstanding)}
               >
                 Add Payment
               </Button>
             </div>
-            {!booking ? (
-              <p className="text-sm text-zinc-500">Save booking first to add payments.</p>
-            ) : (
               <>
                 {bookingPayments.length === 0 ? (
                   <p className="text-sm text-zinc-500">No payment transactions yet.</p>
@@ -603,8 +753,8 @@ export default function BookingDialog({
                   </p>
                 )}
               </>
-            )}
           </div>
+          )}
 
           {/* Booking Profit — only shown when editing */}
           {booking && (
@@ -621,7 +771,7 @@ export default function BookingDialog({
                 </div>
                 {!isCancelled && (
                   <div>
-                    <p className="text-zinc-500">Outstanding</p>
+                    <p className="text-zinc-500">Unpaid amount</p>
                     <p className="font-semibold text-amber-700">{formatRupiah(outstanding)}</p>
                   </div>
                 )}
@@ -630,7 +780,7 @@ export default function BookingDialog({
                   <p className="font-semibold text-rose-700">{formatRupiah(bookingExpensesTotal)}</p>
                 </div>
                 <div>
-                  <p className="text-zinc-500">Net Revenue</p>
+                  <p className="text-zinc-500">Income after direct expenses</p>
                   <p className={`font-semibold ${isCancelled ? "text-slate-900" : netRevenue >= 0 ? "text-sky-700" : "text-red-700"}`}>
                     {isCancelled ? "Not applicable" : formatRupiah(netRevenue)}
                   </p>
@@ -649,7 +799,7 @@ export default function BookingDialog({
               Cancel
             </Button>
             <ActionButton type="submit" loading={action.pending || isSubmitting} loadingText={booking ? "Updating…" : "Saving…"}>
-              {booking ? "Update Booking" : "Save Booking"}
+              {booking ? "Save changes" : "Add booking"}
             </ActionButton>
           </div>
         </form>

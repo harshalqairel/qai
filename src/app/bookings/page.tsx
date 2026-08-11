@@ -10,7 +10,7 @@ import BookingFinancialDetailsDialog, {
 } from "@/features/booking/components/BookingFinancialDetailsDialog";
 import PaymentDialog from "@/features/payment/components/PaymentDialog";
 import ExpenseDialog from "@/features/expense/components/ExpenseDialog";
-import { Booking, CreateBookingInput, UpdateBookingInput } from "@/features/booking/types";
+import { Booking, CreateBookingCommand, UpdateBookingInput } from "@/features/booking/types";
 import { useBookings } from "@/features/booking/hooks/useBookings";
 import { useCustomers } from "@/features/customer/hooks/useCustomers";
 import { useServices } from "@/features/service/hooks/useServices";
@@ -18,6 +18,7 @@ import { usePayments } from "@/features/payment/hooks/usePayments";
 import { Payment } from "@/features/payment/types";
 import { useExpenses } from "@/features/expense/hooks/useExpenses";
 import { useExpenseCategories } from "@/features/expense-category/hooks/useExpenseCategories";
+import { suggestCategoryColor } from "@/features/category/constants";
 import { summarizeBookingPayments } from "@/features/payment/utils/paymentCalculations";
 import { getBookingExpenses } from "@/features/expense/utils/expenseAggregations";
 import {
@@ -73,7 +74,7 @@ export default function BookingsPage() {
     const service = services.find((item) => item.id === booking.serviceId);
     return {
       id: booking.id,
-      label: `${customer?.name ?? "Customer not found"} · ${service?.name ?? "Service not found"} · ${formatSessionDate(firstBookingSession(booking), bookingData.timezone)}`,
+      label: `${customer?.name ?? "Client not found"} · ${service?.name ?? "Service not found"} · ${formatSessionDate(firstBookingSession(booking), bookingData.timezone)}`,
     };
   }), [bookings, customers, services, bookingData.timezone]);
 
@@ -88,7 +89,7 @@ export default function BookingsPage() {
     return {
       ...booking,
       servicePrice: effectiveServicePrice,
-      customerName: customer?.name ?? "Unknown Customer",
+      customerName: customer?.name ?? "Client not found",
       serviceName: service?.name ?? "Unknown Service",
       paymentStatus: paymentSummary?.paymentStatus ?? "Outstanding",
       totalPaid: paymentSummary?.totalPaid ?? 0,
@@ -230,6 +231,10 @@ export default function BookingsPage() {
 
           <BookingTable
             bookings={sortedBookings}
+            onAdd={() => {
+              setSelectedBooking(null);
+              setDialogOpen(true);
+            }}
             onEdit={(booking) => {
               setSelectedBooking(booking);
               setDialogOpen(true);
@@ -260,7 +265,11 @@ export default function BookingsPage() {
           setDialogOpen(false);
           setSelectedBooking(null);
         }}
-        onCreate={(input: CreateBookingInput) => createBooking(input)}
+        onCreate={async (command: CreateBookingCommand) => {
+          const created = await createBooking(command);
+          if (created) await paymentData.retry();
+          return created;
+        }}
         onUpdate={(input: UpdateBookingInput) => updateBooking(input)}
         onAddPaymentClick={(bookingId, remainingAmount) =>
           openPaymentDialog(bookingId, undefined, remainingAmount)
@@ -269,7 +278,7 @@ export default function BookingsPage() {
         onDeletePayment={(id) => deletePayment(id)}
         onQuickCreateCustomer={customerData.createCustomerAndReturn}
         onQuickCreateService={serviceData.createServiceAndReturn}
-        onQuickCreateServiceCategory={(name) => serviceCategoryData.createCategoryAndReturn({ name, color: "#0D5C5A" })}
+        onQuickCreateServiceCategory={(name) => serviceCategoryData.createCategoryAndReturn({ name, color: suggestCategoryColor(serviceCategories.map((category) => category.color)) })}
       />
 
       <PaymentDialog
@@ -304,6 +313,10 @@ export default function BookingsPage() {
         expense={null}
         bookingOptions={bookingOptions}
         categories={expenseCategories}
+        onQuickCreateCategory={(name) => expenseCategoryData.createCategoryAndReturn({
+          name,
+          color: "#0D5C5A",
+        })}
         initialValues={{
           bookingId: selectedBookingIdForExpense,
           expenseType: "Booking Expense",

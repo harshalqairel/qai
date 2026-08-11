@@ -1,7 +1,7 @@
-import { formatBookingTimeRange } from "@/features/booking/utils/bookingDateRange";
 import { Expense } from "@/features/expense/types";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
 import DeleteAction from "@/components/system/DeleteAction";
+import { categoryColorCss } from "@/features/category/constants";
 
 export type ExpenseBookingDetails = {
   customerName: string;
@@ -15,15 +15,15 @@ export type ExpenseBookingDetails = {
 type ExpenseCardProps = {
   expense: Expense;
   categoryName: string;
+  categoryColor: string;
   bookingDetails?: ExpenseBookingDetails | null;
   onEdit: (expense: Expense) => void;
   onDelete: (expense: Expense) => boolean | Promise<boolean>;
 };
 
 function formatDate(date: string) {
-  return new Date(`${date}T00:00:00`).toLocaleDateString("en-US", {
-    weekday: "long",
-    day: "2-digit",
+  return new Date(`${date}T00:00:00`).toLocaleDateString("en-GB", {
+    day: "numeric",
     month: "short",
     year: "numeric",
   });
@@ -37,91 +37,55 @@ const TYPE_BADGE: Record<string, string> = {
 export default function ExpenseCard({
   expense,
   categoryName,
+  categoryColor,
   bookingDetails,
   onEdit,
   onDelete,
 }: ExpenseCardProps) {
+  const isBookingExpense = expense.expenseType === "Booking Expense";
+
   return (
-    <article className="rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <article className="rounded-xl border border-border bg-card p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-xl font-bold tracking-tight text-foreground">{categoryName}</h2>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${TYPE_BADGE[expense.expenseType] ?? "border border-border bg-muted text-muted-foreground"}`}>
-              {expense.expenseType}
-            </span>
-            {expense.vendor && (
-              <span className="inline-flex rounded-full border border-border bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">
-                {expense.vendor}
-              </span>
-            )}
-          </div>
+          <p className="text-xs font-medium text-muted-foreground">{formatDate(expense.date)}</p>
+          <h2 className="mt-1 flex items-center gap-2 font-bold text-foreground">
+            <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: categoryColorCss(categoryColor, expense.categoryId) }} aria-hidden="true" />
+            <span className="truncate">{categoryName}</span>
+          </h2>
         </div>
-        <div className="shrink-0 sm:text-right">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Amount</p>
-          <p className="mt-1 text-2xl font-bold tracking-tight text-foreground tabular-nums sm:text-3xl">
-            {formatRupiah(expense.amount)}
-          </p>
+        <div className="shrink-0 text-right">
+          <p className="text-lg font-bold tracking-tight text-foreground tabular-nums">{formatRupiah(expense.amount)}</p>
+          <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${TYPE_BADGE[expense.expenseType] ?? "border border-border bg-muted text-muted-foreground"}`}>
+            {isBookingExpense ? "Booking expense" : "General expense"}
+          </span>
         </div>
       </div>
 
-      <dl className="mt-5 grid gap-4 border-t border-border pt-5 text-sm sm:grid-cols-3">
-        <div>
-          <dt className="font-semibold text-foreground">Date</dt>
-          <dd className="mt-1 text-muted-foreground">{formatDate(expense.date)}</dd>
-        </div>
-        <div>
-          <dt className="font-semibold text-foreground">Payment method</dt>
-          <dd className="mt-1 text-muted-foreground">{expense.paymentMethod}</dd>
-        </div>
-        {expense.vendor && (
-          <div>
-            <dt className="font-semibold text-foreground">Vendor</dt>
-            <dd className="mt-1 text-muted-foreground">{expense.vendor}</dd>
-          </div>
-        )}
-      </dl>
+      <p className="mt-3 line-clamp-2 text-sm leading-5 text-foreground">{expense.notes || "No description"}</p>
+      <p className="mt-2 truncate text-sm text-muted-foreground">
+        {isBookingExpense
+          ? bookingDetails
+            ? `${bookingDetails.customerName} · ${bookingDetails.serviceName}`
+            : "Booking not found"
+          : expense.vendor || "General business expense"}
+      </p>
 
-      {expense.expenseType === "Booking Expense" && (
-        <section className="mt-5 rounded-lg border border-border bg-muted/55 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Booking</p>
-          {bookingDetails ? (
-            <div className="mt-2">
-              <p className="font-semibold text-foreground">{bookingDetails.customerName}</p>
-              <p className="mt-0.5 text-sm text-muted-foreground">{bookingDetails.serviceName}</p>
-              <p className="mt-2 text-sm font-medium text-foreground">
-                {bookingDetails.bookingDateLabel} · {formatBookingTimeRange(
-                  bookingDetails.bookingDateKey,
-                  bookingDetails.startTime,
-                  bookingDetails.endTime,
-                )}
-              </p>
-            </div>
-          ) : (
-            <p className="mt-2 text-sm font-medium text-muted-foreground">Booking not found</p>
-          )}
-        </section>
-      )}
-
-      {expense.notes && (
-        <p className="mt-5 border-t border-border pt-5 text-sm leading-6 text-muted-foreground">
-          {expense.notes}
-        </p>
-      )}
-
-      <div className="mt-5 flex flex-wrap gap-3 border-t border-border pt-5">
+      <div className="mt-3 flex items-center gap-2 border-t border-border pt-3">
         <button
           type="button"
           onClick={() => onEdit(expense)}
-          className="min-h-10 rounded-lg border border-border bg-white px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
+          className="min-h-10 rounded-lg border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
         >
-          Edit
+          View / Edit
         </button>
         <DeleteAction
           itemName="this expense"
           onConfirm={() => onDelete(expense)}
           successMessage="Expense deleted."
           errorMessage="Could not delete the expense. Try again."
+          triggerClassName="h-10 px-3"
+          confirmLabel="Delete expense"
         />
       </div>
     </article>

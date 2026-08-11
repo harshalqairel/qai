@@ -34,7 +34,7 @@ export default function BookingToolbar({
         value={status}
         onChange={(e) => onStatusChange(e.target.value)}
       >
-        <option value="">All Statuses</option>
+        <option value="">All statuses</option>
         <option value="Scheduled">Scheduled</option>
         <option value="Completed">Completed</option>
         <option value="Cancelled">Cancelled</option>
@@ -45,10 +45,10 @@ export default function BookingToolbar({
         value={paymentStatus}
         onChange={(e) => onPaymentStatusChange(e.target.value)}
       >
-        <option value="">All Payment Status</option>
-        <option value="Outstanding">Outstanding</option>
-        <option value="Partial Paid">Partial Paid</option>
-        <option value="Fully Paid">Fully Paid</option>
+        <option value="">All payment statuses</option>
+        <option value="Outstanding">Unpaid</option>
+        <option value="Partial Paid">Part paid</option>
+        <option value="Fully Paid">Paid</option>
         <option value="Cancelled">Cancelled</option>
       </select>
 
@@ -59,8 +59,8 @@ export default function BookingToolbar({
       >
         <option value="newest">Newest</option>
         <option value="oldest">Oldest</option>
-        <option value="date-asc">Date Ascending</option>
-        <option value="date-desc">Date Descending</option>
+        <option value="date-asc">Date (oldest first)</option>
+        <option value="date-desc">Date (newest first)</option>
       </select>
     </div>
   );

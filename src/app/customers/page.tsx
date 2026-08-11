@@ -134,6 +134,10 @@ export default function CustomersPage() {
 
           <CustomerTable
             customers={customersWithFinancials}
+            onAdd={() => {
+              setSelectedCustomer(null);
+              setDialogOpen(true);
+            }}
             onEdit={(customer) => {
               setSelectedCustomer(customer);
               setDialogOpen(true);

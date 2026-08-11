@@ -9,6 +9,7 @@ function usesApplicationChrome(pathname: string): boolean {
   if (pathname === "/" || pathname === "/login" || pathname === "/onboarding") {
     return false;
   }
+  if (pathname.startsWith("/q/")) return false;
   return !pathname.startsWith("/auth/");
 }
 

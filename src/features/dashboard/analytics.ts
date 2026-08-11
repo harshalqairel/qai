@@ -5,6 +5,8 @@ export type AnalyticsCategory = {
   color?: string;
 };
 
+import { categoryColorCss } from "@/features/category/constants";
+
 export type DisplayAnalyticsCategory = AnalyticsCategory & { percentage: number };
 
 export function groupAnalyticsCategories(
@@ -21,7 +23,7 @@ export function groupAnalyticsCategories(
           id: "other",
           name: "Other",
           amount: sorted.slice(maximumVisible - 1).reduce((sum, item) => sum + item.amount, 0),
-          color: "#94a3b8",
+          color: "var(--category-other)",
         },
       ]
     : sorted;
@@ -34,6 +36,7 @@ export function donutGradient(categories: DisplayAnalyticsCategory[], fallback: 
   return `conic-gradient(${categories.map((item) => {
     const start = cursor;
     cursor += (item.amount / categories.reduce((sum, category) => sum + category.amount, 0)) * 100;
-    return `${item.color ?? fallback} ${start}% ${cursor}%`;
+    const color = item.id === "other" ? "var(--category-other)" : categoryColorCss(item.color, item.id);
+    return `${color ?? fallback} ${start}% ${cursor}%`;
   }).join(", ")})`;
 }

@@ -16,7 +16,7 @@ export default function UpcomingJobs({ items, timezone }: UpcomingJobsProps) {
   return (
     <section>
       <div>
-        <h2 className="text-lg font-semibold text-[var(--dashboard-text)]">Upcoming Jobs</h2>
+        <h2 className="text-lg font-semibold text-[var(--dashboard-text)]">Upcoming jobs</h2>
         <p className="mt-1 text-sm text-[var(--dashboard-muted-text)]">Your next scheduled jobs.</p>
       </div>
 
@@ -41,7 +41,7 @@ export default function UpcomingJobs({ items, timezone }: UpcomingJobsProps) {
                   {booking.session.location.trim() && (
                     <p className="mt-1 text-sm text-[var(--dashboard-muted-text)]">{booking.session.location}</p>
                   )}
-                  {booking.sessions.length > 1 && <p className="mt-2 text-xs font-medium text-[var(--dashboard-muted-text)]">{booking.sessions.length}-session booking</p>}
+                  {booking.sessions.length > 1 && <p className="mt-2 text-xs font-medium text-[var(--dashboard-muted-text)]">{booking.sessions.length}-schedule booking</p>}
                 </div>
                 <div className="flex flex-wrap gap-2 sm:justify-end">
                   <BookingStatusBadge status={booking.bookingStatus} />

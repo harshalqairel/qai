@@ -11,7 +11,7 @@ import {
   uniqueCategoryNames,
 } from "@/features/category/utils";
 import type { CategoryInput } from "@/features/category/types";
-import { CATEGORY_COLORS } from "@/features/category/constants";
+import { CATEGORY_COLORS, normalizeCategoryColor } from "@/features/category/constants";
 import type { ServiceCategory } from "../types";
 import {
   SERVICE_CATEGORY_STORAGE_KEY,
@@ -40,10 +40,16 @@ function save(categories: ServiceCategory[]): void {
 function getAll(): ServiceCategory[] {
   const snapshot = readCollectionSnapshot(SERVICE_CATEGORY_STORAGE_KEY);
   if (snapshot.exists) {
-    return readVersionedCollection(
+    const stored = readVersionedCollection(
       SERVICE_CATEGORY_STORAGE_KEY,
       categoryRecordSchema,
     );
+    const normalized = stored.map((category) => ({
+      ...category,
+      color: normalizeCategoryColor(category.color, `service:${category.id}:${category.name}`),
+    }));
+    if (normalized.some((category, index) => category.color !== stored[index].color)) save(normalized);
+    return normalized;
   }
 
   const names = legacyNames();
@@ -88,7 +94,7 @@ export const serviceCategoryRepository = {
       ...createDeterministicCategory("service", input.name, input.color),
       id: crypto.randomUUID(),
     };
-    save([...categories, category]);
+    save([...categories, { ...category, color: normalizeCategoryColor(category.color, `service:${category.id}:${category.name}`) }]);
     return category;
   },
   update(category: ServiceCategory): void {
@@ -100,7 +106,7 @@ export const serviceCategoryRepository = {
     )) {
       throw new Error("DUPLICATE_CATEGORY");
     }
-    save(categories.map((item) => (item.id === category.id ? category : item)));
+    save(categories.map((item) => (item.id === category.id ? { ...category, color: normalizeCategoryColor(category.color, `service:${category.id}:${category.name}`) } : item)));
   },
   delete(id: string): void {
     save(getAll().filter((category) => category.id !== id));

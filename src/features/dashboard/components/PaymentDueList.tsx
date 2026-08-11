@@ -5,15 +5,18 @@ import type { EnrichedBooking } from "@/features/dashboard/hooks/useDashboard";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
 import { formatDashboardDate, getOverdueAgeDays } from "@/features/dashboard/utils";
 import ReminderActions from "@/features/reminder/components/ReminderActions";
+import LastReminderStatus from "@/features/reminder/components/LastReminderStatus";
+import { firstBookingSession, formatSessionDate, nextBookingSession } from "@/features/booking/utils/bookingSessions";
 
 type PaymentDueListProps = {
-  title: "Payments Due Soon" | "Late Payments";
+  title: "Payments due soon" | "Overdue payments";
   description: string;
   emptyMessage: string;
   items: EnrichedBooking[];
   late?: boolean;
   todayKey: string;
   businessName: string;
+  timezone: string;
 };
 
 export default function PaymentDueList({
@@ -24,6 +27,7 @@ export default function PaymentDueList({
   late = false,
   todayKey,
   businessName,
+  timezone,
 }: PaymentDueListProps) {
   const router = useRouter();
   const openBooking = (id: string) => router.push(`/bookings?booking=${encodeURIComponent(id)}`);
@@ -68,6 +72,7 @@ export default function PaymentDueList({
                   <p className={`mt-2 text-sm font-medium ${late ? "text-[var(--dashboard-expense-text)]" : "text-[var(--dashboard-unpaid-text)]"}`}>
                     {late ? `${overdueDays} day${overdueDays === 1 ? "" : "s"} overdue` : `Due ${formatDashboardDate(booking.fullPaymentDueDate)}`}
                   </p>
+                  <LastReminderStatus bookingId={booking.id} />
                 </div>
                 <div className="flex shrink-0 items-center justify-between gap-3 sm:flex-col sm:items-end">
                   <p className="font-semibold text-[var(--dashboard-text)] tabular-nums">
@@ -76,7 +81,7 @@ export default function PaymentDueList({
                   {late && <p className="text-xs text-[var(--dashboard-muted-text)]">Due {formatDashboardDate(booking.fullPaymentDueDate)}</p>}
                 </div>
               </div>
-              <ReminderActions bookingId={booking.id} customerId={booking.customerId} customerName={booking.customerName} customerPhone={booking.customerPhone} customerEmail={booking.customerEmail} serviceName={booking.serviceName} businessName={businessName} remainingAmount={booking.remainingAmount} dueDate={formatDashboardDate(booking.fullPaymentDueDate)} />
+              <ReminderActions bookingId={booking.id} customerId={booking.customerId} customerName={booking.customerName} customerPhone={booking.customerPhone} customerEmail={booking.customerEmail} serviceName={booking.serviceName} businessName={businessName} remainingAmount={booking.remainingAmount} dueDate={formatDashboardDate(booking.fullPaymentDueDate)} reminderType={late ? "overdue" : "due-soon"} bookingDate={formatSessionDate(firstBookingSession(booking), timezone)} bookingValue={booking.servicePrice} totalPaid={booking.totalPaid} nextSessionDate={nextBookingSession(booking) ? formatSessionDate(nextBookingSession(booking)!, timezone) : ""} />
             </article>
           );})}
         </div>

@@ -76,7 +76,7 @@ export default function LocalDataImportSection() {
           ) : (
             <>
               <dl className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <div className="rounded-xl border border-border p-3"><dt className="text-xs text-muted-foreground">Customers</dt><dd className="mt-1 text-lg font-semibold">{preview.counts.customers}</dd></div>
+                <div className="rounded-xl border border-border p-3"><dt className="text-xs text-muted-foreground">Clients</dt><dd className="mt-1 text-lg font-semibold">{preview.counts.customers}</dd></div>
                 <div className="rounded-xl border border-border p-3"><dt className="text-xs text-muted-foreground">Services</dt><dd className="mt-1 text-lg font-semibold">{preview.counts.services}</dd></div>
                 <div className="rounded-xl border border-border p-3"><dt className="text-xs text-muted-foreground">Bookings</dt><dd className="mt-1 text-lg font-semibold">{preview.counts.bookings}</dd></div>
                 <div className="rounded-xl border border-border p-3"><dt className="text-xs text-muted-foreground">Payments & expenses</dt><dd className="mt-1 text-lg font-semibold">{preview.counts.payments + preview.counts.expenses}</dd></div>

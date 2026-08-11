@@ -146,6 +146,37 @@ describe("Excel export", () => {
     expect(workbook.getWorksheet("Income")?.getCell("A6").value).toBeInstanceOf(Date);
     expect(workbook.getWorksheet("Summary")?.getCell("B6").value).toBe(source.summary.moneyReceived);
     expect(workbook.getWorksheet("Schedule")?.rowCount).toBe(9);
+    expect(workbook.getWorksheet("Schedule")?.getCell("B6").value).toBeInstanceOf(Date);
+
+    for (const sheet of workbook.worksheets) {
+      const headers = sheet.getRow(5).values as unknown[];
+      expect(headers).not.toContain("Booking ID");
+      expect(headers).not.toContain("Session ID");
+      expect(headers).not.toContain("Payment ID");
+      expect(headers).not.toContain("Expense ID");
+    }
+    expect(workbook.getWorksheet("Income")?.getRow(5).values).toEqual([
+      undefined,
+      "Date",
+      "Client",
+      "Service",
+      "Booking Status",
+      "Payment Method",
+      "Amount",
+      "Notes",
+    ]);
+    expect(workbook.getWorksheet("Schedule")?.getRow(5).values).toEqual([
+      undefined,
+      "Date",
+      "Start Time",
+      "End Time",
+      "Client",
+      "Service",
+      "Location",
+      "Booking Status",
+      "Schedule",
+      "Notes",
+    ]);
   });
 });
 

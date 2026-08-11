@@ -12,7 +12,7 @@ type SheetColumn = {
   header: string;
   key: string;
   width: number;
-  kind?: "currency" | "date" | "datetime" | "number";
+  kind?: "currency" | "date" | "datetime" | "number" | "time";
 };
 
 function spreadsheetDate(date: string): Date {
@@ -68,6 +68,10 @@ function addDataSheet(
         const parts = instantParts(value, report.timezone);
         return new Date(`${parts.date}T${parts.time}:00.000Z`);
       }
+      if (column.kind === "time" && typeof value === "string" && value) {
+        const { time } = instantParts(value, report.timezone);
+        return new Date(`1899-12-30T${time}:00.000Z`);
+      }
       return value === "" || value == null ? null : value;
     });
     const row = sheet.addRow(values);
@@ -77,6 +81,7 @@ function addDataSheet(
       if (column.kind === "number") cell.numFmt = "#,##0";
       if (column.kind === "date") cell.numFmt = "yyyy-mm-dd";
       if (column.kind === "datetime") cell.numFmt = "yyyy-mm-dd hh:mm";
+      if (column.kind === "time") cell.numFmt = "hh:mm";
       cell.alignment = { vertical: "top", wrapText: false };
     });
   }
@@ -123,52 +128,49 @@ export async function buildFinancialReportWorkbook(report: FinancialReport): Pro
   ], [
     { metric: "Income", value: report.summary.moneyReceived },
     { metric: "Expenses", value: report.summary.expenses },
-    { metric: "Realized Profit", value: report.summary.realizedProfit },
+    { metric: "Profit", value: report.summary.realizedProfit },
     { metric: "Expected Booking Value", value: report.summary.expectedBookingValue },
     { metric: "Estimated Job Profit", value: report.summary.estimatedJobProfit },
-    { metric: "Outstanding", value: report.summary.outstanding },
+    { metric: "Unpaid Amount", value: report.summary.outstanding },
     { metric: "Bookings", count: report.summary.bookings },
-    { metric: "Scheduled Sessions", count: report.summary.scheduledSessions },
+    { metric: "Schedules", count: report.summary.scheduledSessions },
   ]);
 
   addDataSheet(workbook, report, "Income", [
     { header: "Date", key: "date", width: 14, kind: "date" },
-    { header: "Customer", key: "customer", width: 24 },
+    { header: "Client", key: "customer", width: 24 },
     { header: "Service", key: "service", width: 26 },
     { header: "Booking Status", key: "bookingStatus", width: 16 },
-    { header: "Method", key: "method", width: 18 },
+    { header: "Payment Method", key: "method", width: 18 },
     { header: "Amount", key: "amount", width: 20, kind: "currency" },
     { header: "Notes", key: "notes", width: 32 },
-    { header: "Booking ID", key: "bookingId", width: 38 },
   ], report.moneyReceived, ["amount"]);
 
   addDataSheet(workbook, report, "Expenses", [
     { header: "Date", key: "date", width: 14, kind: "date" },
     { header: "Category", key: "category", width: 22 },
     { header: "Type", key: "type", width: 20 },
-    { header: "Customer", key: "customer", width: 24 },
+    { header: "Client", key: "customer", width: 24 },
     { header: "Service", key: "service", width: 24 },
-    { header: "Vendor", key: "vendor", width: 22 },
+    { header: "Paid To", key: "vendor", width: 22 },
     { header: "Payment Method", key: "paymentMethod", width: 18 },
     { header: "Amount", key: "amount", width: 20, kind: "currency" },
     { header: "Notes", key: "notes", width: 32 },
-    { header: "Booking ID", key: "bookingId", width: 38 },
   ], report.expenses, ["amount"]);
 
   const bookingColumns: SheetColumn[] = [
-    { header: "First Session", key: "firstSessionDate", width: 14, kind: "date" },
-    { header: "Customer", key: "customer", width: 24 },
+    { header: "First Schedule", key: "firstSessionDate", width: 14, kind: "date" },
+    { header: "Client", key: "customer", width: 24 },
     { header: "Service", key: "service", width: 26 },
     { header: "Status", key: "status", width: 14 },
-    { header: "Sessions", key: "sessionCount", width: 12, kind: "number" },
+    { header: "Schedules", key: "sessionCount", width: 12, kind: "number" },
     { header: "Booking Value", key: "bookingValue", width: 20, kind: "currency" },
     { header: "Paid", key: "totalPaid", width: 20, kind: "currency" },
-    { header: "Outstanding", key: "outstanding", width: 20, kind: "currency" },
+    { header: "Unpaid Amount", key: "outstanding", width: 20, kind: "currency" },
     { header: "Direct Expenses", key: "directExpenses", width: 20, kind: "currency" },
     { header: "Est. Job Profit", key: "estimatedJobProfit", width: 20, kind: "currency" },
     { header: "Payment Due", key: "paymentDueDate", width: 14, kind: "date" },
     { header: "Notes", key: "notes", width: 32 },
-    { header: "Booking ID", key: "bookingId", width: 38 },
   ];
   addDataSheet(workbook, report, "Job Profit", bookingColumns, report.jobProfit, ["bookingValue", "directExpenses", "estimatedJobProfit"]);
   addDataSheet(workbook, report, "Outstanding", bookingColumns, report.outstanding, ["bookingValue", "totalPaid", "outstanding"]);
@@ -176,17 +178,14 @@ export async function buildFinancialReportWorkbook(report: FinancialReport): Pro
 
   addDataSheet(workbook, report, "Schedule", [
     { header: "Date", key: "date", width: 14, kind: "date" },
-    { header: "Start", key: "startAt", width: 20, kind: "datetime" },
-    { header: "End", key: "endAt", width: 20, kind: "datetime" },
-    { header: "Session", key: "sequence", width: 10, kind: "number" },
-    { header: "Label", key: "label", width: 20 },
-    { header: "Customer", key: "customer", width: 24 },
+    { header: "Start Time", key: "startAt", width: 14, kind: "time" },
+    { header: "End Time", key: "endAt", width: 14, kind: "time" },
+    { header: "Client", key: "customer", width: 24 },
     { header: "Service", key: "service", width: 26 },
     { header: "Location", key: "location", width: 28 },
     { header: "Booking Status", key: "bookingStatus", width: 16 },
+    { header: "Schedule", key: "sessionContext", width: 24 },
     { header: "Notes", key: "notes", width: 32 },
-    { header: "Booking ID", key: "bookingId", width: 38 },
-    { header: "Session ID", key: "sessionId", width: 38 },
   ], report.schedule);
 
   const buffer = await workbook.xlsx.writeBuffer();

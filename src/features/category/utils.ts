@@ -1,5 +1,5 @@
 import type { BaseCategory } from "./types";
-import { DEFAULT_CATEGORY_COLOR } from "./constants";
+import { DEFAULT_CATEGORY_COLOR, normalizeCategoryColor } from "./constants";
 
 export function normalizeCategoryName(name: string): string {
   return name.trim().toLocaleLowerCase("en-US");
@@ -24,7 +24,7 @@ export function createDeterministicCategory(
   return {
     id: `${scope}-category-${stableHash(normalizeCategoryName(trimmedName))}`,
     name: trimmedName,
-    color,
+    color: normalizeCategoryColor(color, `${scope}:${trimmedName}`),
     active: true,
     createdAt: now,
     updatedAt: now,

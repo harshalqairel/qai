@@ -30,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CATEGORY_COLORS, DEFAULT_CATEGORY_COLOR } from "../constants";
+import { CATEGORY_COLORS, categoryColorCss, suggestCategoryColor } from "../constants";
 import { normalizeCategoryName } from "../utils";
 import type { BaseCategory, CategoryInput } from "../types";
 import DataErrorState from "@/components/system/DataErrorState";
@@ -66,7 +66,7 @@ export default function CategoryManager<T extends BaseCategory>({
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<T | null>(null);
   const [name, setName] = useState("");
-  const [color, setColor] = useState<string>(DEFAULT_CATEGORY_COLOR);
+  const [color, setColor] = useState<string>(() => suggestCategoryColor([]));
   const [nameError, setNameError] = useState("");
   const [actionError, setActionError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<T | null>(null);
@@ -86,7 +86,7 @@ export default function CategoryManager<T extends BaseCategory>({
   function openCreate() {
     setEditing(null);
     setName("");
-    setColor(DEFAULT_CATEGORY_COLOR);
+    setColor(suggestCategoryColor(categories.map((category) => category.color)));
     setNameError("");
     setActionError("");
     setFormOpen(true);
@@ -212,7 +212,7 @@ export default function CategoryManager<T extends BaseCategory>({
                 <div className="flex min-w-0 items-start gap-3">
                   <span
                     className="mt-1 size-3 shrink-0 rounded-full ring-2 ring-white outline outline-1 outline-border"
-                    style={{ backgroundColor: category.color }}
+                    style={{ backgroundColor: categoryColorCss(category.color, category.id) }}
                     aria-hidden="true"
                   />
                   <div className="min-w-0">
@@ -279,7 +279,7 @@ export default function CategoryManager<T extends BaseCategory>({
             </div>
             <fieldset>
               <legend className="mb-2 text-sm font-medium">Color</legend>
-              <div className="flex flex-wrap gap-2">
+              <div className="grid grid-cols-6 gap-2 sm:grid-cols-12">
                 {CATEGORY_COLORS.map((option) => (
                   <button
                     key={option.value}
@@ -287,9 +287,9 @@ export default function CategoryManager<T extends BaseCategory>({
                     aria-label={option.label}
                     aria-pressed={color === option.value}
                     onClick={() => setColor(option.value)}
-                    className={`flex size-10 items-center justify-center rounded-lg border bg-white ${color === option.value ? "border-[var(--focus)] ring-2 ring-[var(--focus)]/25" : "border-border"}`}
+                    className={`flex size-11 items-center justify-center rounded-lg border bg-card ${color === option.value ? "border-primary ring-2 ring-ring/30" : "border-border"}`}
                   >
-                    <span className="size-5 rounded-full" style={{ backgroundColor: option.value }} />
+                    <span className="size-5 rounded-full" style={{ backgroundColor: categoryColorCss(option.value) }} aria-hidden="true" />
                   </button>
                 ))}
               </div>

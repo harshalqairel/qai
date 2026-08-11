@@ -147,7 +147,7 @@ export default function DataBackupSection() {
 
   return (
     <section className="surface-card p-5 sm:p-6">
-      <h2 className="text-lg font-bold tracking-tight">Data Backup</h2>
+      <h2 className="text-lg font-bold tracking-tight">Data backup</h2>
       <p className="mt-2 text-sm text-muted-foreground">
         Save your Qai data to a file, or restore it from a backup.
       </p>
@@ -223,7 +223,7 @@ export default function DataBackupSection() {
             <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-2 text-sm">
               <dt className="font-medium text-muted-foreground">Backup date</dt>
               <dd className="text-right text-foreground">{preview.formattedDate}</dd>
-              <dt className="font-medium text-muted-foreground">Customers</dt>
+              <dt className="font-medium text-muted-foreground">Clients</dt>
               <dd className="text-right text-foreground">{counts.customers}</dd>
               <dt className="font-medium text-muted-foreground">Services</dt>
               <dd className="text-right text-foreground">{counts.services}</dd>

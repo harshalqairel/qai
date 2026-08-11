@@ -62,17 +62,17 @@ export default function GettingStartedGuide({
   const steps: GuideStep[] = [
     {
       title: "Add your first service",
-      description: "Tell Qai what customers can book.",
+      description: "Add the service you offer and its usual price.",
       complete: servicesComplete,
       icon: BriefcaseBusiness,
       actions: [{ href: "/services", label: "Add service" }],
     },
     {
-      title: "Add your first customer",
+      title: "Add your first client",
       description: "Save their contact details for bookings and reminders.",
       complete: customersComplete,
       icon: UserPlus,
-      actions: [{ href: "/customers", label: "Add customer" }],
+      actions: [{ href: "/customers", label: "Add client" }],
     },
     {
       title: "Create your first booking",
@@ -83,7 +83,7 @@ export default function GettingStartedGuide({
     },
     {
       title: "Record your first payment",
-      description: "Keep Income and unpaid amounts accurate.",
+      description: "Keep income and unpaid amounts accurate.",
       complete: paymentsComplete,
       icon: HandCoins,
       actions: [{ href: "/bookings?payment=outstanding", label: "Record payment" }],
@@ -108,8 +108,8 @@ export default function GettingStartedGuide({
             <h2 className="text-xl font-semibold text-[var(--dashboard-text)]">Set up Qai</h2>
             <p className="mt-1 text-sm text-[var(--dashboard-muted-text)]">
               {completedCount === steps.length
-                ? "Setup complete. Qai is ready for your daily workflow."
-                : `${completedCount} of ${steps.length} setup steps completed.`}
+                ? "Setup complete."
+                : `${completedCount} of ${steps.length} steps completed.`}
             </p>
           </div>
         </div>
@@ -124,9 +124,6 @@ export default function GettingStartedGuide({
         ))}
       </div>
 
-      <p className="mt-4 text-sm text-[var(--dashboard-muted-text)]">
-        The Dashboard will fill in as you add real bookings, payments, and expenses.
-      </p>
     </section>
   );
 }

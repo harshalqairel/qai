@@ -1,7 +1,7 @@
 import { formatBookingTimeRange } from "@/features/booking/utils/bookingDateRange";
 
 export function formatDashboardDate(value: string): string {
-  return new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat("en-GB", {
     day: "numeric",
     month: "short",
     year: "numeric",

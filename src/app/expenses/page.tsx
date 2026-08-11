@@ -12,6 +12,7 @@ import { useCustomers } from "@/features/customer/hooks/useCustomers";
 import { useServices } from "@/features/service/hooks/useServices";
 import { Expense } from "@/features/expense/types";
 import { useExpenseCategories } from "@/features/expense-category/hooks/useExpenseCategories";
+import { suggestCategoryColor } from "@/features/category/constants";
 import PageSkeleton from "@/components/system/PageSkeleton";
 import DataErrorState from "@/components/system/DataErrorState";
 import { firstBookingSession, instantParts } from "@/features/booking/utils/bookingSessions";
@@ -52,7 +53,7 @@ export default function ExpensesPage() {
     return bookings.map((booking) => {
       const customer = customers.find((item) => item.id === booking.customerId);
       const service = services.find((item) => item.id === booking.serviceId);
-      const customerName = customer?.name ?? "Customer not found";
+      const customerName = customer?.name ?? "Client not found";
       const serviceName = service?.name ?? "Service not found";
       const session = firstBookingSession(booking);
       const start = instantParts(session.startAt, bookingData.timezone);
@@ -79,6 +80,7 @@ export default function ExpensesPage() {
 
   const keyword = search.trim().toLowerCase();
   const categoryNameById = new Map(categories.map((item) => [item.id, item.name]));
+  const categoryColorById = new Map(categories.map((item) => [item.id, item.color]));
   const filtered = expenses.filter((expense) => {
     const matchesSearch =
       keyword === "" ||
@@ -141,8 +143,13 @@ export default function ExpensesPage() {
           />
           <ExpenseList
             expenses={sorted}
+            onAdd={() => {
+              setSelectedExpense(null);
+              setDialogOpen(true);
+            }}
             getBookingDetails={(id) => bookingDisplayMap.get(id) ?? null}
             getCategoryName={(categoryId) => categoryNameById.get(categoryId) ?? "Category not found"}
+            getCategoryColor={(categoryId) => categoryColorById.get(categoryId) ?? "category-slate"}
             onEdit={(expense) => {
               setSelectedExpense(expense);
               setDialogOpen(true);
@@ -157,6 +164,10 @@ export default function ExpensesPage() {
         expense={selectedExpense}
         bookingOptions={bookingOptions}
         categories={categories}
+        onQuickCreateCategory={(name) => categoryData.createCategoryAndReturn({
+          name,
+          color: suggestCategoryColor(categories.map((category) => category.color)),
+        })}
         onClose={() => {
           setDialogOpen(false);
           setSelectedExpense(null);

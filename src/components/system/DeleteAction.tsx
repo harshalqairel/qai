@@ -26,6 +26,7 @@ type DeleteActionProps = {
   onOpenChange?: (open: boolean) => void;
   hideTrigger?: boolean;
   triggerClassName?: string;
+  confirmLabel?: string;
   children?: ReactNode;
 };
 
@@ -39,6 +40,7 @@ export default function DeleteAction({
   onOpenChange,
   hideTrigger = false,
   triggerClassName,
+  confirmLabel = "Delete",
   children = "Delete",
 }: DeleteActionProps) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
@@ -89,13 +91,13 @@ export default function DeleteAction({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Delete {itemName}?</AlertDialogTitle>
-          <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+          <AlertDialogDescription>This can&apos;t be undone.</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
           <AlertDialogAction type="button" variant="destructive" disabled={deleting} onClick={remove}>
             {deleting && <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
-            {deleting ? "Deleting…" : "Delete"}
+            {deleting ? "Deleting…" : confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -53,6 +53,7 @@ type BookingWithNames = BookingFinancialDetails;
 
 type BookingTableProps = {
   bookings: BookingWithNames[];
+  onAdd: () => void;
   onEdit: (booking: BookingWithNames) => void;
   onDelete: (booking: BookingWithNames) => boolean | "blocked" | Promise<boolean | "blocked">;
   onStatusChange: (booking: BookingWithNames, status: BookingStatus) => boolean | Promise<boolean>;
@@ -266,7 +267,7 @@ function ScheduleSummary({ booking, timezone }: { booking: BookingWithNames; tim
         className="rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         onClick={() => setOpen(true)}
       >
-        <span className="block font-semibold text-foreground">{sessions.length} sessions</span>
+        <span className="block font-semibold text-foreground">{sessions.length} schedules</span>
         <span className="mt-1 block text-sm text-muted-foreground">
           {compactDates}{sessions.length > 3 ? ` · +${sessions.length - 3}` : ""}
         </span>
@@ -274,7 +275,7 @@ function ScheduleSummary({ booking, timezone }: { booking: BookingWithNames; tim
       <AlertDialog open={open} onOpenChange={setOpen}>
         <AlertDialogContent className="max-h-[85dvh] overflow-y-auto">
           <AlertDialogHeader>
-            <AlertDialogTitle>Complete Schedule</AlertDialogTitle>
+            <AlertDialogTitle>Complete schedule</AlertDialogTitle>
             <AlertDialogDescription>
               {booking.customerName} · {booking.serviceName}
             </AlertDialogDescription>
@@ -283,7 +284,7 @@ function ScheduleSummary({ booking, timezone }: { booking: BookingWithNames; tim
             {sessions.map((session, index) => (
               <div key={session.id} className="rounded-xl border border-border p-4">
                 <p className="font-semibold text-foreground">
-                  Session {index + 1}{session.label ? ` · ${session.label}` : ""}
+                  Schedule {index + 1}{session.label ? ` · ${session.label}` : ""}
                 </p>
                 <p className="mt-2 text-sm text-muted-foreground">
                   {formatSessionDate(session, timezone)} · {formatSessionTime(session, timezone)}
@@ -304,6 +305,7 @@ function ScheduleSummary({ booking, timezone }: { booking: BookingWithNames; tim
 
 export default function BookingTable({
   bookings,
+  onAdd,
   onEdit,
   onDelete,
   onStatusChange,
@@ -315,7 +317,9 @@ export default function BookingTable({
       <EmptyState
         icon={CalendarDaysIcon}
         title="No bookings yet."
-        description="Add a booking when you are ready."
+        description="Add your first booking to start tracking schedules and payments."
+        actionLabel="Add booking"
+        onAction={onAdd}
       />
     );
   }
@@ -326,7 +330,7 @@ export default function BookingTable({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="px-4">Customer & Service</TableHead>
+              <TableHead className="px-4">Client & service</TableHead>
               <TableHead>Schedule</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Payment</TableHead>

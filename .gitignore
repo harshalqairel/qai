@@ -13,6 +13,9 @@
 # testing
 /coverage
 
+# local real-user validation data
+/.qai-validation/
+
 # next.js
 /.next/
 /out/

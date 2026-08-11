@@ -121,7 +121,7 @@ export default function PaymentDialog({
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
           <div>
-            <Label className="mb-2 block font-semibold">Payment Date</Label>
+            <Label className="mb-2 block font-semibold">Payment date</Label>
             <Input type="date" {...form.register("date")} />
             {form.formState.errors.date && <p className="mt-2 text-sm text-destructive">{form.formState.errors.date.message}</p>}
           </div>
@@ -147,7 +147,7 @@ export default function PaymentDialog({
           </div>
 
           <div>
-            <Label className="mb-2 block font-semibold">Payment Method</Label>
+            <Label className="mb-2 block font-semibold">Payment method</Label>
             <Controller
               control={form.control}
               name="method"
@@ -177,7 +177,7 @@ export default function PaymentDialog({
             <Button type="button" variant="outline" disabled={action.pending} onClick={handleClose}>
               Cancel
             </Button>
-            <ActionButton type="submit" loading={action.pending} loadingText={isEdit ? "Updating…" : "Saving…"}>{isEdit ? "Update Payment" : "Save Payment"}</ActionButton>
+            <ActionButton type="submit" loading={action.pending} loadingText={isEdit ? "Updating…" : "Saving…"}>{isEdit ? "Save changes" : "Record payment"}</ActionButton>
           </div>
         </form>
       </div>

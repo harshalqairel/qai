@@ -1,0 +1,117 @@
+/* eslint-disable @next/next/no-img-element -- Validation-only owner-provided data URLs cannot use the Next image optimizer. */
+"use client";
+
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Check, Clipboard, Eye, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
+
+import BookingDialog from "@/features/booking/components/BookingDialog";
+import type { BookingFormValues } from "@/features/booking/types";
+import { zonedDateTimeToIso } from "@/features/booking/utils/bookingSessions";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useBookings } from "@/features/booking/hooks/useBookings";
+import { useCustomers } from "@/features/customer/hooks/useCustomers";
+import { useExpenses } from "@/features/expense/hooks/useExpenses";
+import { usePayments } from "@/features/payment/hooks/usePayments";
+import { useServices } from "@/features/service/hooks/useServices";
+import { notify } from "@/lib/notifications";
+import {
+  defaultQaiPage,
+  normalizeContactPhone,
+  normalizeSlug,
+  publicActionLabel,
+  publicPriceLabel,
+  requestToBookingValues,
+  validationClient,
+  type InstantSlot,
+  type PublicRequest,
+  type PublicService,
+  type QaiPageConfig,
+} from "@/features/qai-page/validation";
+
+type Tab = "Page" | "Services" | "Requests" | "Preview";
+
+function dateInput(days = 0) { const date = new Date(); date.setDate(date.getDate() + days); return date.toISOString().slice(0, 10); }
+function readImage(file: File | undefined, onLoad: (value: string) => void) {
+  if (!file) return;
+  if (!/^image\/(png|jpeg|webp)$/.test(file.type) || file.size > 2_000_000) return notify.error("Use a PNG, JPG, or WebP image up to 2 MB.");
+  const reader = new FileReader(); reader.onload = () => onLoad(String(reader.result ?? "")); reader.readAsDataURL(file);
+}
+
+export default function QaiPageOwner() {
+  const bookingData = useBookings(); const customerData = useCustomers(); const serviceData = useServices(); const paymentData = usePayments(); const expenseData = useExpenses();
+  const [tab, setTab] = useState<Tab>("Page"); const [page, setPage] = useState<QaiPageConfig>(defaultQaiPage()); const [requests, setRequests] = useState<PublicRequest[]>([]);
+  const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false); const [activeRequest, setActiveRequest] = useState<PublicRequest | null>(null);
+  const [bookingInitial, setBookingInitial] = useState<BookingFormValues | undefined>(); const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
+  const [slotDraft, setSlotDraft] = useState({ serviceId: "", date: dateInput(7), startTime: "09:00", endTime: "10:00", location: "" });
+
+  const load = useCallback(async (refreshPage = true) => {
+    try { const store = await validationClient.owner(); const existing = store.pages.find((item) => item.businessId === "local-business"); if (refreshPage) setPage(existing ?? defaultQaiPage()); setRequests(store.requests.filter((item) => !existing || item.pageId === existing.id).sort((a, b) => b.submittedAt - a.submittedAt)); }
+    catch (error) { notify.error(error instanceof Error ? error.message : "Could not load Qai Page data."); }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(() => { const initial = window.setTimeout(() => { void load(); }, 0); const timer = window.setInterval(() => { void load(false); }, 4000); return () => { window.clearTimeout(initial); window.clearInterval(timer); }; }, [load]);
+
+  const configuredServices = useMemo(() => serviceData.services.map((service) => page.services.find((item) => item.serviceId === service.id) ?? {
+    serviceId: service.id, visible: false, title: service.name, description: service.description, price: service.price, priceMode: "Fixed price" as const,
+    actionMode: "Booking request" as const, durationMinutes: service.duration,
+  }), [serviceData.services, page.services]);
+  const pendingCount = requests.filter((item) => item.status === "Pending" || (item.type === "Instant booking" && !item.bookingId)).length;
+  function updateService(service: PublicService) { setPage((current) => ({ ...current, services: [...current.services.filter((item) => item.serviceId !== service.serviceId), service] })); }
+  async function savePage() {
+    const slug = normalizeSlug(page.slug); if (!slug) return notify.error("Enter a page address using letters or numbers.");
+    setSaving(true); try { const saved = await validationClient.savePage({ ...page, slug, services: configuredServices, timezone: bookingData.timezone, updatedAt: Date.now() }); setPage(saved); notify.success("Qai Page saved."); }
+    catch (error) { notify.error(error instanceof Error ? error.message : "Could not save Qai Page."); } finally { setSaving(false); }
+  }
+  async function copyLink() { const url = `${window.location.origin}/q/${page.slug}`; await navigator.clipboard.writeText(url); notify.success("Page link copied."); }
+  function addSlot() {
+    if (!slotDraft.serviceId || !slotDraft.date || !slotDraft.startTime || !slotDraft.endTime) return notify.error("Choose a service, date, start time, and end time.");
+    const startAt = zonedDateTimeToIso(slotDraft.date, slotDraft.startTime, bookingData.timezone); let endAt = zonedDateTimeToIso(slotDraft.date, slotDraft.endTime, bookingData.timezone);
+    if (Date.parse(endAt) <= Date.parse(startAt)) { const end = new Date(endAt); end.setUTCDate(end.getUTCDate() + 1); endAt = end.toISOString(); }
+    const slot: InstantSlot = { id: crypto.randomUUID(), serviceId: slotDraft.serviceId, startAt, endAt, location: slotDraft.location, status: "Available", requestId: null };
+    setPage((current) => ({ ...current, slots: [...current.slots, slot] }));
+  }
+  async function ensureClient(request: PublicRequest) {
+    const phone = normalizeContactPhone(request.whatsapp); const email = request.email.trim().toLowerCase();
+    const exact = customerData.customers.find((item) => normalizeContactPhone(item.phone) === phone || (email && item.email.trim().toLowerCase() === email));
+    return exact ?? customerData.createCustomerAndReturn({ name: request.clientName, phone: request.whatsapp, email: request.email, instagram: "", notes: "Created from a Qai Page request." });
+  }
+  function bookingValues(request: PublicRequest, customerId: string): BookingFormValues | null {
+    const service = serviceData.services.find((item) => item.id === request.serviceId); if (!service) return null;
+    return requestToBookingValues(request, service, customerId, dateInput(7));
+  }
+  async function accept(request: PublicRequest) {
+    if (request.bookingId) return notify.info("This request already has a booking.");
+    const client = await ensureClient(request); if (!client) return notify.error("Could not create or reuse the client.");
+    const values = bookingValues(request, client.id); if (!values) return notify.error("The original service is no longer available.");
+    const booking = await bookingData.createBookingAndReturn({ requestId: `qai-page:${request.id}`, booking: values, initialPayment: null });
+    if (!booking) return notify.error("Could not create the booking.");
+    try { await validationClient.updateRequest(request.id, "Accepted", booking.id); await load(); notify.success("Request accepted and booking created."); } catch (error) { notify.error(error instanceof Error ? error.message : "Booking created, but the request could not be updated."); }
+  }
+  async function editAndAccept(request: PublicRequest) {
+    if (request.bookingId) return notify.info("This request already has a booking.");
+    const client = await ensureClient(request); if (!client) return notify.error("Could not create or reuse the client.");
+    const values = bookingValues(request, client.id); if (!values) return notify.error("The original service is no longer available.");
+    setActiveRequest(request); setBookingInitial(values); setBookingDialogOpen(true);
+  }
+  async function decline(request: PublicRequest) { if (!window.confirm("Decline this request? It will stay in the inbox.")) return; try { await validationClient.updateRequest(request.id, "Declined", null); await load(); notify.success("Request declined."); } catch (error) { notify.error(error instanceof Error ? error.message : "Could not decline the request."); } }
+
+  if (loading) return <main className="min-h-screen"><div className="page-shell"><div className="surface-card min-h-64 animate-pulse" /></div></main>;
+  return <main className="min-h-screen"><div className="page-shell">
+    <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><h1 className="page-title">Qai Page</h1><p className="mt-2 text-sm text-muted-foreground sm:text-base">Share your services and receive test requests without a customer account.</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => void copyLink()}><Clipboard className="size-4" /> Copy page link</Button><Button onClick={() => void savePage()} disabled={saving}><Save className="size-4" /> {saving ? "Saving…" : "Save page"}</Button></div></header>
+    <nav className="flex gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1" aria-label="Qai Page sections">{(["Page", "Services", "Requests", "Preview"] as Tab[]).map((item) => <button key={item} type="button" onClick={() => setTab(item)} className={`min-h-11 shrink-0 rounded-lg px-4 text-sm font-semibold ${tab === item ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-muted"}`}>{item}{item === "Requests" && pendingCount > 0 ? ` (${pendingCount})` : ""}</button>)}</nav>
+    {tab === "Page" && <section className="surface-card p-5 sm:p-6"><h2 className="section-title">Public profile</h2><p className="mt-1 text-sm text-muted-foreground">Keep the page short and easy for customers to understand.</p><div className="mt-6 grid gap-5 sm:grid-cols-2"><Field label="Business logo/photo"><div className="flex items-center gap-3">{page.logo && <img src={page.logo} alt="Page logo preview" className="size-16 rounded-xl border border-border object-cover" />}<Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => readImage(event.target.files?.[0], (logo) => setPage({ ...page, logo }))} /></div></Field><Field label="Cover image (optional)"><Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => readImage(event.target.files?.[0], (coverImage) => setPage({ ...page, coverImage }))} /></Field><Field label="Business name"><Input value={page.businessName} onChange={(event) => setPage({ ...page, businessName: event.target.value })} /></Field><Field label="Page address"><div className="flex items-center rounded-lg border border-border bg-card pl-3 text-sm text-muted-foreground"><span>/q/</span><Input className="border-0 shadow-none focus-visible:ring-0" value={page.slug} onChange={(event) => setPage({ ...page, slug: normalizeSlug(event.target.value) })} /></div></Field><div className="sm:col-span-2"><Field label="Short description"><Textarea rows={3} value={page.shortDescription} onChange={(event) => setPage({ ...page, shortDescription: event.target.value })} /></Field></div><Field label="Location"><Input value={page.location} onChange={(event) => setPage({ ...page, location: event.target.value })} /></Field><Field label="WhatsApp"><Input inputMode="tel" value={page.whatsapp} onChange={(event) => setPage({ ...page, whatsapp: event.target.value })} /></Field><Field label="Email"><Input type="email" value={page.email} onChange={(event) => setPage({ ...page, email: event.target.value })} /></Field><Field label="Instagram or social link"><Input value={page.instagram} onChange={(event) => setPage({ ...page, instagram: event.target.value })} /></Field></div><p className="mt-5 rounded-lg bg-muted p-3 text-xs text-muted-foreground">When this runs on localhost, the copied link is only available on this device. Use your temporary HTTPS test link to share it with another device.</p></section>}
+    {tab === "Services" && <div className="space-y-4"><header><h2 className="section-title">Public services</h2><p className="mt-1 text-sm text-muted-foreground">Choose what customers can see and how each service accepts work.</p></header>{configuredServices.length === 0 ? <div className="empty-state"><p className="empty-title">No services to publish</p><p className="mt-2 text-sm text-muted-foreground">Add a Service first, then return here.</p></div> : configuredServices.map((service) => <article key={service.serviceId} className="surface-card p-5 sm:p-6"><div className="flex items-start justify-between gap-4"><div><h3 className="font-semibold">{service.title}</h3><p className="mt-1 text-sm text-muted-foreground">{publicPriceLabel(service)} · {publicActionLabel(service.actionMode)}</p></div><label className="flex shrink-0 items-center gap-2 text-sm font-semibold"><input type="checkbox" className="size-4" checked={service.visible} onChange={(event) => updateService({ ...service, visible: event.target.checked })} /> Show</label></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><Field label="Public title"><Input value={service.title} onChange={(event) => updateService({ ...service, title: event.target.value })} /></Field><Field label="Price"><Input type="number" min="0" value={service.price} onChange={(event) => updateService({ ...service, price: Number(event.target.value) })} /></Field><div className="sm:col-span-2"><Field label="Public description"><Textarea rows={3} value={service.description} onChange={(event) => updateService({ ...service, description: event.target.value })} /></Field></div><Field label="Price display"><select className="native-control" value={service.priceMode} onChange={(event) => updateService({ ...service, priceMode: event.target.value as PublicService["priceMode"] })}><option>Fixed price</option><option>Starting from</option><option>Ask for price</option></select></Field><Field label="Customer action"><select className="native-control" value={service.actionMode} onChange={(event) => updateService({ ...service, actionMode: event.target.value as PublicService["actionMode"] })}><option>Booking request</option><option>Inquiry</option><option>Instant booking</option></select></Field></div></article>)}
+      {configuredServices.some((item) => item.actionMode === "Instant booking") && <section className="surface-card p-5 sm:p-6"><h2 className="section-title">Instant booking times</h2><p className="mt-1 text-sm text-muted-foreground">Publish only times you are ready to confirm immediately.</p><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5"><select className="native-control" value={slotDraft.serviceId} onChange={(event) => setSlotDraft({ ...slotDraft, serviceId: event.target.value })}><option value="">Choose service</option>{configuredServices.filter((item) => item.actionMode === "Instant booking").map((item) => <option key={item.serviceId} value={item.serviceId}>{item.title}</option>)}</select><Input type="date" value={slotDraft.date} onChange={(event) => setSlotDraft({ ...slotDraft, date: event.target.value })} /><Input type="time" value={slotDraft.startTime} onChange={(event) => setSlotDraft({ ...slotDraft, startTime: event.target.value })} /><Input type="time" value={slotDraft.endTime} onChange={(event) => setSlotDraft({ ...slotDraft, endTime: event.target.value })} /><Button type="button" onClick={addSlot}><Plus className="size-4" /> Add time</Button></div><Input className="mt-3" placeholder="Location (optional)" value={slotDraft.location} onChange={(event) => setSlotDraft({ ...slotDraft, location: event.target.value })} /><div className="mt-4 space-y-2">{page.slots.length === 0 ? <p className="text-sm text-muted-foreground">No available times right now.</p> : page.slots.map((slot) => { const service = configuredServices.find((item) => item.serviceId === slot.serviceId); return <div key={slot.id} className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold">{service?.title ?? "Service"}</p><p className="mt-1 text-sm text-muted-foreground">{new Date(slot.startAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: bookingData.timezone })} · {slot.status}</p></div>{slot.status === "Available" && <Button variant="ghost" size="sm" onClick={() => setPage({ ...page, slots: page.slots.filter((item) => item.id !== slot.id) })}><Trash2 className="size-4" /> Remove</Button>}</div>; })}</div></section>}
+    </div>}
+    {tab === "Requests" && <section className="space-y-4"><div className="flex items-center justify-between gap-3"><div><h2 className="section-title">Requests</h2><p className="mt-1 text-sm text-muted-foreground">Customer submissions appear here from the shared validation store.</p></div><Button variant="outline" size="sm" onClick={() => void load()}><RefreshCw className="size-4" /> Refresh</Button></div>{requests.length === 0 ? <div className="empty-state"><p className="empty-title">No requests yet</p><p className="mt-2 text-sm text-muted-foreground">Share your Qai Page link to receive a test request.</p></div> : requests.map((request) => <article key={request.id} className="surface-card p-5 sm:p-6"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{request.clientName}</h3><span className="rounded-full bg-muted px-2.5 py-1 text-xs font-semibold">{request.type}</span><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${request.status === "Accepted" ? "bg-accent text-accent-foreground" : request.status === "Declined" ? "bg-destructive/10 text-destructive" : "bg-amber-100 text-amber-800"}`}>{request.status}</span></div><p className="mt-2 text-sm text-muted-foreground">{request.serviceName} · submitted {new Date(request.submittedAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}</p></div>{request.bookingId && <Button variant="outline" size="sm" render={<Link href="/bookings" />}><Eye className="size-4" /> View booking</Button>}</div><dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4"><div><dt className="font-semibold">Contact</dt><dd className="mt-1 text-muted-foreground">{request.whatsapp}{request.email ? ` · ${request.email}` : ""}</dd></div>{request.location && <div><dt className="font-semibold">Location</dt><dd className="mt-1 text-muted-foreground">{request.location}</dd></div>}{request.budget && <div><dt className="font-semibold">Budget</dt><dd className="mt-1 text-muted-foreground">{request.budget}</dd></div>}<div><dt className="font-semibold">Preferred schedules</dt><dd className="mt-1 text-muted-foreground">{request.schedules.length || "Not provided"}</dd></div></dl>{request.schedules.length > 0 && <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{request.schedules.map((schedule, index) => <div key={schedule.id} className="rounded-lg bg-muted p-3 text-sm"><p className="font-semibold">Schedule {index + 1}{schedule.label ? ` · ${schedule.label}` : ""}</p><p className="mt-1 text-muted-foreground">{schedule.date} · {schedule.startTime}–{schedule.endTime}</p>{schedule.location && <p className="mt-1 text-muted-foreground">{schedule.location}</p>}</div>)}</div>}{(request.need || request.notes) && <p className="mt-4 whitespace-pre-wrap break-words rounded-lg bg-muted/50 p-3 text-sm">{[request.need, request.notes].filter(Boolean).join("\n\n")}</p>}{!request.bookingId && request.status !== "Declined" && <div className="mt-5 flex flex-wrap gap-2">{request.type === "Booking request" && request.status === "Pending" && <Button onClick={() => void accept(request)}><Check className="size-4" /> Accept</Button>}<Button variant="outline" onClick={() => void editAndAccept(request)}>{request.type === "Inquiry" ? "Create booking" : request.type === "Instant booking" ? "Create owner booking" : "Edit & accept"}</Button>{request.status === "Pending" && <Button variant="destructive" onClick={() => void decline(request)}><X className="size-4" /> Decline</Button>}</div>}</article>)}</section>}
+    {tab === "Preview" && <section className="surface-card p-5 sm:p-6"><div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="section-title">Public preview</h2><p className="mt-1 text-sm text-muted-foreground">Preview exactly what a customer can open.</p></div><Button render={<Link href={`/q/${page.slug}`} target="_blank" />}><Eye className="size-4" /> Open public page</Button></div><div className="mt-6 rounded-xl border border-dashed border-border p-8 text-center"><p className="text-2xl font-bold">{page.businessName}</p><p className="mx-auto mt-2 max-w-lg text-sm text-muted-foreground">{page.shortDescription || "Add a short description to help customers understand your business."}</p><p className="mt-2 text-sm text-muted-foreground">{page.location}</p><p className="mt-8 text-sm font-semibold">{configuredServices.filter((item) => item.visible).length} public services</p><p className="mt-8 text-xs text-muted-foreground">Powered by Qai</p></div></section>}
+  </div>
+  <BookingDialog open={bookingDialogOpen} booking={null} initialValues={bookingInitial} customers={customerData.customers} services={serviceData.services} payments={paymentData.payments} expenses={expenseData.expenses} timezone={bookingData.timezone} onClose={() => { setBookingDialogOpen(false); setActiveRequest(null); }} onCreate={async (command) => { if (!activeRequest) return false; const booking = await bookingData.createBookingAndReturn({ ...command, requestId: `qai-page:${activeRequest.id}` }); if (!booking) return false; try { await validationClient.updateRequest(activeRequest.id, "Accepted", booking.id); setBookingDialogOpen(false); setActiveRequest(null); await load(); return true; } catch { return false; } }} onUpdate={async () => false} onAddPaymentClick={() => undefined} onEditPaymentClick={() => undefined} onDeletePayment={async () => false} onQuickCreateCustomer={customerData.createCustomerAndReturn} onQuickCreateService={serviceData.createServiceAndReturn} />
+  </main>;
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) { return <div><Label className="mb-2">{label}</Label>{children}</div>; }

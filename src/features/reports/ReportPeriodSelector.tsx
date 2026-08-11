@@ -16,11 +16,11 @@ import type { ReportPeriodInput, ReportPeriodPreset } from "./financialReport";
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export function reportPeriodDisplayLabel(value: ReportPeriodInput, fallback?: string): string {
-  if (value.preset === "this-month") return "This Month";
-  if (value.preset === "last-month") return "Last Month";
-  if (value.preset === "this-year") return "This Year";
-  if (value.preset === "all-time") return "All Time";
-  if (value.preset === "custom") return "Custom Date Range";
+  if (value.preset === "this-month") return "This month";
+  if (value.preset === "last-month") return "Last month";
+  if (value.preset === "this-year") return "This year";
+  if (value.preset === "all-time") return "All time";
+  if (value.preset === "custom") return "Choose dates";
   if (fallback) return fallback;
   if (!value.selectedMonth) return "Choose Month…";
   return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" })
@@ -72,15 +72,15 @@ export default function ReportPeriodSelector({
           <span className="truncate">{reportPeriodDisplayLabel(value, resolvedLabel)}</span>
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="this-month">This Month</SelectItem>
-          <SelectItem value="last-month">Last Month</SelectItem>
-          <SelectItem value="choose-month">Choose Month…</SelectItem>
+          <SelectItem value="this-month">This month</SelectItem>
+          <SelectItem value="last-month">Last month</SelectItem>
+          <SelectItem value="choose-month">Choose month…</SelectItem>
           {value.preset === "specific-month" && (
             <SelectItem value="specific-month">{reportPeriodDisplayLabel(value, resolvedLabel)}</SelectItem>
           )}
-          <SelectItem value="this-year">This Year</SelectItem>
-          <SelectItem value="all-time">All Time</SelectItem>
-          {includeCustom && <SelectItem value="custom">Custom Date Range</SelectItem>}
+          <SelectItem value="this-year">This year</SelectItem>
+          <SelectItem value="all-time">All time</SelectItem>
+          {includeCustom && <SelectItem value="custom">Choose dates</SelectItem>}
         </SelectContent>
       </Select>
 

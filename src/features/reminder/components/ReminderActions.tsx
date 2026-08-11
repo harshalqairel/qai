@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { Mail, MessageCircle, Eye } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -8,53 +8,96 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
 import { notify } from "@/lib/notifications";
 import { addReminderHistory } from "../reminderRepository";
-import { buildEmailReminderUrl, buildWhatsAppReminderUrl, type PaymentReminderDetails } from "../reminderTransport";
-import type { ReminderMethod } from "../types";
+import { LOCAL_BUSINESS_ID, renderReminderTemplate, scenarioTemplate } from "../reminderTemplates";
+import { buildEmailReminderUrl, buildWhatsAppReminderUrl, normalizePhoneForWhatsApp, type PaymentReminderDetails } from "../reminderTransport";
+import type { ReminderMethod, ReminderType } from "../types";
+import { useReminderTemplates } from "../useReminderTemplates";
 
-export default function ReminderActions({ bookingId, customerId, customerName, customerPhone, customerEmail, serviceName, businessName, remainingAmount, dueDate }: {
+export default function ReminderActions({ bookingId, customerId, customerName, customerPhone, customerEmail, serviceName, businessName, remainingAmount, dueDate, reminderType, bookingDate = "", bookingValue = 0, totalPaid = 0, nextSessionDate = "", businessId = LOCAL_BUSINESS_ID }: {
   bookingId: string; customerId: string; customerName: string; customerPhone: string; customerEmail: string;
-  serviceName: string; businessName: string; remainingAmount: number; dueDate: string;
+  serviceName: string; businessName: string; remainingAmount: number; dueDate: string; reminderType: ReminderType;
+  bookingDate?: string; bookingValue?: number; totalPaid?: number; nextSessionDate?: string; businessId?: string;
 }) {
   const [pendingMethod, setPendingMethod] = useState<ReminderMethod | null>(null);
-  const details: PaymentReminderDetails = { customerName, businessName, serviceName, remainingAmount: formatRupiah(remainingAmount), dueDate };
-  const whatsappUrl = buildWhatsAppReminderUrl(customerPhone, details);
-  const emailUrl = buildEmailReminderUrl(customerEmail, details);
+  const recording = useRef(false);
+  const { templates } = useReminderTemplates(businessId);
+  const selectedTemplate = scenarioTemplate(templates, reminderType);
+  const details: PaymentReminderDetails = {
+    customerName,
+    businessName,
+    serviceName,
+    bookingDate,
+    dueDate,
+    bookingValue: formatRupiah(bookingValue),
+    totalPaid: formatRupiah(totalPaid),
+    remainingAmount: formatRupiah(remainingAmount),
+    nextSessionDate,
+  };
+  const whatsappAvailable = Boolean(normalizePhoneForWhatsApp(customerPhone));
+  const emailAvailable = Boolean(customerEmail.trim());
 
-  function openReminder(method: ReminderMethod, url: string | null) {
-    if (!url) return;
+  function openReminder(method: ReminderMethod) {
+    const fieldTemplates = method === "WhatsApp"
+      ? [selectedTemplate.whatsapp]
+      : [selectedTemplate.emailSubject, selectedTemplate.emailBody];
+    const errors = fieldTemplates.flatMap((template) => renderReminderTemplate(template, details).errors);
+    if (errors.length > 0) {
+      notify.error(errors[0]);
+      return;
+    }
+    const url = method === "WhatsApp"
+      ? buildWhatsAppReminderUrl(customerPhone, selectedTemplate.whatsapp, details)
+      : buildEmailReminderUrl(customerEmail, selectedTemplate.emailSubject, selectedTemplate.emailBody, details);
+    if (!url) {
+      notify.error(method === "WhatsApp" ? "Add a valid customer phone number first." : "Add a customer email address first.");
+      return;
+    }
     window.open(url, "_blank", "noopener,noreferrer");
     setPendingMethod(method);
   }
 
   function confirmReminder() {
-    if (!pendingMethod) return;
+    if (!pendingMethod || recording.current) return;
     try {
-      addReminderHistory({ id: crypto.randomUUID(), bookingId, customerId, remindedAt: new Date().toISOString(), method: pendingMethod, outstandingBalance: remainingAmount });
-      notify.success("Reminder recorded.");
+      recording.current = true;
+      addReminderHistory({
+        id: crypto.randomUUID(),
+        businessId,
+        bookingId,
+        customerId,
+        remindedAt: new Date().toISOString(),
+        method: pendingMethod,
+        reminderType,
+        outstandingBalance: remainingAmount,
+        dueDateSnapshot: dueDate,
+      });
+      notify.success("Reminder marked.");
       setPendingMethod(null);
     } catch {
       notify.error("Could not record the reminder.");
+    } finally {
+      recording.current = false;
     }
   }
 
   return (
     <>
       <div className="mt-4 grid grid-cols-3 gap-2" onClick={(event) => event.stopPropagation()}>
-        <Button type="button" variant="outline" className="min-h-11 px-2 text-xs sm:text-sm" disabled={!whatsappUrl} title={whatsappUrl ? "Open WhatsApp reminder" : "No phone number saved"} onClick={() => openReminder("WhatsApp", whatsappUrl)}>
+        <Button type="button" variant="outline" className="min-h-11 px-2 text-xs sm:text-sm" disabled={!whatsappAvailable} title={whatsappAvailable ? "Open WhatsApp reminder" : "No phone number saved"} onClick={() => openReminder("WhatsApp")}>
           <MessageCircle className="size-4" aria-hidden="true" /> WhatsApp
         </Button>
-        <Button type="button" variant="outline" className="min-h-11 px-2 text-xs sm:text-sm" disabled={!emailUrl} title={emailUrl ? "Open email reminder" : "No email saved"} onClick={() => openReminder("Email", emailUrl)}>
+        <Button type="button" variant="outline" className="min-h-11 px-2 text-xs sm:text-sm" disabled={!emailAvailable} title={emailAvailable ? "Open email reminder" : "No email saved"} onClick={() => openReminder("Email")}>
           <Mail className="size-4" aria-hidden="true" /> Email
         </Button>
         <Link href={`/bookings?booking=${encodeURIComponent(bookingId)}`} className={buttonVariants({ variant: "outline", className: "min-h-11 px-2 text-xs sm:text-sm" })}>
-          <Eye className="size-4" aria-hidden="true" /> View
+          <Eye className="size-4" aria-hidden="true" /> View booking
         </Link>
       </div>
-      {(!whatsappUrl || !emailUrl) && <p className="mt-2 text-xs text-[var(--dashboard-muted-text)]">{!whatsappUrl && "No phone number saved"}{!whatsappUrl && !emailUrl && " · "}{!emailUrl && "No email saved"}</p>}
+      {(!whatsappAvailable || !emailAvailable) && <p className="mt-2 text-xs text-[var(--dashboard-muted-text)]">{!whatsappAvailable && "No phone number saved"}{!whatsappAvailable && !emailAvailable && " · "}{!emailAvailable && "No email saved"}</p>}
       <Dialog open={pendingMethod !== null} onOpenChange={(open) => { if (!open) setPendingMethod(null); }}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Was the customer reminded?</DialogTitle><DialogDescription>Opening {pendingMethod} does not confirm delivery. Record it only if you completed the reminder.</DialogDescription></DialogHeader>
-          <DialogFooter><Button type="button" variant="outline" onClick={() => setPendingMethod(null)}>Not yet</Button><Button type="button" onClick={confirmReminder}>Mark as reminded</Button></DialogFooter>
+          <DialogHeader><DialogTitle>Did you send the reminder?</DialogTitle><DialogDescription>Qai can&apos;t confirm whether the message was sent.</DialogDescription></DialogHeader>
+          <DialogFooter><Button type="button" variant="outline" onClick={() => setPendingMethod(null)}>Not yet</Button><Button type="button" onClick={confirmReminder}>Yes, mark as reminded</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </>

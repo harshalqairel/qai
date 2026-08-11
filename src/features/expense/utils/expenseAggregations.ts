@@ -2,7 +2,9 @@ import { Expense } from "../types";
 import type { ExpenseCategory } from "@/features/expense-category/types";
 
 export type ExpenseCategoryItem = {
+  categoryId: string;
   category: string;
+  categoryColor: string;
   amount: number;
   percentage: number;
 };
@@ -33,18 +35,19 @@ export function getExpensesByCategory(
   categories: readonly ExpenseCategory[],
 ): ExpenseCategoryItem[] {
   const categoryMap = new Map<string, number>();
-  const categoryNameById = new Map(categories.map((category) => [category.id, category.name]));
+  const categoryById = new Map(categories.map((category) => [category.id, category]));
 
   for (const expense of expenses) {
-    const categoryName = categoryNameById.get(expense.categoryId) ?? "Category not found";
-    categoryMap.set(categoryName, (categoryMap.get(categoryName) ?? 0) + expense.amount);
+    categoryMap.set(expense.categoryId, (categoryMap.get(expense.categoryId) ?? 0) + expense.amount);
   }
 
   const total = Array.from(categoryMap.values()).reduce((sum, v) => sum + v, 0);
 
   return Array.from(categoryMap.entries())
-    .map(([category, amount]) => ({
-      category,
+    .map(([categoryId, amount]) => ({
+      categoryId,
+      category: categoryById.get(categoryId)?.name ?? "Category not found",
+      categoryColor: categoryById.get(categoryId)?.color ?? "category-slate",
       amount,
       percentage: total > 0 ? Math.round((amount / total) * 100) : 0,
     }))

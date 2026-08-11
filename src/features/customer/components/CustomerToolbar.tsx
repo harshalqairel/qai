@@ -16,7 +16,7 @@ export default function CustomerToolbar({
 
       <input
         type="text"
-        placeholder="Search customers..."
+        placeholder="Search clients..."
         className="native-control lg:flex-1"
         value={search}
         onChange={(e) => onSearchChange(e.target.value)}

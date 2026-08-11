@@ -5,19 +5,23 @@ import { BriefcaseBusiness } from "lucide-react";
 
 type ServiceListProps = {
   services: Service[];
+  onAdd: () => void;
   getCategoryName: (categoryId: string) => string;
+  getCategoryColor: (categoryId: string) => string;
   onEdit: (service: Service) => void;
   onDelete: (service: Service) => boolean | Promise<boolean>;
 };
 
 export default function ServiceList({
   services,
+  onAdd,
   getCategoryName,
+  getCategoryColor,
   onEdit,
   onDelete,
 }: ServiceListProps) {
   if (services.length === 0) {
-    return <EmptyState icon={BriefcaseBusiness} title="No services yet." description="Add a service when you are ready." />;
+    return <EmptyState icon={BriefcaseBusiness} title="No services yet." description="Add the services you offer." actionLabel="Add service" onAction={onAdd} />;
   }
 
   return (
@@ -27,6 +31,7 @@ export default function ServiceList({
           key={service.id}
           service={service}
           categoryName={getCategoryName(service.categoryId)}
+          categoryColor={getCategoryColor(service.categoryId)}
           onEdit={onEdit}
           onDelete={onDelete}
         />

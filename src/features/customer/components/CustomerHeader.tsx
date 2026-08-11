@@ -8,11 +8,11 @@ export default function CustomerHeader({ onAdd }: CustomerHeaderProps) {
 
       <div>
         <h1 className="page-title">
-          Customers
+          Clients
         </h1>
 
         <p className="mt-3 text-sm leading-6 text-muted-foreground sm:text-base">
-          Manage your customer list and contact details.
+          Keep client contact details in one place.
         </p>
       </div>
 
@@ -29,7 +29,7 @@ export default function CustomerHeader({ onAdd }: CustomerHeaderProps) {
           shadow-sm hover:bg-[var(--brand-hover)]
         "
       >
-        + Add Customer
+        + Add client
       </button>
     </div>
   );

@@ -38,7 +38,7 @@ export default function ExpenseToolbar({
         value={category}
         onChange={(event) => onCategoryChange(event.target.value)}
       >
-        <option value="">All Categories</option>
+        <option value="">All categories</option>
         {categories.map((item) => (
           <option key={item.id} value={item.id}>{item.name}</option>
         ))}
@@ -48,9 +48,9 @@ export default function ExpenseToolbar({
         value={expenseType}
         onChange={(event) => onExpenseTypeChange(event.target.value)}
       >
-        <option value="">All Types</option>
+        <option value="">All types</option>
         {EXPENSE_TYPES.map((type) => (
-          <option key={type} value={type}>{type}</option>
+          <option key={type} value={type}>{type === "Business Expense" ? "General expense" : "Booking expense"}</option>
         ))}
       </select>
       <select

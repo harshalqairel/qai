@@ -90,6 +90,7 @@ export type ScheduleReportRow = {
   bookingId: string;
   sequence: number;
   label: string;
+  sessionContext: string;
   date: string;
   startAt: string;
   endAt: string;
@@ -203,7 +204,7 @@ export function buildFinancialReport(input: FinancialReportInput): FinancialRepo
   );
 
   const nameForBooking = (booking: Booking) => ({
-    customer: customerById.get(booking.customerId)?.name ?? "Customer not found",
+    customer: customerById.get(booking.customerId)?.name ?? "Client not found",
     service: serviceById.get(booking.serviceId)?.name ?? "Service not found",
   });
 
@@ -280,6 +281,9 @@ export function buildFinancialReport(input: FinancialReportInput): FinancialRepo
         bookingId: booking.id,
         sequence: session.sequence,
         label: session.label,
+        sessionContext: session.label
+          ? `Schedule ${session.sequence} - ${session.label}`
+          : `Schedule ${session.sequence}`,
         date,
         startAt: session.startAt,
         endAt: session.endAt,

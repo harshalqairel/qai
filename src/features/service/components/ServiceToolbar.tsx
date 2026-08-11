@@ -33,7 +33,7 @@ export default function ServiceToolbar({
         value={category}
         onChange={(event) => onCategoryChange(event.target.value)}
       >
-        <option value="">All Categories</option>
+        <option value="">All categories</option>
         {categories.map((item) => (
           <option key={item.id} value={item.id}>{item.name}</option>
         ))}

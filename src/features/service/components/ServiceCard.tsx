@@ -1,9 +1,12 @@
 import { Service } from "@/features/service/types";
 import DeleteAction from "@/components/system/DeleteAction";
+import { categoryColorCss } from "@/features/category/constants";
+import { formatDuration } from "@/features/service/utils/duration";
 
 type ServiceCardProps = {
   service: Service;
   categoryName: string;
+  categoryColor: string;
   onEdit: (service: Service) => void;
   onDelete: (service: Service) => boolean | Promise<boolean>;
 };
@@ -11,6 +14,7 @@ type ServiceCardProps = {
 export default function ServiceCard({
   service,
   categoryName,
+  categoryColor,
   onEdit,
   onDelete,
 }: ServiceCardProps) {
@@ -45,6 +49,7 @@ export default function ServiceCard({
               text-[var(--support-blue)]
               "
             >
+              <span className="mr-2 size-2.5 rounded-full" style={{ backgroundColor: categoryColorCss(categoryColor, service.categoryId) }} aria-hidden="true" />
               {categoryName}
             </span>
           </div>
@@ -67,7 +72,7 @@ export default function ServiceCard({
         </p>
 
         <p className="mt-2 text-base text-slate-500">
-          {service.duration} minutes
+          {formatDuration(service.duration)}
         </p>
 
         {service.description && (

@@ -52,17 +52,17 @@
 :root {
   --font-sans-system: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-mono-system: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  --app-background: #f7f8fa;
+  --app-background: #f7f8f5;
   --surface: #ffffff;
-  --surface-subtle: #f3f5f6;
-  --line: #e2e6ea;
-  --ink: #0f1d2d;
-  --text-muted: #64748b;
-  --brand: #0d5c5a;
-  --brand-hover: #0a4745;
-  --brand-active: #083735;
-  --support-blue: #1f2a44;
-  --focus: #36c5c1;
+  --surface-subtle: #eef1ec;
+  --line: #dde3dd;
+  --ink: #17272a;
+  --text-muted: #66726f;
+  --brand: #356f6b;
+  --brand-hover: #2b5c59;
+  --brand-active: #244b49;
+  --support-blue: #4c6370;
+  --focus: #78a7a0;
   --status-success: #22c55e;
   --status-warning: #f59e0b;
   --status-error: #ef4444;
@@ -92,7 +92,7 @@
   --secondary-foreground: var(--ink);
   --muted: var(--surface-subtle);
   --muted-foreground: var(--text-muted);
-  --accent: #e7f1f2;
+  --accent: #e3eeeb;
   --accent-foreground: var(--brand-active);
   --destructive: var(--status-error);
   --border: var(--line);
@@ -109,10 +109,95 @@
   --sidebar-foreground: var(--ink);
   --sidebar-primary: var(--brand);
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e7f1f2;
+  --sidebar-accent: #e3eeeb;
   --sidebar-accent-foreground: var(--brand-active);
   --sidebar-border: var(--line);
   --sidebar-ring: var(--focus);
+  --category-slate: #66717d;
+  --category-blue: #4d6b8a;
+  --category-sky: #4f86a6;
+  --category-teal: #1f6f78;
+  --category-mint: #4f8f7a;
+  --category-sage: #71866f;
+  --category-amber: #b7791f;
+  --category-orange: #b76635;
+  --category-coral: #b9564f;
+  --category-rose: #a85f70;
+  --category-mauve: #8a667f;
+  --category-plum: #6b5b8a;
+  --category-other: #94a3b8;
+}
+
+[data-qai-theme="nocturne"] {
+  --app-background: #edf1f3;
+  --surface: #f8fafb;
+  --surface-subtle: #e3e9ec;
+  --line: #cbd5da;
+  --ink: #1d2b38;
+  --text-muted: #5d6c78;
+  --brand: #315f66;
+  --brand-hover: #284f55;
+  --brand-active: #203f45;
+  --support-blue: #344b63;
+  --focus: #5c8e91;
+  --accent: #dbe7e8;
+  --accent-foreground: #203f45;
+  --chart-teal: #477d7b;
+  --chart-navy: #344b63;
+  --chart-aqua: #69999a;
+  --dashboard-chart-axis: #4c5d6b;
+  --dashboard-chart-grid: #cbd5da;
+  --dashboard-chart-tooltip-bg: #f8fafb;
+  --dashboard-chart-tooltip-border: #b8c5cc;
+}
+
+[data-qai-theme="serein"] {
+  --app-background: #f7f8f5;
+  --surface: #ffffff;
+  --surface-subtle: #eef1ec;
+  --line: #dde3dd;
+  --ink: #17272a;
+  --text-muted: #66726f;
+  --brand: #356f6b;
+  --brand-hover: #2b5c59;
+  --brand-active: #244b49;
+  --support-blue: #4c6370;
+  --focus: #78a7a0;
+  --accent: #e3eeeb;
+  --accent-foreground: #244b49;
+}
+
+[data-qai-theme="bloom"] {
+  --app-background: #faf6f6;
+  --surface: #fffdfd;
+  --surface-subtle: #f4ecee;
+  --line: #e7dadd;
+  --ink: #34272f;
+  --text-muted: #796970;
+  --brand: #755467;
+  --brand-hover: #624556;
+  --brand-active: #503847;
+  --support-blue: #665b72;
+  --focus: #a67b88;
+  --accent: #f1e3e7;
+  --accent-foreground: #503847;
+  --chart-teal: #8d697d;
+  --chart-navy: #665b72;
+  --chart-aqua: #a9828d;
+  --chart-coral: #b96f73;
+  --chart-violet: #806685;
+  --category-slate: #726d78;
+  --category-blue: #63728c;
+  --category-sky: #678aa0;
+  --category-teal: #4f7f7d;
+  --category-mint: #668f80;
+  --category-sage: #7d8871;
+  --category-amber: #ae7b36;
+  --category-orange: #b46d49;
+  --category-coral: #b96862;
+  --category-rose: #a96174;
+  --category-mauve: #8f687e;
+  --category-plum: #735c7a;
 }
 
 .dark {
@@ -251,7 +336,7 @@
   }
 
   .native-control {
-    @apply min-h-10 w-full rounded-lg border bg-white px-3 py-2 text-sm text-foreground transition-colors placeholder:text-muted-foreground;
+    @apply min-h-10 w-full rounded-lg border bg-card px-3 py-2 text-sm text-foreground transition-colors placeholder:text-muted-foreground;
     border-color: var(--line);
   }
 
@@ -308,7 +393,7 @@
   .app-canvas main select {
     min-height: 2.5rem;
     border-color: var(--line) !important;
-    background-color: #ffffff;
+    background-color: var(--surface);
     color: var(--ink);
   }
 

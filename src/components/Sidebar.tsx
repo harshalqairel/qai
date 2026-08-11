@@ -10,6 +10,8 @@ import {
   LayoutDashboard,
   Menu,
   ReceiptText,
+  FileText,
+  PanelsTopLeft,
   ChartNoAxesCombined,
   Settings,
   Users,
@@ -20,12 +22,14 @@ import AuthControls from "@/components/auth/AuthControls";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
-  { href: "/bookings", label: "Bookings", Icon: BookOpenCheck },
   { href: "/calendar", label: "Calendar", Icon: CalendarDays },
-  { href: "/customers", label: "Customers", Icon: Users },
+  { href: "/bookings", label: "Bookings", Icon: BookOpenCheck },
+  { href: "/customers", label: "Clients", Icon: Users },
   { href: "/services", label: "Services", Icon: BriefcaseBusiness },
   { href: "/expenses", label: "Expenses", Icon: ReceiptText },
+  { href: "/invoices", label: "Invoices", Icon: FileText },
   { href: "/reports", label: "Reports", Icon: ChartNoAxesCombined },
+  { href: "/qai-page", label: "Qai Page", Icon: PanelsTopLeft },
   { href: "/settings", label: "Settings", Icon: Settings },
 ];
 
@@ -37,10 +41,7 @@ function Brand({ onClick }: { onClick?: () => void }) {
       aria-label="Go to Dashboard"
       className="inline-flex min-h-10 w-full rounded-lg px-2 py-1 transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
     >
-      <span>
-        <QaiLogo size="md" decorative />
-        <span className="mt-1 block text-xs text-muted-foreground">Creative business manager</span>
-      </span>
+      <QaiLogo size="md" decorative />
     </Link>
   );
 }
@@ -125,7 +126,6 @@ export default function Sidebar() {
         </div>
         <div className="p-4">
           <AuthControls />
-          <p className="mt-4 text-xs text-muted-foreground">Qai Business OS</p>
         </div>
       </aside>
 
@@ -136,7 +136,6 @@ export default function Sidebar() {
         <NavLinks pathname={pathname} />
         <div className="mt-auto">
           <AuthControls />
-          <p className="px-2 pt-5 text-xs text-muted-foreground">Qai Business OS</p>
         </div>
       </aside>
     </>

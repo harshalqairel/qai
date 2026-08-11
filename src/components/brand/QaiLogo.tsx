@@ -18,7 +18,7 @@ const SIZES: Record<LogoSize, { mark: string; wordmark: string; gap: string }> =
   lg: { mark: "size-12", wordmark: "text-4xl", gap: "gap-3" },
 };
 
-function QCheckSymbol({ className }: { className?: string }) {
+function QaiSymbol({ className }: { className?: string }) {
   return (
     <svg
       viewBox="0 0 72 72"
@@ -28,18 +28,12 @@ function QCheckSymbol({ className }: { className?: string }) {
       aria-hidden="true"
       focusable="false"
     >
+      <circle cx="35" cy="34" r="23" stroke="currentColor" strokeWidth="7" />
       <path
-        d="M52.5 50.5A27 27 0 1 1 59 42"
+        d="M43 43 59 59"
         stroke="currentColor"
         strokeWidth="7"
         strokeLinecap="round"
-      />
-      <path
-        d="M39.5 43.5 51 55 66 40"
-        stroke="currentColor"
-        strokeWidth="7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
       />
     </svg>
   );
@@ -59,7 +53,7 @@ export function QaiMark({
       aria-label={decorative ? undefined : "Qai"}
       aria-hidden={decorative || undefined}
     >
-      <QCheckSymbol className={SIZES[size].mark} />
+      <QaiSymbol className={SIZES[size].mark} />
     </span>
   );
 }

@@ -1,10 +1,7 @@
-export type PaymentReminderDetails = {
-  customerName: string;
-  businessName: string;
-  serviceName: string;
-  remainingAmount: string;
-  dueDate: string;
-};
+import { renderReminderTemplate } from "./reminderTemplates";
+import type { ReminderContext } from "./types";
+
+export type PaymentReminderDetails = ReminderContext;
 
 export function isPaymentReminderEligible(booking: { bookingStatus: string; remainingAmount: number }): boolean {
   return booking.bookingStatus !== "Cancelled" && booking.remainingAmount > 0;
@@ -19,27 +16,22 @@ export function normalizePhoneForWhatsApp(phone: string, defaultCountryCode = "6
   return digits.length >= 8 ? digits : null;
 }
 
-export function buildPaymentReminderMessage(details: PaymentReminderDetails): string {
-  return [
-    `Hi ${details.customerName},`,
-    "",
-    `Just a friendly reminder from ${details.businessName} regarding your ${details.serviceName} booking.`,
-    "",
-    `Remaining payment: ${details.remainingAmount}`,
-    `Due date: ${details.dueDate}`,
-    "",
-    "Thank you.",
-  ].join("\n");
+export function buildPaymentReminderMessage(template: string, details: PaymentReminderDetails): string {
+  return renderReminderTemplate(template, details).value;
 }
 
-export function buildWhatsAppReminderUrl(phone: string, details: PaymentReminderDetails): string | null {
+export function buildWhatsAppReminderUrl(phone: string, template: string, details: PaymentReminderDetails): string | null {
   const normalized = normalizePhoneForWhatsApp(phone);
-  return normalized ? `https://wa.me/${normalized}?text=${encodeURIComponent(buildPaymentReminderMessage(details))}` : null;
+  const rendered = renderReminderTemplate(template, details);
+  return normalized && rendered.errors.length === 0
+    ? `https://wa.me/${normalized}?text=${encodeURIComponent(rendered.value)}`
+    : null;
 }
 
-export function buildEmailReminderUrl(email: string, details: PaymentReminderDetails): string | null {
+export function buildEmailReminderUrl(email: string, subjectTemplate: string, bodyTemplate: string, details: PaymentReminderDetails): string | null {
   const recipient = email.trim();
-  if (!recipient) return null;
-  const subject = `Payment Reminder — ${details.businessName}`;
-  return `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(buildPaymentReminderMessage(details))}`;
+  const subject = renderReminderTemplate(subjectTemplate, details);
+  const body = renderReminderTemplate(bodyTemplate, details);
+  if (!recipient || subject.errors.length > 0 || body.errors.length > 0) return null;
+  return `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(subject.value)}&body=${encodeURIComponent(body.value)}`;
 }

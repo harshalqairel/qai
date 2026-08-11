@@ -2,6 +2,7 @@
 
 import BookingDialog from "@/features/booking/components/BookingDialog";
 import { BookingFormValues } from "@/features/booking/schema";
+import type { CreateBookingCommand } from "@/features/booking/types";
 import CalendarHeader from "@/features/calendar/components/CalendarHeader";
 import CalendarView from "@/features/calendar/components/CalendarView";
 import { useCalendar } from "@/features/calendar/hooks/useCalendar";
@@ -39,7 +40,8 @@ export default function BookingCalendar() {
     todayKey,
   } = useCalendar();
 
-  const { payments, createPayment, updatePayment, deletePayment } = usePayments();
+  const paymentData = usePayments();
+  const { payments, createPayment, updatePayment, deletePayment } = paymentData;
   const { expenses } = useExpenses();
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [selectedBookingIdForPayment, setSelectedBookingIdForPayment] = useState<string | null>(null);
@@ -57,8 +59,10 @@ export default function BookingCalendar() {
     setEditingPayment(null);
   }
 
-  const handleCreate = (input: BookingFormValues) => {
-    return createBooking(input);
+  const handleCreate = async (command: CreateBookingCommand) => {
+    const created = await createBooking(command);
+    if (created) await paymentData.retry();
+    return created;
   };
 
   const handleUpdate = (input: BookingFormValues & { id: string }) => {

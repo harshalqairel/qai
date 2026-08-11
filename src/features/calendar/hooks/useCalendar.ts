@@ -44,6 +44,7 @@ export function useCalendar() {
       bookings.flatMap((booking) => {
         const customer = customers.find((customer) => customer.id === booking.customerId);
         const service = services.find((service) => service.id === booking.serviceId);
+        const serviceCategory = serviceCategories.find((category) => category.id === service?.categoryId);
 
         return booking.sessions.map((session) => {
           const start = instantParts(session.startAt, bookingData.timezone);
@@ -55,12 +56,13 @@ export function useCalendar() {
             startTime: start.time,
             endTime: end.time,
             location: session.location,
-            customerName: customer?.name ?? "Unknown Customer",
+            customerName: customer?.name ?? "Client not found",
             serviceName: service?.name ?? "Unknown Service",
+            categoryColor: serviceCategory?.color ?? "category-slate",
           };
         });
       }),
-    [bookings, customers, services, bookingData.timezone],
+    [bookings, customers, services, serviceCategories, bookingData.timezone],
   );
 
   const goPrevious = useCallback(() => {

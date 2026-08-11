@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { z } from "zod";
@@ -14,8 +14,9 @@ import { EXPENSE_TYPES } from "@/features/expense/constants";
 import { PAYMENT_METHODS } from "@/features/payment/constants";
 import { expenseSchema, ExpenseFormValues } from "@/features/expense/schema";
 import { Expense, CreateExpenseInput, UpdateExpenseInput } from "@/features/expense/types";
-import { XIcon } from "lucide-react";
+import { Plus, XIcon } from "lucide-react";
 import type { ExpenseCategory } from "@/features/expense-category/types";
+import { normalizeCategoryName } from "@/features/category/utils";
 import ActionButton from "@/components/system/ActionButton";
 import { useActionGuard } from "@/hooks/useActionGuard";
 import { notify } from "@/lib/notifications";
@@ -31,6 +32,7 @@ type ExpenseDialogProps = {
   onCreate: (input: CreateExpenseInput) => boolean | Promise<boolean>;
   onUpdate: (input: UpdateExpenseInput) => boolean | Promise<boolean>;
   categories: ExpenseCategory[];
+  onQuickCreateCategory?: (name: string) => Promise<ExpenseCategory | null>;
 };
 
 const defaultValues: ExpenseFormValues = {
@@ -53,11 +55,17 @@ export default function ExpenseDialog({
   onCreate,
   onUpdate,
   categories,
+  onQuickCreateCategory,
 }: ExpenseDialogProps) {
   const isEdit = expense !== null;
   const action = useActionGuard();
   const selectableCategories = categories.filter((category) => category.active || category.id === expense?.categoryId);
   const hasSelectableCategory = selectableCategories.length > 0;
+  const initializedDialogRef = useRef<string | null>(null);
+  const [quickCategoryOpen, setQuickCategoryOpen] = useState(false);
+  const [quickCategoryName, setQuickCategoryName] = useState("");
+  const [quickCategoryError, setQuickCategoryError] = useState("");
+  const [quickCategoryPending, setQuickCategoryPending] = useState(false);
 
   const {
     register,
@@ -74,7 +82,14 @@ export default function ExpenseDialog({
   });
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      initializedDialogRef.current = null;
+      return;
+    }
+
+    const dialogKey = expense?.id ?? "new";
+    if (initializedDialogRef.current === dialogKey) return;
+    initializedDialogRef.current = dialogKey;
 
     if (expense) {
       reset({
@@ -102,7 +117,41 @@ export default function ExpenseDialog({
 
   function handleClose() {
     reset(defaultValues);
+    setQuickCategoryOpen(false);
+    setQuickCategoryName("");
+    setQuickCategoryError("");
     onClose();
+  }
+
+  async function createCategoryInline() {
+    const name = quickCategoryName.trim();
+    if (!onQuickCreateCategory || !name) {
+      setQuickCategoryError("Enter a category name.");
+      return;
+    }
+    if (categories.some((category) => normalizeCategoryName(category.name) === normalizeCategoryName(name))) {
+      setQuickCategoryError("A category with this name already exists.");
+      return;
+    }
+
+    setQuickCategoryPending(true);
+    setQuickCategoryError("");
+    try {
+      const created = await onQuickCreateCategory(name);
+      if (!created) throw new Error("CATEGORY_CREATE_FAILED");
+      setValue("categoryId", created.id, { shouldDirty: true, shouldValidate: true });
+      setQuickCategoryName("");
+      setQuickCategoryOpen(false);
+      notify.success("Expense category added and selected.");
+    } catch (error) {
+      setQuickCategoryError(
+        error instanceof Error && error.message === "DUPLICATE_CATEGORY"
+          ? "A category with this name already exists."
+          : "Could not add that category. Your expense details are still here.",
+      );
+    } finally {
+      setQuickCategoryPending(false);
+    }
   }
 
   async function onSubmit(values: ExpenseFormValues) {
@@ -148,18 +197,20 @@ export default function ExpenseDialog({
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           {/* Expense Type */}
           <div>
-            <Label className="mb-2 block font-semibold">Expense Type</Label>
+            <Label className="mb-2 block font-semibold">Expense type</Label>
             <Controller
               control={control}
               name="expenseType"
               render={({ field }) => (
                 <Select value={field.value} onValueChange={field.onChange}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select type" />
+                    <SelectValue placeholder="Select type">
+                      {field.value === "Business Expense" ? "General expense" : "Booking expense"}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {EXPENSE_TYPES.map((t) => (
-                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                      <SelectItem key={t} value={t}>{t === "Business Expense" ? "General expense" : "Booking expense"}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -168,7 +219,7 @@ export default function ExpenseDialog({
           </div>
 
           <div>
-            <Label className="mb-2 block font-semibold">Related Booking (optional)</Label>
+            <Label className="mb-2 block font-semibold">Booking (optional)</Label>
             <Controller
               control={control}
               name="bookingId"
@@ -204,7 +255,7 @@ export default function ExpenseDialog({
 
           {/* Category */}
           <div>
-            <Label className="mb-2 block font-semibold">Expense Category</Label>
+            <Label className="mb-2 block font-semibold">Category</Label>
             <Controller
               control={control}
               name="categoryId"
@@ -232,20 +283,75 @@ export default function ExpenseDialog({
               )}
             />
             {!hasSelectableCategory && (
-              <div className="mt-2 space-y-1 text-sm">
-                <p className="text-muted-foreground">No expense categories yet.</p>
-                <button
-                  type="button"
-                  className="font-medium text-[var(--status-info)] hover:underline"
-                  onClick={() => window.location.assign("/settings?section=expense-categories")}
-                >
-                  Add an expense category
-                </button>
-                <p className="text-muted-foreground">Add an expense category before saving this expense.</p>
-              </div>
+              <p className="mt-2 text-sm text-muted-foreground">
+                No expense categories yet. Add one below to continue.
+              </p>
             )}
             {errors.categoryId && (
               <p className="mt-2 text-sm text-destructive">{errors.categoryId.message}</p>
+            )}
+            {onQuickCreateCategory && (
+              <div className="mt-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  aria-expanded={quickCategoryOpen}
+                  aria-controls="inline-expense-category"
+                  onClick={() => {
+                    setQuickCategoryOpen((value) => !value);
+                    setQuickCategoryError("");
+                  }}
+                >
+                  <Plus className="size-4" aria-hidden="true" /> Add category
+                </Button>
+                {quickCategoryOpen && (
+                  <div
+                    id="inline-expense-category"
+                    className="mt-3 space-y-3 rounded-xl border border-border bg-muted/30 p-4"
+                  >
+                    <div>
+                      <Label htmlFor="new-expense-category" className="mb-2 block">
+                        New category
+                      </Label>
+                      <Input
+                        id="new-expense-category"
+                        value={quickCategoryName}
+                        onChange={(event) => setQuickCategoryName(event.target.value)}
+                        placeholder="e.g. Parking"
+                        autoFocus
+                      />
+                    </div>
+                    {quickCategoryError && (
+                      <p className="text-sm text-destructive" role="alert">
+                        {quickCategoryError}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={quickCategoryPending}
+                        onClick={createCategoryInline}
+                      >
+                        {quickCategoryPending ? "Adding..." : "Add Category"}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        disabled={quickCategoryPending}
+                        onClick={() => {
+                          setQuickCategoryOpen(false);
+                          setQuickCategoryError("");
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
@@ -286,7 +392,7 @@ export default function ExpenseDialog({
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             {/* Payment Method */}
             <div>
-              <Label className="mb-2 block font-semibold">Payment Method</Label>
+              <Label className="mb-2 block font-semibold">Payment method</Label>
               <Controller
                 control={control}
                 name="paymentMethod"
@@ -305,10 +411,10 @@ export default function ExpenseDialog({
               />
             </div>
 
-            {/* Vendor */}
+            {/* Paid to */}
             <div>
-              <Label className="mb-2 block font-semibold">Vendor (optional)</Label>
-              <Input {...register("vendor")} placeholder="e.g. Tokopedia" />
+              <Label className="mb-2 block font-semibold">Paid to (optional)</Label>
+              <Input {...register("vendor")} placeholder="e.g. Studio rental" />
             </div>
           </div>
 
@@ -322,8 +428,8 @@ export default function ExpenseDialog({
             <Button type="button" variant="outline" disabled={action.pending} onClick={handleClose}>
               Cancel
             </Button>
-            <ActionButton type="submit" loading={action.pending || isSubmitting} loadingText={isEdit ? "Updating…" : "Saving…"} disabled={!hasSelectableCategory}>
-              {isEdit ? "Update Expense" : "Save Expense"}
+            <ActionButton type="submit" loading={action.pending || isSubmitting} loadingText={isEdit ? "Updating…" : "Saving…"} disabled={!hasSelectableCategory || quickCategoryPending}>
+              {isEdit ? "Save changes" : "Add expense"}
             </ActionButton>
           </div>
         </form>

@@ -6,6 +6,7 @@ import CalendarHeader from "@/features/calendar/components/CalendarHeader";
 import CalendarView from "@/features/calendar/components/CalendarView";
 import { useCalendar } from "@/features/calendar/hooks/useCalendar";
 import { BookingFormValues } from "@/features/booking/schema";
+import type { CreateBookingCommand } from "@/features/booking/types";
 import { usePayments } from "@/features/payment/hooks/usePayments";
 import { useExpenses } from "@/features/expense/hooks/useExpenses";
 import { useState } from "react";
@@ -63,8 +64,10 @@ export default function CalendarPage() {
     setEditingPayment(null);
   }
 
-  const handleCreate = (input: BookingFormValues) => {
-    return createBooking(input);
+  const handleCreate = async (command: CreateBookingCommand) => {
+    const created = await createBooking(command);
+    if (created) await paymentData.retry();
+    return created;
   };
 
   const handleUpdate = (input: BookingFormValues & { id: string }) => {
