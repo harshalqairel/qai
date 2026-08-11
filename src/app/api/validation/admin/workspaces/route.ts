@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { createValidationAdminClient } from "@/lib/validation/admin";
+import { createValidationAdminClient, logValidationAdminFailure } from "@/lib/validation/admin";
 import { hashValidationSecret, requireValidationAdmin } from "@/lib/validation/session";
 import { createValidationCode, randomValidationToken, validationSlug } from "@/lib/validation/tokens";
 
@@ -18,7 +18,8 @@ async function uniqueCode(label: string) {
   for (let attempt = 0; attempt < 10; attempt += 1) {
     const code = createValidationCode(label);
     const codeHash = await hashValidationSecret(code);
-    const { count } = await admin.from("validation_workspaces").select("id", { count: "exact", head: true }).eq("access_code_hash", codeHash);
+    const { count, error } = await admin.from("validation_workspaces").select("id", { count: "exact", head: true }).eq("access_code_hash", codeHash);
+    if (error) throw error;
     if (!count) return { code, codeHash };
   }
   throw new Error("Could not allocate a unique test code.");
@@ -29,7 +30,8 @@ async function uniqueSlug(label: string) {
   const base = validationSlug(label);
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const slug = attempt === 0 ? base : `${base}-${attempt + 1}`;
-    const { count } = await admin.from("validation_workspaces").select("id", { count: "exact", head: true }).eq("public_slug", slug);
+    const { count, error } = await admin.from("validation_workspaces").select("id", { count: "exact", head: true }).eq("public_slug", slug);
+    if (error) throw error;
     if (!count) return slug;
   }
   return `${base}-${randomValidationToken(4).toLowerCase()}`;
@@ -38,6 +40,11 @@ async function uniqueSlug(label: string) {
 export async function GET() {
   try {
     await requireValidationAdmin();
+  } catch {
+    return NextResponse.json({ error: "Founder access is required." }, { status: 401 });
+  }
+
+  try {
     const admin = createValidationAdminClient();
     const { data, error } = await admin
       .from("validation_workspaces")
@@ -45,15 +52,28 @@ export async function GET() {
       .order("created_at", { ascending: false });
     if (error) throw error;
     return NextResponse.json({ data });
-  } catch {
-    return NextResponse.json({ error: "Founder access is required." }, { status: 401 });
+  } catch (error) {
+    logValidationAdminFailure("founder workspace load", error);
+    return NextResponse.json({ error: "Could not load tester workspaces." }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   try {
     await requireValidationAdmin();
-    const { label } = inputSchema.parse(await request.json());
+  } catch {
+    return NextResponse.json({ error: "Founder access is required." }, { status: 401 });
+  }
+
+  let input: z.infer<typeof inputSchema>;
+  try {
+    input = inputSchema.parse(await request.json());
+  } catch {
+    return NextResponse.json({ error: "Enter a valid tester or business name." }, { status: 400 });
+  }
+
+  try {
+    const { label } = input;
     const admin = createValidationAdminClient();
     const [{ code, codeHash }, slug] = await Promise.all([uniqueCode(label), uniqueSlug(label)]);
     const { data: workspace, error } = await admin
@@ -61,7 +81,8 @@ export async function POST(request: Request) {
       .insert({ label, public_slug: slug, access_code_hash: codeHash })
       .select("id, label, public_slug, status, created_at, last_access_at")
       .single();
-    if (error || !workspace) throw error;
+    if (error) throw error;
+    if (!workspace) throw new Error("Workspace insert returned no record.");
     const inviteToken = randomValidationToken();
     const { error: inviteError } = await admin.from("validation_invites").insert({
       workspace_id: workspace.id,
@@ -73,7 +94,8 @@ export async function POST(request: Request) {
       throw inviteError;
     }
     return NextResponse.json({ data: { workspace, code, inviteUrl: `${appUrl(request)}/test/${inviteToken}` } }, { status: 201 });
-  } catch {
-    return NextResponse.json({ error: "Could not create that tester workspace." }, { status: 400 });
+  } catch (error) {
+    logValidationAdminFailure("founder workspace create", error);
+    return NextResponse.json({ error: "Could not create that tester workspace." }, { status: 500 });
   }
 }

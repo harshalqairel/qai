@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { createValidationAdminClient } from "@/lib/validation/admin";
+import { createValidationAdminClient, logValidationAdminFailure } from "@/lib/validation/admin";
 import { hashValidationSecret, requireValidationAdmin } from "@/lib/validation/session";
 import { createValidationCode, randomValidationToken } from "@/lib/validation/tokens";
 
@@ -16,10 +16,22 @@ function appUrl(request: Request) {
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     await requireValidationAdmin();
+  } catch {
+    return NextResponse.json({ error: "Founder access is required." }, { status: 401 });
+  }
+
+  let action: z.infer<typeof actionSchema>["action"];
+  try {
+    action = actionSchema.parse(await request.json()).action;
+  } catch {
+    return NextResponse.json({ error: "Choose a valid workspace action." }, { status: 400 });
+  }
+
+  try {
     const { id } = await context.params;
-    const { action } = actionSchema.parse(await request.json());
     const admin = createValidationAdminClient();
-    const { data: workspace } = await admin.from("validation_workspaces").select("id, label").eq("id", id).maybeSingle();
+    const { data: workspace, error: workspaceError } = await admin.from("validation_workspaces").select("id, label").eq("id", id).maybeSingle();
+    if (workspaceError) throw workspaceError;
     if (!workspace) return NextResponse.json({ error: "Tester workspace not found." }, { status: 404 });
     if (action === "enable" || action === "disable") {
       const { error } = await admin.from("validation_workspaces").update({ status: action === "enable" ? "active" : "disabled", updated_at: new Date().toISOString() }).eq("id", id);
@@ -52,29 +64,38 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       if (error) throw error;
       return NextResponse.json({ data: { inviteUrl: `${appUrl(request)}/test/${token}` } });
     }
-    const { data: media } = await admin.from("validation_media_assets").select("storage_path").eq("workspace_id", id);
-    if (media?.length) await admin.storage.from("validation-media").remove(media.map((item) => item.storage_path));
+    const { data: media, error: mediaError } = await admin.from("validation_media_assets").select("storage_path").eq("workspace_id", id);
+    if (mediaError) throw mediaError;
+    if (media?.length) { const { error } = await admin.storage.from("validation-media").remove(media.map((item) => item.storage_path)); if (error) throw error; }
     const tables = ["validation_workspace_documents", "validation_public_requests", "validation_public_pages", "validation_import_operations", "validation_calendar_event_links", "validation_calendar_connections", "validation_invoice_sequences", "validation_google_oauth_states", "validation_media_assets"];
     for (const table of tables) { const { error } = await admin.from(table).delete().eq("workspace_id", id); if (error) throw error; }
     const { error: sessionError } = await admin.from("validation_sessions").update({ revoked_at: new Date().toISOString() }).eq("workspace_id", id).is("revoked_at", null);
     if (sessionError) throw sessionError;
     return NextResponse.json({ data: { ok: true } });
-  } catch {
-    return NextResponse.json({ error: "Could not update that tester workspace." }, { status: 400 });
+  } catch (error) {
+    logValidationAdminFailure("founder workspace update", error);
+    return NextResponse.json({ error: "Could not update that tester workspace." }, { status: 500 });
   }
 }
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     await requireValidationAdmin();
+  } catch {
+    return NextResponse.json({ error: "Founder access is required." }, { status: 401 });
+  }
+
+  try {
     const { id } = await context.params;
     const admin = createValidationAdminClient();
-    const { data: media } = await admin.from("validation_media_assets").select("storage_path").eq("workspace_id", id);
-    if (media?.length) await admin.storage.from("validation-media").remove(media.map((item) => item.storage_path));
+    const { data: media, error: mediaError } = await admin.from("validation_media_assets").select("storage_path").eq("workspace_id", id);
+    if (mediaError) throw mediaError;
+    if (media?.length) { const { error } = await admin.storage.from("validation-media").remove(media.map((item) => item.storage_path)); if (error) throw error; }
     const { error } = await admin.from("validation_workspaces").delete().eq("id", id);
     if (error) throw error;
     return NextResponse.json({ data: { ok: true } });
-  } catch {
-    return NextResponse.json({ error: "Could not delete that tester workspace." }, { status: 400 });
+  } catch (error) {
+    logValidationAdminFailure("founder workspace delete", error);
+    return NextResponse.json({ error: "Could not delete that tester workspace." }, { status: 500 });
   }
 }
