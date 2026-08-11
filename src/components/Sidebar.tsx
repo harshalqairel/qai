@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   Menu,
   ReceiptText,
+  ChartNoAxesCombined,
   Settings,
   Users,
   X,
@@ -24,6 +25,7 @@ const NAV = [
   { href: "/customers", label: "Customers", Icon: Users },
   { href: "/services", label: "Services", Icon: BriefcaseBusiness },
   { href: "/expenses", label: "Expenses", Icon: ReceiptText },
+  { href: "/reports", label: "Reports", Icon: ChartNoAxesCombined },
   { href: "/settings", label: "Settings", Icon: Settings },
 ];
 

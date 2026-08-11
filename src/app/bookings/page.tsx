@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import BookingHeader from "@/features/booking/components/BookingHeader";
 import BookingToolbar from "@/features/booking/components/BookingToolbar";
 import BookingTable from "@/features/booking/components/BookingTable";
@@ -20,10 +20,16 @@ import { useExpenses } from "@/features/expense/hooks/useExpenses";
 import { useExpenseCategories } from "@/features/expense-category/hooks/useExpenseCategories";
 import { summarizeBookingPayments } from "@/features/payment/utils/paymentCalculations";
 import { getBookingExpenses } from "@/features/expense/utils/expenseAggregations";
-import { compareByBookingStartDateTime } from "@/features/booking/utils/bookingDateRange";
+import {
+  compareBookingsByFirstSession,
+  firstBookingSession,
+  formatSessionDate,
+  sessionToFormValues,
+} from "@/features/booking/utils/bookingSessions";
 import PageSkeleton from "@/components/system/PageSkeleton";
 import DataErrorState from "@/components/system/DataErrorState";
 import { notify } from "@/lib/notifications";
+import { useServiceCategories } from "@/features/service-category/hooks/useServiceCategories";
 
 export default function BookingsPage() {
   const bookingData = useBookings();
@@ -32,12 +38,14 @@ export default function BookingsPage() {
   const paymentData = usePayments();
   const expenseData = useExpenses();
   const expenseCategoryData = useExpenseCategories();
+  const serviceCategoryData = useServiceCategories();
   const { bookings, createBooking, updateBooking, deleteBooking } = bookingData;
   const { customers } = customerData;
   const { services } = serviceData;
   const { payments, createPayment, updatePayment, deletePayment } = paymentData;
   const { expenses, createExpense, updateExpense } = expenseData;
   const { categories: expenseCategories } = expenseCategoryData;
+  const { categories: serviceCategories } = serviceCategoryData;
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
@@ -55,6 +63,7 @@ export default function BookingsPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState("");
   const [sort, setSort] = useState("newest");
+  const handledDeepLink = useRef(false);
 
   const paymentSummaries = useMemo(() => summarizeBookingPayments(bookings, payments), [bookings, payments]);
   const keyword = search.trim().toLowerCase();
@@ -64,9 +73,9 @@ export default function BookingsPage() {
     const service = services.find((item) => item.id === booking.serviceId);
     return {
       id: booking.id,
-      label: `${customer?.name ?? "Customer not found"} · ${service?.name ?? "Service not found"} · ${booking.bookingDate}`,
+      label: `${customer?.name ?? "Customer not found"} · ${service?.name ?? "Service not found"} · ${formatSessionDate(firstBookingSession(booking), bookingData.timezone)}`,
     };
-  }), [bookings, customers, services]);
+  }), [bookings, customers, services, bookingData.timezone]);
 
   const bookingsWithNames: BookingFinancialDetails[] = bookings.map((booking) => {
     const customer = customers.find((item) => item.id === booking.customerId);
@@ -90,12 +99,38 @@ export default function BookingsPage() {
     };
   });
 
+  useEffect(() => {
+    if (handledDeepLink.current || bookingData.isLoading) return;
+    const timeoutId = window.setTimeout(() => {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("new") === "1") {
+        setSelectedBooking(null);
+        setDialogOpen(true);
+      }
+      if (params.get("payment") === "outstanding") setPaymentStatusFilter("Outstanding");
+      const bookingId = params.get("booking");
+      if (bookingId) {
+        const booking = bookingsWithNames.find((item) => item.id === bookingId);
+        if (booking) {
+          setSelectedBookingForFinancialDetails(booking);
+          setFinancialDetailsOpen(true);
+        }
+      }
+      handledDeepLink.current = true;
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [bookingData.isLoading, bookingsWithNames]);
+
   const filteredBookings = bookingsWithNames.filter((booking) => {
     const matchesSearch =
       keyword === "" ||
       booking.customerName.toLowerCase().includes(keyword) ||
       booking.serviceName.toLowerCase().includes(keyword) ||
-      booking.location.toLowerCase().includes(keyword) ||
+      booking.sessions.some((session) =>
+        session.location.toLowerCase().includes(keyword) ||
+        session.label.toLowerCase().includes(keyword) ||
+        session.notes.toLowerCase().includes(keyword),
+      ) ||
       booking.notes.toLowerCase().includes(keyword);
 
     const matchesBookingStatus = statusFilter === "" || booking.bookingStatus === statusFilter;
@@ -106,10 +141,10 @@ export default function BookingsPage() {
   const sortedBookings = [...filteredBookings];
   switch (sort) {
     case "date-asc":
-      sortedBookings.sort(compareByBookingStartDateTime);
+      sortedBookings.sort(compareBookingsByFirstSession);
       break;
     case "date-desc":
-      sortedBookings.sort((a, b) => compareByBookingStartDateTime(b, a));
+      sortedBookings.sort((a, b) => compareBookingsByFirstSession(b, a));
       break;
     case "oldest":
       sortedBookings.sort((a, b) => a.createdAt - b.createdAt);
@@ -139,10 +174,7 @@ export default function BookingsPage() {
       id: booking.id,
       customerId: booking.customerId,
       serviceId: booking.serviceId,
-      bookingDate: booking.bookingDate,
-      startTime: booking.startTime,
-      endTime: booking.endTime,
-      location: booking.location,
+      sessions: booking.sessions.map((session) => sessionToFormValues(session, bookingData.timezone)),
       servicePrice: booking.servicePrice,
       bookingStatus,
       fullPaymentDueDate: booking.fullPaymentDueDate,
@@ -168,7 +200,7 @@ export default function BookingsPage() {
     setSelectedBookingForFinancialDetails(null);
   }
 
-  const dataSources = [bookingData, customerData, serviceData, paymentData, expenseData, expenseCategoryData];
+  const dataSources = [bookingData, customerData, serviceData, paymentData, expenseData, expenseCategoryData, serviceCategoryData];
   if (dataSources.some((source) => source.isLoading)) return <main className="min-h-screen"><PageSkeleton variant="list" /></main>;
   if (dataSources.some((source) => source.loadError)) return (
     <main className="min-h-screen"><div className="page-shell"><DataErrorState onRetry={() => dataSources.forEach((source) => source.retry())} /></div></main>
@@ -210,6 +242,7 @@ export default function BookingsPage() {
             }}
             onStatusChange={updateBookingStatus}
             onFinancialDetailsClick={openFinancialDetails}
+            timezone={bookingData.timezone}
           />
         </div>
       </main>
@@ -219,8 +252,10 @@ export default function BookingsPage() {
         booking={selectedBooking}
         customers={customers}
         services={services}
+        serviceCategories={serviceCategories}
         payments={payments}
         expenses={expenses}
+        timezone={bookingData.timezone}
         onClose={() => {
           setDialogOpen(false);
           setSelectedBooking(null);
@@ -232,6 +267,9 @@ export default function BookingsPage() {
         }
         onEditPaymentClick={(payment) => openPaymentDialog(payment.bookingId, payment)}
         onDeletePayment={(id) => deletePayment(id)}
+        onQuickCreateCustomer={customerData.createCustomerAndReturn}
+        onQuickCreateService={serviceData.createServiceAndReturn}
+        onQuickCreateServiceCategory={(name) => serviceCategoryData.createCategoryAndReturn({ name, color: "#0D5C5A" })}
       />
 
       <PaymentDialog

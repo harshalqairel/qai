@@ -152,6 +152,8 @@ create table public.services (
   name text not null check (char_length(btrim(name)) between 1 and 120),
   price numeric(14, 2) not null default 0 check (price >= 0),
   duration_minutes integer not null check (duration_minutes > 0),
+  default_session_count integer not null default 1
+    check (default_session_count between 1 and 50),
   description text not null default '',
   active boolean not null default true,
   created_at timestamptz not null default now(),
@@ -166,11 +168,6 @@ create table public.bookings (
   business_id uuid not null references public.businesses(id) on delete cascade,
   customer_id uuid not null,
   service_id uuid not null,
-  booking_date date not null,
-  start_time time not null,
-  end_time time not null,
-  timezone text not null default 'Asia/Jakarta',
-  location text not null default '',
   service_price numeric(14, 2) not null check (service_price >= 0),
   booking_status text not null default 'Scheduled'
     check (booking_status in ('Scheduled', 'Completed', 'Cancelled')),
@@ -185,6 +182,26 @@ create table public.bookings (
     references public.customers(business_id, id),
   foreign key (business_id, service_id)
     references public.services(business_id, id)
+);
+
+create table public.booking_sessions (
+  id uuid primary key default gen_random_uuid(),
+  business_id uuid not null references public.businesses(id) on delete cascade,
+  booking_id uuid not null,
+  sequence integer not null check (sequence > 0 and sequence <= 50),
+  label text not null default '' check (char_length(btrim(label)) <= 80),
+  start_at timestamptz not null,
+  end_at timestamptz not null,
+  location text not null default '' check (char_length(btrim(location)) <= 240),
+  notes text not null default '' check (char_length(notes) <= 1000),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (business_id, id),
+  constraint booking_sessions_booking_sequence_key
+    unique (business_id, booking_id, sequence) deferrable initially deferred,
+  foreign key (business_id, booking_id)
+    references public.bookings(business_id, id) on delete cascade,
+  check (end_at > start_at)
 );
 
 create table public.payments (
@@ -298,7 +315,7 @@ create table public.reminder_history (
 create table public.integrations (
   id uuid primary key default gen_random_uuid(),
   business_id uuid not null references public.businesses(id) on delete cascade,
-  provider text not null check (provider in ('google_calendar')),
+  provider text not null check (provider in ('google_calendar', 'google_sheets')),
   status text not null default 'disconnected'
     check (status in ('connected', 'disconnected', 'error')),
   external_account_id text,
@@ -307,7 +324,27 @@ create table public.integrations (
   connected_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
+  unique (business_id, id),
   unique (business_id, provider)
+);
+
+create table public.calendar_event_links (
+  id uuid primary key default gen_random_uuid(),
+  business_id uuid not null references public.businesses(id) on delete cascade,
+  integration_id uuid not null,
+  booking_session_id uuid not null,
+  external_event_id text not null,
+  sync_status text not null default 'synced'
+    check (sync_status in ('pending', 'synced', 'error', 'cancelled')),
+  last_synced_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  foreign key (business_id, integration_id)
+    references public.integrations(business_id, id) on delete cascade,
+  foreign key (business_id, booking_session_id)
+    references public.booking_sessions(business_id, id) on delete cascade,
+  unique (business_id, integration_id, booking_session_id),
+  unique (business_id, integration_id, external_event_id)
 );
 
 create table public.subscriptions (
@@ -358,7 +395,8 @@ create index business_memberships_user_id_idx
   on public.business_memberships(user_id, business_id);
 create index customers_business_name_idx on public.customers(business_id, name);
 create index services_business_active_idx on public.services(business_id, active);
-create index bookings_business_date_idx on public.bookings(business_id, booking_date, start_time);
+create index booking_sessions_business_start_idx on public.booking_sessions(business_id, start_at);
+create index booking_sessions_booking_idx on public.booking_sessions(business_id, booking_id, sequence);
 create index bookings_business_status_idx on public.bookings(business_id, booking_status);
 create index bookings_business_due_idx on public.bookings(business_id, full_payment_due_date);
 create index payments_business_booking_idx on public.payments(business_id, booking_id, payment_date);
@@ -366,6 +404,8 @@ create index payments_business_date_idx on public.payments(business_id, payment_
 create index expenses_business_date_idx on public.expenses(business_id, expense_date);
 create index expenses_business_booking_idx on public.expenses(business_id, booking_id);
 create index reminder_history_booking_idx on public.reminder_history(business_id, booking_id, reminded_at desc);
+create index calendar_event_links_session_idx
+  on public.calendar_event_links(business_id, booking_session_id);
 
 create or replace function public.validate_payment_write()
 returns trigger
@@ -445,6 +485,185 @@ create trigger validate_expense_before_write
 before insert or update on public.expenses
 for each row execute function public.validate_expense_write();
 
+create or replace function public.assert_booking_has_session(
+  target_business_id uuid,
+  target_booking_id uuid
+)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if exists (
+    select 1 from public.bookings
+    where business_id = target_business_id and id = target_booking_id
+  ) and not exists (
+    select 1 from public.booking_sessions
+    where business_id = target_business_id and booking_id = target_booking_id
+  ) then
+    raise exception 'A booking must have at least one schedule session';
+  end if;
+end;
+$$;
+
+create or replace function public.enforce_booking_has_session()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if tg_table_name = 'bookings' then
+    perform public.assert_booking_has_session(new.business_id, new.id);
+  elsif tg_op = 'DELETE' then
+    perform public.assert_booking_has_session(old.business_id, old.booking_id);
+  else
+    perform public.assert_booking_has_session(old.business_id, old.booking_id);
+    if new.business_id is distinct from old.business_id
+      or new.booking_id is distinct from old.booking_id
+    then
+      perform public.assert_booking_has_session(new.business_id, new.booking_id);
+    end if;
+  end if;
+  return null;
+end;
+$$;
+
+create constraint trigger booking_requires_session
+after insert on public.bookings
+deferrable initially deferred
+for each row execute function public.enforce_booking_has_session();
+
+create constraint trigger booking_session_removal_keeps_schedule
+after delete or update on public.booking_sessions
+deferrable initially deferred
+for each row execute function public.enforce_booking_has_session();
+
+create or replace function public.save_booking(booking_payload jsonb)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  target_business_id uuid;
+  target_booking_id uuid;
+  existing_business_id uuid;
+  existing_session_business_id uuid;
+  existing_session_booking_id uuid;
+  session_record jsonb;
+  retained_session_ids uuid[] := array[]::uuid[];
+  target_session_id uuid;
+begin
+  if (select auth.uid()) is null then
+    raise exception 'Authentication required';
+  end if;
+
+  if jsonb_typeof(booking_payload) <> 'object'
+    or jsonb_typeof(booking_payload->'sessions') <> 'array'
+    or jsonb_array_length(booking_payload->'sessions') < 1
+    or jsonb_array_length(booking_payload->'sessions') > 50
+  then
+    raise exception 'A booking requires between 1 and 50 schedule sessions';
+  end if;
+
+  select membership.business_id into target_business_id
+  from public.business_memberships membership
+  where membership.user_id = (select auth.uid())
+  order by membership.created_at
+  limit 1;
+
+  if target_business_id is null then
+    raise exception 'Business membership required';
+  end if;
+
+  target_booking_id := (booking_payload->>'id')::uuid;
+  select business_id into existing_business_id
+  from public.bookings where id = target_booking_id;
+  if existing_business_id is not null and existing_business_id <> target_business_id then
+    raise exception 'Booking belongs to another business';
+  end if;
+
+  insert into public.bookings (
+    id, business_id, customer_id, service_id, service_price, booking_status,
+    full_payment_due_date, notes, created_at, updated_at
+  ) values (
+    target_booking_id,
+    target_business_id,
+    (booking_payload->>'customer_id')::uuid,
+    (booking_payload->>'service_id')::uuid,
+    (booking_payload->>'service_price')::numeric,
+    booking_payload->>'booking_status',
+    (booking_payload->>'full_payment_due_date')::date,
+    coalesce(booking_payload->>'notes', ''),
+    coalesce((booking_payload->>'created_at')::timestamptz, now()),
+    coalesce((booking_payload->>'updated_at')::timestamptz, now())
+  )
+  on conflict (id) do update set
+    customer_id = excluded.customer_id,
+    service_id = excluded.service_id,
+    service_price = excluded.service_price,
+    booking_status = excluded.booking_status,
+    full_payment_due_date = excluded.full_payment_due_date,
+    notes = excluded.notes,
+    updated_at = excluded.updated_at;
+
+  for session_record in
+    select value from jsonb_array_elements(booking_payload->'sessions')
+  loop
+    target_session_id := (session_record->>'id')::uuid;
+    select business_id, booking_id
+      into existing_session_business_id, existing_session_booking_id
+    from public.booking_sessions
+    where id = target_session_id;
+    if existing_session_business_id is not null
+      and (
+        existing_session_business_id <> target_business_id
+        or existing_session_booking_id <> target_booking_id
+      )
+    then
+      raise exception 'Schedule session belongs to another booking';
+    end if;
+
+    insert into public.booking_sessions (
+      id, business_id, booking_id, sequence, label, start_at, end_at,
+      location, notes, created_at, updated_at
+    ) values (
+      target_session_id,
+      target_business_id,
+      target_booking_id,
+      (session_record->>'sequence')::integer,
+      coalesce(session_record->>'label', ''),
+      (session_record->>'start_at')::timestamptz,
+      (session_record->>'end_at')::timestamptz,
+      coalesce(session_record->>'location', ''),
+      coalesce(session_record->>'notes', ''),
+      coalesce((session_record->>'created_at')::timestamptz, now()),
+      coalesce((session_record->>'updated_at')::timestamptz, now())
+    )
+    on conflict (id) do update set
+      sequence = excluded.sequence,
+      label = excluded.label,
+      start_at = excluded.start_at,
+      end_at = excluded.end_at,
+      location = excluded.location,
+      notes = excluded.notes,
+      updated_at = excluded.updated_at;
+
+    retained_session_ids := array_append(retained_session_ids, target_session_id);
+  end loop;
+
+  delete from public.booking_sessions
+  where business_id = target_business_id
+    and booking_id = target_booking_id
+    and not (id = any(retained_session_ids));
+
+  return target_booking_id;
+end;
+$$;
+
+revoke all on function public.save_booking(jsonb) from public;
+grant execute on function public.save_booking(jsonb) to authenticated;
+
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
@@ -462,8 +681,8 @@ declare
 begin
   foreach table_name in array array[
     'businesses', 'service_categories', 'expense_categories', 'customers',
-    'services', 'bookings', 'payments', 'expenses', 'invoices',
-    'reminder_settings', 'integrations', 'subscriptions'
+    'services', 'bookings', 'booking_sessions', 'payments', 'expenses', 'invoices',
+    'reminder_settings', 'integrations', 'calendar_event_links', 'subscriptions'
   ]
   loop
     execute format(
@@ -482,6 +701,7 @@ alter table public.expense_categories enable row level security;
 alter table public.customers enable row level security;
 alter table public.services enable row level security;
 alter table public.bookings enable row level security;
+alter table public.booking_sessions enable row level security;
 alter table public.payments enable row level security;
 alter table public.expenses enable row level security;
 alter table public.invoices enable row level security;
@@ -489,6 +709,7 @@ alter table public.invoice_items enable row level security;
 alter table public.reminder_settings enable row level security;
 alter table public.reminder_history enable row level security;
 alter table public.integrations enable row level security;
+alter table public.calendar_event_links enable row level security;
 alter table public.subscriptions enable row level security;
 alter table public.billing_events enable row level security;
 alter table public.data_imports enable row level security;
@@ -524,8 +745,8 @@ declare
 begin
   foreach table_name in array array[
     'service_categories', 'expense_categories', 'customers', 'services',
-    'bookings', 'payments', 'expenses', 'invoices', 'invoice_items',
-    'reminder_settings', 'reminder_history'
+    'bookings', 'booking_sessions', 'payments', 'expenses', 'invoices', 'invoice_items',
+    'reminder_settings', 'reminder_history', 'calendar_event_links'
   ]
   loop
     execute format(
@@ -567,9 +788,11 @@ set search_path = ''
 as $$
 declare
   target_business_id uuid;
+  target_timezone text;
   import_id uuid;
   existing_status text;
   source_record jsonb;
+  session_record jsonb;
 begin
   if (select auth.uid()) is null then
     raise exception 'Authentication required';
@@ -579,9 +802,10 @@ begin
     raise exception 'Invalid import fingerprint';
   end if;
 
-  select membership.business_id
-    into target_business_id
+  select membership.business_id, business.timezone
+    into target_business_id, target_timezone
   from public.business_memberships membership
+  join public.businesses business on business.id = membership.business_id
   where membership.user_id = (select auth.uid())
   order by membership.created_at
   limit 1;
@@ -687,7 +911,7 @@ begin
     loop
       insert into public.services (
         id, business_id, category_id, name, price, duration_minutes,
-        description, active
+        default_session_count, description, active
       ) values (
         (source_record->>'id')::uuid,
         target_business_id,
@@ -695,6 +919,7 @@ begin
         source_record->>'name',
         (source_record->>'price')::numeric,
         (source_record->>'duration')::integer,
+        coalesce((source_record->>'defaultSessionCount')::integer, 1),
         coalesce(source_record->>'description', ''),
         coalesce((source_record->>'active')::boolean, true)
       ) on conflict (id) do nothing;
@@ -703,18 +928,13 @@ begin
     for source_record in select value from jsonb_array_elements(import_payload->'bookings')
     loop
       insert into public.bookings (
-        id, business_id, customer_id, service_id, booking_date, start_time,
-        end_time, location, service_price, booking_status,
+        id, business_id, customer_id, service_id, service_price, booking_status,
         full_payment_due_date, notes, created_at, updated_at
       ) values (
         (source_record->>'id')::uuid,
         target_business_id,
         (source_record->>'customerId')::uuid,
         (source_record->>'serviceId')::uuid,
-        (source_record->>'bookingDate')::date,
-        (source_record->>'startTime')::time,
-        (source_record->>'endTime')::time,
-        coalesce(source_record->>'location', ''),
         (source_record->>'servicePrice')::numeric,
         source_record->>'bookingStatus',
         (source_record->>'fullPaymentDueDate')::date,
@@ -722,6 +942,58 @@ begin
         to_timestamp((source_record->>'createdAt')::double precision / 1000.0),
         to_timestamp((source_record->>'updatedAt')::double precision / 1000.0)
       ) on conflict (id) do nothing;
+
+      if jsonb_typeof(source_record->'sessions') = 'array'
+        and jsonb_array_length(source_record->'sessions') > 0
+      then
+        for session_record in select value from jsonb_array_elements(source_record->'sessions')
+        loop
+          insert into public.booking_sessions (
+            id, business_id, booking_id, sequence, label, start_at, end_at,
+            location, notes, created_at, updated_at
+          ) values (
+            (session_record->>'id')::uuid,
+            target_business_id,
+            (source_record->>'id')::uuid,
+            (session_record->>'sequence')::integer,
+            coalesce(session_record->>'label', ''),
+            (session_record->>'startAt')::timestamptz,
+            (session_record->>'endAt')::timestamptz,
+            coalesce(session_record->>'location', ''),
+            coalesce(session_record->>'notes', ''),
+            to_timestamp((session_record->>'createdAt')::double precision / 1000.0),
+            to_timestamp((session_record->>'updatedAt')::double precision / 1000.0)
+          ) on conflict (id) do nothing;
+        end loop;
+      else
+        insert into public.booking_sessions (
+          id, business_id, booking_id, sequence, label, start_at, end_at,
+          location, notes, created_at, updated_at
+        ) values (
+          (source_record->>'id')::uuid,
+          target_business_id,
+          (source_record->>'id')::uuid,
+          1,
+          '',
+          (
+            (source_record->>'bookingDate')::date + (source_record->>'startTime')::time
+          ) at time zone target_timezone,
+          case
+            when (source_record->>'endTime')::time <= (source_record->>'startTime')::time then
+              (
+                ((source_record->>'bookingDate')::date + 1) + (source_record->>'endTime')::time
+              ) at time zone target_timezone
+            else
+              (
+                (source_record->>'bookingDate')::date + (source_record->>'endTime')::time
+              ) at time zone target_timezone
+          end,
+          coalesce(source_record->>'location', ''),
+          '',
+          to_timestamp((source_record->>'createdAt')::double precision / 1000.0),
+          to_timestamp((source_record->>'updatedAt')::double precision / 1000.0)
+        ) on conflict (id) do nothing;
+      end if;
     end loop;
 
     for source_record in select value from jsonb_array_elements(import_payload->'payments')
@@ -835,20 +1107,27 @@ as $$
 declare
   completed_count integer;
 begin
-  update public.bookings
+  with eligible_bookings as (
+    select booking.id
+    from public.bookings booking
+    join public.businesses business on business.id = booking.business_id
+    join lateral (
+      select max(session.end_at) as final_end_at
+      from public.booking_sessions session
+      where session.business_id = booking.business_id
+        and session.booking_id = booking.id
+    ) final_session on final_session.final_end_at is not null
+    where booking.booking_status = 'Scheduled'
+      and (now() at time zone business.timezone)::date
+        > (final_session.final_end_at at time zone business.timezone)::date
+  )
+  update public.bookings booking
   set
     booking_status = 'Completed',
     auto_completed_at = now(),
     updated_at = now()
-  where booking_status = 'Scheduled'
-    and (
-      case
-        when end_time <= start_time then
-          ((booking_date + 1) + end_time) at time zone timezone
-        else
-          (booking_date + end_time) at time zone timezone
-      end
-    ) < now();
+  from eligible_bookings eligible
+  where booking.id = eligible.id;
 
   get diagnostics completed_count = row_count;
   return completed_count;

@@ -10,6 +10,7 @@ import { cloudServiceRepository } from "@/lib/supabase/cloudRepositories";
 export function useServices(): {
   services: Service[];
   createService: (input: CreateServiceInput) => Promise<boolean>;
+  createServiceAndReturn: (input: CreateServiceInput) => Promise<Service | null>;
   updateService: (service: Service) => Promise<boolean>;
   deleteService: (id: string) => Promise<boolean>;
   isLoading: boolean;
@@ -45,7 +46,7 @@ export function useServices(): {
     };
   }, [retry]);
 
-  const createService = useCallback(async (input: CreateServiceInput): Promise<boolean> => {
+  const createServiceAndReturn = useCallback(async (input: CreateServiceInput): Promise<Service | null> => {
     const newService: Service = {
       id: crypto.randomUUID(),
       active: true,
@@ -53,6 +54,7 @@ export function useServices(): {
       categoryId: input.categoryId,
       price: input.price,
       duration: input.duration,
+      defaultSessionCount: input.defaultSessionCount,
       description: input.description,
     };
 
@@ -60,11 +62,15 @@ export function useServices(): {
       if (isCloudModeEnabled()) await cloudServiceRepository.create(newService);
       else serviceRepository.create(newService);
       setServices((prev) => [...prev, newService]);
-      return true;
+      return newService;
     } catch {
-      return false;
+      return null;
     }
   }, []);
+
+  const createService = useCallback(async (input: CreateServiceInput): Promise<boolean> => {
+    return Boolean(await createServiceAndReturn(input));
+  }, [createServiceAndReturn]);
 
   const updateService = useCallback(async (service: Service): Promise<boolean> => {
     try {
@@ -91,6 +97,7 @@ export function useServices(): {
   return {
     services,
     createService,
+    createServiceAndReturn,
     updateService,
     deleteService,
     isLoading,

@@ -9,6 +9,8 @@ type CalendarHeaderProps = {
   onPrevious: () => void;
   onNext: () => void;
   onToday: () => void;
+  onPreviousMonth: () => void;
+  onNextMonth: () => void;
 };
 
 function formatHeaderLabel(date: Date, view: CalendarView) {
@@ -37,19 +39,31 @@ export default function CalendarHeader({
   onPrevious,
   onNext,
   onToday,
+  onPreviousMonth,
+  onNextMonth,
 }: CalendarHeaderProps) {
   const headerLabel = formatHeaderLabel(activeDate, view);
 
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-border bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
-      <div className="space-y-1">
-        {/* Mobile: show "Agenda" label; tablet+: show date label */}
-        <div className="block text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500 md:hidden">Agenda</div>
-        <div className="hidden text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500 md:block">Calendar</div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground lg:text-3xl">{headerLabel}</h1>
+    <>
+      <div className="surface-card p-3 md:hidden">
+        <div className="mb-2 flex items-center justify-between gap-3 px-1">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Calendar</p>
+          <Button variant="ghost" size="sm" onClick={onToday}>Today</Button>
+        </div>
+        <div className="grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-2">
+          <Button variant="outline" size="icon" className="size-11" onClick={onPreviousMonth} aria-label="Previous month"><ChevronLeftIcon aria-hidden="true" /></Button>
+          <h1 className="truncate text-center text-xl font-bold tracking-tight">{new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(activeDate)}</h1>
+          <Button variant="outline" size="icon" className="size-11" onClick={onNextMonth} aria-label="Next month"><ChevronRightIcon aria-hidden="true" /></Button>
+        </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="hidden flex-col gap-4 rounded-xl border border-border bg-white p-4 shadow-sm md:flex md:flex-row md:items-center md:justify-between sm:p-6">
+        <div className="space-y-1">
+          <div className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">Calendar</div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground lg:text-3xl">{headerLabel}</h1>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
         {/* Prev / Today / Next — hidden on phones (agenda is always all bookings) */}
         <div className="hidden gap-2 md:flex">
           <Button
@@ -93,7 +107,8 @@ export default function CalendarHeader({
             </Button>
           ))}
         </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

@@ -42,7 +42,7 @@ export function useCustomers() {
     };
   }, [retry]);
 
-  const createCustomer = useCallback(async (input: CreateCustomerInput): Promise<boolean> => {
+  const createCustomerAndReturn = useCallback(async (input: CreateCustomerInput): Promise<Customer | null> => {
     const newCustomer: Customer = {
       id: crypto.randomUUID(),
       createdAt: Date.now(),
@@ -53,11 +53,15 @@ export function useCustomers() {
       if (isCloudModeEnabled()) await cloudCustomerRepository.create(newCustomer);
       else customerRepository.create(newCustomer);
       setCustomers((prev) => [...prev, newCustomer]);
-      return true;
+      return newCustomer;
     } catch {
-      return false;
+      return null;
     }
   }, []);
+
+  const createCustomer = useCallback(async (input: CreateCustomerInput): Promise<boolean> => {
+    return Boolean(await createCustomerAndReturn(input));
+  }, [createCustomerAndReturn]);
 
   const updateCustomer = useCallback(async (input: UpdateCustomerInput): Promise<boolean> => {
     const current = customers.find((customer) => customer.id === input.id);
@@ -90,6 +94,7 @@ export function useCustomers() {
   return {
     customers,
     createCustomer,
+    createCustomerAndReturn,
     updateCustomer,
     deleteCustomer,
     isLoading,

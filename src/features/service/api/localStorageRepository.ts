@@ -32,6 +32,7 @@ function migrateServices(
       return {
         ...service,
         description: service.description ?? "",
+        defaultSessionCount: service.defaultSessionCount ?? 1,
         active: service.active ?? true,
       };
     }
@@ -46,6 +47,7 @@ function migrateServices(
       ...rest,
       categoryId: category.id,
       description: service.description ?? "",
+      defaultSessionCount: service.defaultSessionCount ?? 1,
       active: service.active ?? true,
     };
   });

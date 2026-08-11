@@ -1,13 +1,17 @@
 "use client";
 
-import { useEffect } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { useEffect, useRef, useState } from "react";
+import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { z } from "zod";
 import { Booking, CreateBookingInput, UpdateBookingInput } from "@/features/booking/types";
 import { bookingSchema, BookingFormValues } from "@/features/booking/schema";
 import { doesBookingEndNextDay } from "@/features/booking/utils/bookingDateRange";
+import { sessionToFormValues } from "@/features/booking/utils/bookingSessions";
 import { Service } from "@/features/service/types";
+import type { CreateServiceInput } from "@/features/service/types";
+import type { CreateCustomerInput, Customer } from "@/features/customer/types";
+import type { ServiceCategory } from "@/features/service-category/types";
 import { Payment } from "@/features/payment/types";
 import { formatRupiah, getPaymentLabel } from "@/features/payment/utils/paymentCalculations";
 import { Expense } from "@/features/expense/types";
@@ -22,7 +26,7 @@ import ActionButton from "@/components/system/ActionButton";
 import DeleteAction from "@/components/system/DeleteAction";
 import { useActionGuard } from "@/hooks/useActionGuard";
 import { notify } from "@/lib/notifications";
-import { Info, XIcon } from "lucide-react";
+import { Info, Plus, Trash2, XIcon } from "lucide-react";
 
 type BookingDialogProps = {
   open: boolean;
@@ -30,8 +34,13 @@ type BookingDialogProps = {
   initialValues?: BookingFormValues;
   customers: { id: string; name: string }[];
   services: Service[];
+  serviceCategories?: ServiceCategory[];
   payments: Payment[];
   expenses: Expense[];
+  timezone: string;
+  onQuickCreateCustomer?: (input: CreateCustomerInput) => Promise<Customer | null>;
+  onQuickCreateService?: (input: CreateServiceInput) => Promise<Service | null>;
+  onQuickCreateServiceCategory?: (name: string) => Promise<ServiceCategory | null>;
   onClose: () => void;
   onCreate: (input: CreateBookingInput) => boolean | Promise<boolean>;
   onUpdate: (input: UpdateBookingInput) => boolean | Promise<boolean>;
@@ -43,10 +52,7 @@ type BookingDialogProps = {
 const defaultValues: BookingFormValues = {
   customerId: "",
   serviceId: "",
-  bookingDate: "",
-  startTime: "",
-  endTime: "",
-  location: "",
+  sessions: [{ label: "", date: "", startTime: "", endTime: "", location: "", notes: "" }],
   servicePrice: 0,
   bookingStatus: "Scheduled",
   fullPaymentDueDate: "",
@@ -59,8 +65,13 @@ export default function BookingDialog({
   initialValues,
   customers,
   services,
+  serviceCategories = [],
   payments,
   expenses,
+  timezone,
+  onQuickCreateCustomer,
+  onQuickCreateService,
+  onQuickCreateServiceCategory,
   onClose,
   onCreate,
   onUpdate,
@@ -82,6 +93,22 @@ export default function BookingDialog({
     defaultValues,
     mode: "onTouched",
   });
+  const { fields: scheduleFields, append, remove, replace } = useFieldArray({ control, name: "sessions" });
+  const watchedSessions = useWatch({ control, name: "sessions" });
+  const lastDefaultedServiceId = useRef<string | null>(null);
+  const [quickCustomerOpen, setQuickCustomerOpen] = useState(false);
+  const [quickServiceOpen, setQuickServiceOpen] = useState(false);
+  const [quickPending, setQuickPending] = useState(false);
+  const [quickError, setQuickError] = useState("");
+  const [quickCustomer, setQuickCustomer] = useState({ name: "", phone: "" });
+  const [quickService, setQuickService] = useState({
+    name: "",
+    categoryId: "",
+    price: 0,
+    duration: 60,
+    defaultSessionCount: 1,
+  });
+  const [quickCategoryName, setQuickCategoryName] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -90,10 +117,7 @@ export default function BookingDialog({
       reset({
         customerId: booking.customerId,
         serviceId: booking.serviceId,
-        bookingDate: booking.bookingDate,
-        startTime: booking.startTime,
-        endTime: booking.endTime,
-        location: booking.location,
+        sessions: booking.sessions.map((session) => sessionToFormValues(session, timezone)),
         servicePrice: booking.servicePrice,
         bookingStatus: booking.bookingStatus,
         fullPaymentDueDate: booking.fullPaymentDueDate,
@@ -102,21 +126,19 @@ export default function BookingDialog({
       return;
     }
 
+    lastDefaultedServiceId.current = null;
     reset({
       ...defaultValues,
       ...(initialValues ?? {}),
     });
-  }, [open, booking, initialValues, reset]);
+  }, [open, booking, initialValues, reset, timezone]);
 
   const selectedServiceId = watch("serviceId");
-  const bookingDateValue = watch("bookingDate");
-  const startTimeValue = watch("startTime");
-  const endTimeValue = watch("endTime");
   const servicePriceValue = watch("servicePrice");
   const selectedService = services.find((service) => service.id === selectedServiceId);
   const bookingPayments = booking ? payments.filter((payment) => payment.bookingId === booking.id) : [];
 
-  // Booking Profit ??computed from payments and expenses for this booking
+  // Booking Profit — computed from payments and expenses for this booking
   const totalPaid = bookingPayments.reduce((sum, p) => sum + p.amount, 0);
   const bookingExpensesTotal = booking ? getBookingExpenses(booking.id, expenses) : 0;
   const effectivePrice = Number(servicePriceValue) || 0;
@@ -124,7 +146,6 @@ export default function BookingDialog({
   const outstanding = isCancelled ? 0 : Math.max(effectivePrice - totalPaid, 0);
   const canAddPayment = !isCancelled && outstanding > 0;
   const netRevenue = totalPaid - bookingExpensesTotal;
-  const endsNextDay = doesBookingEndNextDay(startTimeValue, endTimeValue);
 
   useEffect(() => {
     if (!selectedService) return;
@@ -132,16 +153,109 @@ export default function BookingDialog({
   }, [selectedService, setValue]);
 
   useEffect(() => {
-    if (!selectedService || !startTimeValue) return;
+    if (!selectedService || booking || lastDefaultedServiceId.current === selectedService.id) return;
+    lastDefaultedServiceId.current = selectedService.id;
+    const current = watchedSessions ?? [];
+    const untouched = current.every((session) =>
+      !session.date && !session.startTime && !session.endTime && !session.location && !session.label && !session.notes,
+    );
+    if (!untouched) return;
+    replace(Array.from({ length: selectedService.defaultSessionCount }, () => ({
+      label: "",
+      date: "",
+      startTime: "",
+      endTime: "",
+      location: "",
+      notes: "",
+    })));
+  }, [selectedService, booking, watchedSessions, replace]);
 
-    const [hh, mm] = startTimeValue.split(":");
-    const date = new Date();
-    date.setHours(Number(hh), Number(mm), 0, 0);
-    date.setMinutes(date.getMinutes() + selectedService.duration);
-    const endHH = String(date.getHours()).padStart(2, "0");
-    const endMM = String(date.getMinutes()).padStart(2, "0");
-    setValue("endTime", `${endHH}:${endMM}`, { shouldValidate: true });
-  }, [selectedService, startTimeValue, setValue]);
+  function suggestEndTime(index: number) {
+    const startTime = watchedSessions?.[index]?.startTime;
+    if (!selectedService || !startTime || watchedSessions?.[index]?.endTime) return;
+    const [hours, minutes] = startTime.split(":").map(Number);
+    const end = new Date(2000, 0, 1, hours, minutes + selectedService.duration);
+    setValue(
+      `sessions.${index}.endTime`,
+      `${String(end.getHours()).padStart(2, "0")}:${String(end.getMinutes()).padStart(2, "0")}`,
+      { shouldValidate: true },
+    );
+  }
+
+  async function createCustomerInline() {
+    if (!onQuickCreateCustomer || !quickCustomer.name.trim() || !quickCustomer.phone.trim()) {
+      setQuickError("Customer name and phone are required.");
+      return;
+    }
+    setQuickPending(true);
+    setQuickError("");
+    const created = await onQuickCreateCustomer({
+      name: quickCustomer.name.trim(),
+      phone: quickCustomer.phone.trim(),
+      instagram: "",
+      email: "",
+      notes: "",
+    });
+    setQuickPending(false);
+    if (!created) {
+      setQuickError("Could not add the customer.");
+      return;
+    }
+    setValue("customerId", created.id, { shouldValidate: true });
+    setQuickCustomer({ name: "", phone: "" });
+    setQuickCustomerOpen(false);
+    notify.success("Customer added without losing the booking details.");
+  }
+
+  async function createServiceInline() {
+    if (!onQuickCreateService || !quickService.name.trim() || !quickService.categoryId) {
+      setQuickError("Service name and category are required.");
+      return;
+    }
+    if (quickService.price <= 0 || quickService.duration <= 0 || quickService.defaultSessionCount < 1) {
+      setQuickError("Enter a valid price, duration, and session count.");
+      return;
+    }
+    setQuickPending(true);
+    setQuickError("");
+    const created = await onQuickCreateService({
+      name: quickService.name.trim(),
+      categoryId: quickService.categoryId,
+      price: quickService.price,
+      duration: quickService.duration,
+      defaultSessionCount: quickService.defaultSessionCount,
+      description: "",
+    });
+    setQuickPending(false);
+    if (!created) {
+      setQuickError("Could not add the service.");
+      return;
+    }
+    setValue("serviceId", created.id, { shouldValidate: true });
+    setQuickService({ name: "", categoryId: "", price: 0, duration: 60, defaultSessionCount: 1 });
+    setQuickServiceOpen(false);
+    notify.success("Service added without losing the booking details.");
+  }
+
+  async function createServiceCategoryInline() {
+    if (!onQuickCreateServiceCategory || !quickCategoryName.trim()) {
+      setQuickError("Category name is required.");
+      return;
+    }
+    setQuickPending(true);
+    setQuickError("");
+    try {
+      const created = await onQuickCreateServiceCategory(quickCategoryName.trim());
+      if (!created) throw new Error("CATEGORY_CREATE_FAILED");
+      setQuickService((value) => ({ ...value, categoryId: created.id }));
+      setQuickCategoryName("");
+      notify.success("Category added and selected.");
+    } catch {
+      setQuickError("Could not add that category. Check for a duplicate name.");
+    } finally {
+      setQuickPending(false);
+    }
+  }
 
   function handleClose() {
     reset(defaultValues);
@@ -202,6 +316,21 @@ export default function BookingDialog({
               )}
             />
             {errors.customerId && <p className="mt-2 text-sm text-destructive">{errors.customerId.message}</p>}
+            {onQuickCreateCustomer && (
+              <div className="mt-3">
+                <Button type="button" variant="outline" size="sm" onClick={() => { setQuickCustomerOpen((value) => !value); setQuickError(""); }}>
+                  <Plus className="size-4" aria-hidden="true" /> Add New Customer
+                </Button>
+                {quickCustomerOpen && (
+                  <div className="mt-3 space-y-3 rounded-xl border border-border bg-muted/30 p-4">
+                    <div><Label className="mb-2 block">Customer Name</Label><Input value={quickCustomer.name} onChange={(event) => setQuickCustomer((value) => ({ ...value, name: event.target.value }))} /></div>
+                    <div><Label className="mb-2 block">Phone</Label><Input inputMode="tel" value={quickCustomer.phone} onChange={(event) => setQuickCustomer((value) => ({ ...value, phone: event.target.value }))} /></div>
+                    {quickError && <p className="text-sm text-destructive">{quickError}</p>}
+                    <div className="flex gap-2"><Button type="button" size="sm" disabled={quickPending} onClick={createCustomerInline}>{quickPending ? "Adding…" : "Add and Select"}</Button><Button type="button" size="sm" variant="ghost" onClick={() => setQuickCustomerOpen(false)}>Cancel</Button></div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div>
@@ -227,39 +356,139 @@ export default function BookingDialog({
               )}
             />
             {errors.serviceId && <p className="mt-2 text-sm text-destructive">{errors.serviceId.message}</p>}
+            {onQuickCreateService && (
+              <div className="mt-3">
+                <Button type="button" variant="outline" size="sm" onClick={() => {
+                  setQuickServiceOpen((value) => !value);
+                  setQuickError("");
+                  setQuickService((value) => ({ ...value, categoryId: value.categoryId || serviceCategories.find((category) => category.active)?.id || "" }));
+                }}>
+                  <Plus className="size-4" aria-hidden="true" /> Add New Service
+                </Button>
+                {quickServiceOpen && (
+                  <div className="mt-3 space-y-3 rounded-xl border border-border bg-muted/30 p-4">
+                    <div><Label className="mb-2 block">Service Name</Label><Input value={quickService.name} onChange={(event) => setQuickService((value) => ({ ...value, name: event.target.value }))} /></div>
+                    <div>
+                      <Label className="mb-2 block">Category</Label>
+                      <Select value={quickService.categoryId} onValueChange={(categoryId) => setQuickService((value) => ({ ...value, categoryId: categoryId ?? "" }))}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select category">
+                            {quickService.categoryId
+                              ? serviceCategories.find((category) => category.id === quickService.categoryId)?.name ?? "Selected category"
+                              : undefined}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>{serviceCategories.filter((category) => category.active).map((category) => <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    {onQuickCreateServiceCategory && (
+                      <div>
+                        <Label className="mb-2 block">New Category</Label>
+                        <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                          <Input value={quickCategoryName} onChange={(event) => setQuickCategoryName(event.target.value)} placeholder="e.g. Makeup" />
+                          <Button type="button" variant="outline" disabled={quickPending} onClick={createServiceCategoryInline}>Add Category</Button>
+                        </div>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div><Label className="mb-2 block">Price</Label><MoneyInput value={quickService.price} onChange={(price) => setQuickService((value) => ({ ...value, price }))} /></div>
+                      <div><Label className="mb-2 block">Duration</Label><Input type="number" min={1} inputMode="numeric" value={quickService.duration} onChange={(event) => setQuickService((value) => ({ ...value, duration: Number(event.target.value) }))} /></div>
+                    </div>
+                    <div><Label className="mb-2 block">Default Sessions</Label><Input type="number" min={1} max={50} inputMode="numeric" value={quickService.defaultSessionCount} onChange={(event) => setQuickService((value) => ({ ...value, defaultSessionCount: Number(event.target.value) }))} /></div>
+                    {quickError && <p className="text-sm text-destructive">{quickError}</p>}
+                    <div className="flex gap-2"><Button type="button" size="sm" disabled={quickPending} onClick={createServiceInline}>{quickPending ? "Adding…" : "Add and Select"}</Button><Button type="button" size="sm" variant="ghost" onClick={() => setQuickServiceOpen(false)}>Cancel</Button></div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+          <section className="space-y-4" aria-labelledby="booking-schedule-heading">
             <div>
-              <Label className="mb-2 block font-semibold">Booking Date</Label>
-              <Input type="date" {...register("bookingDate")} />
-              {errors.bookingDate && <p className="mt-2 text-sm text-destructive">{errors.bookingDate.message}</p>}
+              <h3 id="booking-schedule-heading" className="font-semibold text-foreground">Schedule</h3>
+              <p className="mt-1 text-sm text-muted-foreground">Add every date included in this booking.</p>
             </div>
-            <div>
-              <Label className="mb-2 block font-semibold">Location</Label>
-              <Input {...register("location")} />
-              {errors.location && <p className="mt-2 text-sm text-destructive">{errors.location.message}</p>}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            <div>
-              <Label className="mb-2 block font-semibold">Start Time</Label>
-              <Input type="time" {...register("startTime")} />
-              {errors.startTime && <p className="mt-2 text-sm text-destructive">{errors.startTime.message}</p>}
-            </div>
-            <div>
-              <Label className="mb-2 block font-semibold">End Time</Label>
-              <Input type="time" {...register("endTime")} />
-              {errors.endTime && <p className="mt-2 text-sm text-destructive">{errors.endTime.message}</p>}
-            </div>
-          </div>
-          {bookingDateValue && startTimeValue && endTimeValue && endsNextDay === true && (
-            <p className="mt-1.5 flex items-center gap-2 text-sm text-muted-foreground">
-              <Info className="size-4 shrink-0" aria-hidden="true" />
-              <span>Ends the next day.</span>
-            </p>
-          )}
+            {scheduleFields.map((field, index) => {
+              const sessionError = errors.sessions?.[index];
+              const session = watchedSessions?.[index];
+              const endsNextDay = doesBookingEndNextDay(session?.startTime ?? "", session?.endTime ?? "");
+              const startTimeField = register(`sessions.${index}.startTime`);
+              return (
+                <div key={field.id} className="space-y-4 rounded-2xl border border-border bg-muted/30 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-semibold text-foreground">Session {index + 1}</p>
+                    {scheduleFields.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive"
+                        onClick={() => remove(index)}
+                        aria-label={`Remove session ${index + 1}`}
+                      >
+                        <Trash2 className="size-4" aria-hidden="true" /> Remove
+                      </Button>
+                    )}
+                  </div>
+                  <input type="hidden" {...register(`sessions.${index}.id`)} />
+                  <div>
+                    <Label className="mb-2 block">Label <span className="font-normal text-muted-foreground">(optional)</span></Label>
+                    <Input {...register(`sessions.${index}.label`)} placeholder="e.g. Akad, Reception, Class 2" />
+                    {sessionError?.label && <p className="mt-2 text-sm text-destructive">{sessionError.label.message}</p>}
+                  </div>
+                  <div>
+                    <Label className="mb-2 block">Date</Label>
+                    <Input type="date" {...register(`sessions.${index}.date`)} />
+                    {sessionError?.date && <p className="mt-2 text-sm text-destructive">{sessionError.date.message}</p>}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="min-w-0">
+                      <Label className="mb-2 block">Start</Label>
+                      <Input
+                        type="time"
+                        {...startTimeField}
+                        onBlur={(event) => {
+                          void startTimeField.onBlur(event);
+                          suggestEndTime(index);
+                        }}
+                      />
+                      {sessionError?.startTime && <p className="mt-2 text-sm text-destructive">{sessionError.startTime.message}</p>}
+                    </div>
+                    <div className="min-w-0">
+                      <Label className="mb-2 block">End</Label>
+                      <Input type="time" {...register(`sessions.${index}.endTime`)} />
+                      {sessionError?.endTime && <p className="mt-2 text-sm text-destructive">{sessionError.endTime.message}</p>}
+                    </div>
+                  </div>
+                  {endsNextDay === true && (
+                    <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Info className="size-4 shrink-0" aria-hidden="true" /> Ends the next day.
+                    </p>
+                  )}
+                  <div>
+                    <Label className="mb-2 block">Location <span className="font-normal text-muted-foreground">(optional)</span></Label>
+                    <Input {...register(`sessions.${index}.location`)} />
+                  </div>
+                  <div>
+                    <Label className="mb-2 block">Session Notes <span className="font-normal text-muted-foreground">(optional)</span></Label>
+                    <Textarea rows={2} {...register(`sessions.${index}.notes`)} />
+                  </div>
+                </div>
+              );
+            })}
+            {typeof errors.sessions?.message === "string" && (
+              <p className="text-sm text-destructive">{errors.sessions.message}</p>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              disabled={scheduleFields.length >= 50}
+              onClick={() => append({ label: "", date: "", startTime: "", endTime: "", location: "", notes: "" })}
+            >
+              <Plus className="size-4" aria-hidden="true" /> Add Another Schedule
+            </Button>
+          </section>
 
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div>
@@ -377,7 +606,7 @@ export default function BookingDialog({
             )}
           </div>
 
-          {/* Booking Profit ??only shown when editing */}
+          {/* Booking Profit — only shown when editing */}
           {booking && (
             <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
               <h3 className="mb-3 font-semibold text-slate-900">Booking Profit</h3>

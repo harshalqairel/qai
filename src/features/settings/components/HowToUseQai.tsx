@@ -21,7 +21,7 @@ const SECTIONS = [
   },
   {
     title: "Check the Dashboard",
-    description: "Use the Dashboard to see money received, unpaid amounts, expenses, profit, and upcoming work.",
+    description: "Use the Dashboard to see income, unpaid amounts, expenses, profit, and upcoming work.",
   },
   {
     title: "Back up your data",

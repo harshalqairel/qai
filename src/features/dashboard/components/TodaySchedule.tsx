@@ -1,12 +1,13 @@
-import type { EnrichedBooking } from "@/features/dashboard/hooks/useDashboard";
-import { formatBookingTime } from "@/features/dashboard/utils";
+import type { ScheduledSessionItem } from "@/features/dashboard/hooks/useDashboard";
+import { formatSessionTime } from "@/features/booking/utils/bookingSessions";
 import { BookingStatusBadge, PaymentStatusBadge } from "./DashboardStatusBadge";
 
 type TodayScheduleProps = {
-  items: EnrichedBooking[];
+  items: ScheduledSessionItem[];
+  timezone: string;
 };
 
-export default function TodaySchedule({ items }: TodayScheduleProps) {
+export default function TodaySchedule({ items, timezone }: TodayScheduleProps) {
   return (
     <section>
       <div className="flex items-center justify-between gap-3">
@@ -27,7 +28,7 @@ export default function TodaySchedule({ items }: TodayScheduleProps) {
         <div className="mt-5 space-y-3">
           {items.map((booking) => (
             <article
-              key={booking.id}
+              key={booking.session.id}
               className="rounded-xl border border-[var(--dashboard-border)] bg-white p-4"
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -36,7 +37,7 @@ export default function TodaySchedule({ items }: TodayScheduleProps) {
                     {booking.customerName}
                   </p>
                   <p className="mt-0.5 truncate text-sm text-[var(--dashboard-muted-text)]">
-                    {booking.serviceName}
+                    {booking.serviceName}{booking.session.label ? ` · ${booking.session.label}` : ""}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -46,9 +47,9 @@ export default function TodaySchedule({ items }: TodayScheduleProps) {
               </div>
               <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 border-t border-[var(--dashboard-border)] pt-3 text-sm text-[var(--dashboard-muted-text)]">
                 <span className="font-medium text-[var(--dashboard-text)]">
-                  {formatBookingTime(booking.bookingDate, booking.startTime, booking.endTime)}
+                  {formatSessionTime(booking.session, timezone)}
                 </span>
-                {booking.location.trim() && <span>{booking.location}</span>}
+                {booking.session.location.trim() && <span>{booking.session.location}</span>}
               </div>
             </article>
           ))}

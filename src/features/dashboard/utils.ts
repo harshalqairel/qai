@@ -15,3 +15,7 @@ export function formatBookingTime(
 ): string {
   return formatBookingTimeRange(bookingDate, startTime, endTime);
 }
+
+export function getOverdueAgeDays(dueDate: string, todayDate: string): number {
+  return Math.max(0, Math.round((Date.parse(`${todayDate}T00:00:00Z`) - Date.parse(`${dueDate}T00:00:00Z`)) / 86_400_000));
+}

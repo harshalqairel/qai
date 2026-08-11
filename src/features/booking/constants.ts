@@ -1,4 +1,6 @@
 export const BOOKING_STORAGE_KEY = "qai:bookings";
+export const BOOKING_STORAGE_VERSION = 2;
+export const MAX_BOOKING_SESSIONS = 50;
 
 export const BOOKING_STATUSES = [
   "Scheduled",

@@ -1,7 +1,10 @@
+"use client";
+
+import { useRouter } from "next/navigation";
 import type { EnrichedBooking } from "@/features/dashboard/hooks/useDashboard";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
-import { formatDashboardDate } from "@/features/dashboard/utils";
-import { PaymentStatusBadge } from "./DashboardStatusBadge";
+import { formatDashboardDate, getOverdueAgeDays } from "@/features/dashboard/utils";
+import ReminderActions from "@/features/reminder/components/ReminderActions";
 
 type PaymentDueListProps = {
   title: "Payments Due Soon" | "Late Payments";
@@ -9,6 +12,8 @@ type PaymentDueListProps = {
   emptyMessage: string;
   items: EnrichedBooking[];
   late?: boolean;
+  todayKey: string;
+  businessName: string;
 };
 
 export default function PaymentDueList({
@@ -17,7 +22,11 @@ export default function PaymentDueList({
   emptyMessage,
   items,
   late = false,
+  todayKey,
+  businessName,
 }: PaymentDueListProps) {
+  const router = useRouter();
+  const openBooking = (id: string) => router.push(`/bookings?booking=${encodeURIComponent(id)}`);
   return (
     <section>
       <div className="flex items-start justify-between gap-3">
@@ -44,8 +53,10 @@ export default function PaymentDueList({
         </div>
       ) : (
         <div className="mt-5 divide-y divide-[var(--dashboard-border)]">
-          {items.map((booking) => (
-            <article key={booking.id} className="py-4 first:pt-0 last:pb-0">
+          {items.map((booking) => {
+            const overdueDays = late ? getOverdueAgeDays(booking.fullPaymentDueDate, todayKey) : 0;
+            return (
+            <article key={booking.id} role="link" tabIndex={0} onClick={() => openBooking(booking.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openBooking(booking.id); } }} className="cursor-pointer rounded-xl py-4 transition hover:bg-[var(--dashboard-surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring first:pt-0 last:pb-0 sm:px-2">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <p className="truncate font-semibold text-[var(--dashboard-text)]">
@@ -55,18 +66,19 @@ export default function PaymentDueList({
                     {booking.serviceName}
                   </p>
                   <p className={`mt-2 text-sm font-medium ${late ? "text-[var(--dashboard-expense-text)]" : "text-[var(--dashboard-unpaid-text)]"}`}>
-                    {late ? "Was due" : "Due"} {formatDashboardDate(booking.fullPaymentDueDate)}
+                    {late ? `${overdueDays} day${overdueDays === 1 ? "" : "s"} overdue` : `Due ${formatDashboardDate(booking.fullPaymentDueDate)}`}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center justify-between gap-3 sm:flex-col sm:items-end">
                   <p className="font-semibold text-[var(--dashboard-text)] tabular-nums">
-                    {formatRupiah(booking.remainingAmount)}
+                    {formatRupiah(booking.remainingAmount)} <span className="font-normal text-[var(--dashboard-muted-text)]">remaining</span>
                   </p>
-                  <PaymentStatusBadge status={booking.paymentStatus} />
+                  {late && <p className="text-xs text-[var(--dashboard-muted-text)]">Due {formatDashboardDate(booking.fullPaymentDueDate)}</p>}
                 </div>
               </div>
+              <ReminderActions bookingId={booking.id} customerId={booking.customerId} customerName={booking.customerName} customerPhone={booking.customerPhone} customerEmail={booking.customerEmail} serviceName={booking.serviceName} businessName={businessName} remainingAmount={booking.remainingAmount} dueDate={formatDashboardDate(booking.fullPaymentDueDate)} />
             </article>
-          ))}
+          );})}
         </div>
       )}
     </section>

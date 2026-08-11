@@ -1,11 +1,13 @@
 import type { CalendarBooking, CalendarView } from "../types";
 import EmptyState from "@/components/system/EmptyState";
 import { CalendarX } from "lucide-react";
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   compareByBookingStartDateTime,
   formatBookingTimeRange,
-  getBookingCoveredDateKeys,
 } from "@/features/booking/utils/bookingDateRange";
+import { calendarDateKey, getMonthGridDays, groupCalendarBookingsByDate } from "../calendarUtils";
 
 const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -41,7 +43,88 @@ type CalendarViewProps = {
   bookings: CalendarBooking[];
   onBookingClick: (booking: CalendarBooking) => void;
   onDateClick: (date: string) => void;
+  onSelectDate: (date: string) => void;
+  todayKey: string;
 };
+
+function MobileMonthAgenda({ activeDate, bookingsByDate, onBookingClick, onSelectDate, onAddDate, todayKey }: {
+  activeDate: Date;
+  bookingsByDate: Map<string, CalendarBooking[]>;
+  onBookingClick: (booking: CalendarBooking) => void;
+  onSelectDate: (date: string) => void;
+  onAddDate: (date: string) => void;
+  todayKey: string;
+}) {
+  const selectedKey = calendarDateKey(activeDate);
+  const selectedSessions = bookingsByDate.get(selectedKey) ?? [];
+  const gridDays = getMonthGridDays(activeDate);
+  const selectedLabel = new Intl.DateTimeFormat("en-US", { day: "numeric", weekday: "short" }).format(activeDate).toUpperCase();
+  const addLabel = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(activeDate);
+
+  return (
+    <div className="md:hidden">
+      <section aria-label="Month calendar" className="overflow-hidden rounded-xl border border-border bg-white">
+        <div className="grid grid-cols-7 border-b border-border px-1 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {WEEK_DAYS.map((day) => <span key={day}>{day}</span>)}
+        </div>
+        <div className="grid grid-cols-7 p-1">
+          {gridDays.map((day) => {
+            const dateKey = calendarDateKey(day);
+            const sessions = bookingsByDate.get(dateKey) ?? [];
+            const currentMonth = day.getMonth() === activeDate.getMonth();
+            const selected = dateKey === selectedKey;
+            const today = dateKey === todayKey;
+            return (
+              <button
+                key={dateKey}
+                type="button"
+                onClick={() => onSelectDate(dateKey)}
+                aria-pressed={selected}
+                aria-label={`${new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(day)}${today ? ", today" : ""}${sessions.length ? `, ${sessions.length} scheduled session${sessions.length === 1 ? "" : "s"}` : ""}`}
+                className={`relative flex min-h-14 min-w-0 flex-col items-center rounded-lg px-0.5 py-1.5 text-sm transition focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring ${selected ? "bg-[var(--brand)] text-white shadow-sm" : currentMonth ? "text-foreground hover:bg-muted" : "text-muted-foreground/55 hover:bg-muted/60"} ${today && !selected ? "ring-1 ring-inset ring-[var(--brand)]" : ""}`}
+              >
+                <span className="font-semibold tabular-nums">{day.getDate()}</span>
+                <span className="mt-1 flex min-h-3 w-full flex-col items-center gap-0.5" aria-hidden="true">
+                  {sessions.slice(0, 2).map((booking) => <span key={booking.session.id} className={`h-1 w-4 max-w-full rounded-full ${selected ? "bg-white/85" : booking.bookingStatus === "Cancelled" ? "bg-rose-400" : "bg-[var(--brand)]/70"}`} />)}
+                  {sessions.length > 2 && <span className={`text-[9px] font-bold leading-none ${selected ? "text-white" : "text-muted-foreground"}`}>+{sessions.length - 2}</span>}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section aria-label={`Schedule for ${selectedKey}`} className="mt-5">
+        <div className="flex items-center justify-between gap-3">
+          <div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--brand)]">Selected day</p><h2 className="mt-1 text-xl font-bold tracking-tight">{selectedLabel}</h2></div>
+          <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">{selectedSessions.length} session{selectedSessions.length === 1 ? "" : "s"}</span>
+        </div>
+
+        {selectedSessions.length === 0 ? (
+          <div className="mt-4 rounded-xl border border-dashed border-border bg-muted/40 p-6 text-center text-sm text-muted-foreground">No bookings on this day.</div>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {selectedSessions.map((booking) => (
+              <button key={booking.session.id} type="button" onClick={() => onBookingClick(booking)} className="grid min-h-20 w-full grid-cols-[48px_minmax(0,1fr)] gap-3 rounded-xl border border-border bg-white p-3 text-left shadow-sm transition hover:border-[var(--brand)] focus-visible:ring-2 focus-visible:ring-ring">
+                <span className="pt-0.5 text-sm font-bold tabular-nums text-[var(--brand)]">{booking.startTime}</span>
+                <span className="min-w-0 border-l border-border pl-3">
+                  <span className="block truncate font-semibold text-foreground">{booking.serviceName} · {booking.customerName}</span>
+                  <span className="mt-1 block text-sm text-muted-foreground">{formatBookingTimeRange(booking.bookingDate, booking.startTime, booking.endTime)}</span>
+                  {booking.location && <span className="mt-1 block truncate text-sm text-muted-foreground">{booking.location}</span>}
+                  {booking.sessions.length > 1 && <span className="mt-2 inline-flex rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">Session {booking.session.sequence} of {booking.sessions.length}</span>}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <Button type="button" size="lg" className="mt-5 min-h-12 w-full" onClick={() => onAddDate(selectedKey)}>
+          <Plus aria-hidden="true" /> Add on {addLabel}
+        </Button>
+      </section>
+    </div>
+  );
+}
 
 // ── Agenda / list view (chronological) ─────────────────────────────────────
 function AgendaView({ bookings, onBookingClick, onDateClick }: Pick<CalendarViewProps, "bookings" | "onBookingClick" | "onDateClick">) {
@@ -83,7 +166,7 @@ function AgendaView({ bookings, onBookingClick, onDateClick }: Pick<CalendarView
             <div className="space-y-3">
               {items.map((b) => (
                 <button
-                  key={b.id}
+                  key={b.session.id}
                   type="button"
                   onClick={() => onBookingClick(b)}
                   className={`w-full rounded-2xl border px-4 py-3 text-left shadow-sm transition hover:brightness-95 ${statusClasses(b.bookingStatus)}`}
@@ -144,7 +227,7 @@ function MonthView({ activeDate, bookingsByDate, onBookingClick, onDateClick }: 
               <div className="space-y-1">
                 {dayBookings.slice(0, 2).map((booking) => (
                   <button
-                    key={booking.id}
+                    key={booking.session.id}
                     type="button"
                     onClick={(e) => { e.stopPropagation(); onBookingClick(booking); }}
                     className={`w-full rounded-xl border px-2 py-1 text-left text-[10px] shadow-sm transition hover:brightness-95 lg:rounded-2xl lg:text-xs ${statusClasses(booking.bookingStatus)}`}
@@ -206,7 +289,7 @@ function WeekView({ activeDate, bookingsByDate, onBookingClick, onDateClick }: {
               <div className="space-y-2">
                 {dayBookings.map((booking) => (
                   <button
-                    key={booking.id}
+                    key={booking.session.id}
                     type="button"
                     onClick={() => onBookingClick(booking)}
                     className={`w-full rounded-2xl border px-3 py-2 text-left shadow-sm transition hover:brightness-95 ${statusClasses(booking.bookingStatus)}`}
@@ -260,7 +343,7 @@ function DayView({ activeDate, bookingsByDate, onBookingClick, onDateClick }: {
         <div className="space-y-3">
           {dayBookings.map((booking) => (
             <button
-              key={booking.id}
+              key={booking.session.id}
               type="button"
               onClick={() => onBookingClick(booking)}
               className="w-full rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-left shadow-sm transition hover:border-zinc-300"
@@ -288,24 +371,10 @@ export default function CalendarView({
   bookings,
   onBookingClick,
   onDateClick,
+  onSelectDate,
+  todayKey,
 }: CalendarViewProps) {
-  const bookingsByDate = bookings.reduce((map, booking) => {
-    const coveredDates = getBookingCoveredDateKeys({
-      bookingDate: booking.bookingDate,
-      startTime: booking.startTime,
-      endTime: booking.endTime,
-    });
-    for (const dateKey of coveredDates) {
-      const group = map.get(dateKey) ?? [];
-      group.push(booking);
-      map.set(dateKey, group);
-    }
-    return map;
-  }, new Map<string, CalendarBooking[]>());
-
-  for (const [dateKey, groupedBookings] of bookingsByDate.entries()) {
-    bookingsByDate.set(dateKey, [...groupedBookings].sort(compareByBookingStartDateTime));
-  }
+  const bookingsByDate = groupCalendarBookingsByDate(bookings);
 
   const hasBookingsThisMonth = Array.from(bookingsByDate.keys()).some((dateKey) => {
     const date = new Date(`${dateKey}T00:00:00`);
@@ -317,12 +386,9 @@ export default function CalendarView({
   return (
     <>
       {view === "month" && !hasBookingsThisMonth && (
-        <EmptyState icon={CalendarX} title="No bookings this month." className="mb-4 p-6 sm:p-8" />
+        <div className="hidden md:block"><EmptyState icon={CalendarX} title="No bookings this month." className="mb-4 p-6 sm:p-8" /></div>
       )}
-      {/* On phones (<md): always show Agenda */}
-      <div className="block md:hidden">
-        <AgendaView bookings={bookings} onBookingClick={onBookingClick} onDateClick={onDateClick} />
-      </div>
+      <MobileMonthAgenda activeDate={activeDate} bookingsByDate={bookingsByDate} onBookingClick={onBookingClick} onSelectDate={onSelectDate} onAddDate={onDateClick} todayKey={todayKey} />
 
       {/* On tablet (md–lg): Month and Week only (no Day) */}
       {/* On desktop (lg+): all three views */}

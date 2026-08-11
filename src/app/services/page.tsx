@@ -129,6 +129,7 @@ export default function ServicesPage() {
             categoryId: service.categoryId,
             price: service.price,
             duration: service.duration,
+            defaultSessionCount: service.defaultSessionCount,
             description: service.description,
           };
 

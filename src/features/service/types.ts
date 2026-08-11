@@ -4,6 +4,7 @@ export type Service = {
   categoryId: string;
   price: number;
   duration: number;
+  defaultSessionCount: number;
   description: string;
   active: boolean;
 };
@@ -13,5 +14,6 @@ export type CreateServiceInput = {
   categoryId: string;
   price: number;
   duration: number;
+  defaultSessionCount: number;
   description: string;
 };

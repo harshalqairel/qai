@@ -1,6 +1,6 @@
 "use client";
 
-import type { Booking } from "@/features/booking/types";
+import type { Booking, BookingSession } from "@/features/booking/types";
 import type { BookingDeleteResult } from "@/features/booking/api/bookingRepository";
 import type { Customer } from "@/features/customer/types";
 import type { ExpenseCategory } from "@/features/expense-category/types";
@@ -14,6 +14,7 @@ type DbRow = Record<string, unknown>;
 
 export type ActiveBusinessContext = {
   businessId: string;
+  businessName: string;
   currency: string;
   timezone: string;
 };
@@ -77,13 +78,14 @@ export function getActiveBusinessContext(): Promise<ActiveBusinessContext> {
 
     const { data: business, error: businessError } = await supabase
       .from("businesses")
-      .select("currency, timezone")
+      .select("name, currency, timezone")
       .eq("id", businessId)
       .single();
     throwOnError(businessError);
 
     return {
       businessId,
+      businessName: typeof business?.name === "string" ? business.name : "Qai Business",
       currency: typeof business?.currency === "string" ? business.currency : "IDR",
       timezone: typeof business?.timezone === "string" ? business.timezone : "Asia/Jakarta",
     };
@@ -221,6 +223,7 @@ function serviceFromRow(row: DbRow): Service {
     categoryId: valueAsString(row, "category_id"),
     price: valueAsNumber(row, "price"),
     duration: valueAsNumber(row, "duration_minutes"),
+    defaultSessionCount: valueAsNumber(row, "default_session_count") || 1,
     description: valueAsString(row, "description"),
     active: valueAsBoolean(row, "active"),
   };
@@ -233,6 +236,7 @@ function serviceToRow(service: Service): DbRow {
     category_id: service.categoryId,
     price: service.price,
     duration_minutes: service.duration,
+    default_session_count: service.defaultSessionCount,
     description: service.description,
     active: service.active,
   };
@@ -246,15 +250,27 @@ export const cloudServiceRepository = {
   save: (services: Service[]) => upsertAll("services", services.map(serviceToRow)),
 };
 
-function bookingFromRow(row: DbRow): Booking {
+function bookingSessionFromRow(row: DbRow): BookingSession {
+  return {
+    id: valueAsString(row, "id"),
+    bookingId: valueAsString(row, "booking_id"),
+    sequence: valueAsNumber(row, "sequence"),
+    label: valueAsString(row, "label"),
+    startAt: valueAsString(row, "start_at"),
+    endAt: valueAsString(row, "end_at"),
+    location: valueAsString(row, "location"),
+    notes: valueAsString(row, "notes"),
+    createdAt: timestamp(row.created_at),
+    updatedAt: timestamp(row.updated_at),
+  };
+}
+
+function bookingFromRow(row: DbRow, sessions: BookingSession[]): Booking {
   return {
     id: valueAsString(row, "id"),
     customerId: valueAsString(row, "customer_id"),
     serviceId: valueAsString(row, "service_id"),
-    bookingDate: valueAsString(row, "booking_date"),
-    startTime: valueAsString(row, "start_time").slice(0, 5),
-    endTime: valueAsString(row, "end_time").slice(0, 5),
-    location: valueAsString(row, "location"),
+    sessions,
     servicePrice: valueAsNumber(row, "service_price"),
     bookingStatus: valueAsString(row, "booking_status") as Booking["bookingStatus"],
     fullPaymentDueDate: valueAsString(row, "full_payment_due_date"),
@@ -264,33 +280,64 @@ function bookingFromRow(row: DbRow): Booking {
   };
 }
 
-async function bookingToRow(booking: Booking): Promise<DbRow> {
-  const { timezone } = await getActiveBusinessContext();
+function bookingToPayload(booking: Booking): DbRow {
   return {
     id: booking.id,
     customer_id: booking.customerId,
     service_id: booking.serviceId,
-    booking_date: booking.bookingDate,
-    start_time: booking.startTime,
-    end_time: booking.endTime,
-    timezone,
-    location: booking.location,
     service_price: booking.servicePrice,
     booking_status: booking.bookingStatus,
     full_payment_due_date: booking.fullPaymentDueDate,
     notes: booking.notes,
     created_at: isoTimestamp(booking.createdAt),
     updated_at: isoTimestamp(booking.updatedAt),
+    sessions: booking.sessions.map((session) => ({
+      id: session.id,
+      sequence: session.sequence,
+      label: session.label,
+      start_at: session.startAt,
+      end_at: session.endAt,
+      location: session.location,
+      notes: session.notes,
+      created_at: isoTimestamp(session.createdAt),
+      updated_at: isoTimestamp(session.updatedAt),
+    })),
   };
 }
 
 export const cloudBookingRepository = {
-  getAll: () => getAll("bookings", bookingFromRow, "booking_date"),
+  async getAll(): Promise<Booking[]> {
+    const { businessId } = await getActiveBusinessContext();
+    const supabase = createClient();
+    const [bookingResult, sessionResult] = await Promise.all([
+      supabase.from("bookings").select("*").eq("business_id", businessId).order("created_at"),
+      supabase.from("booking_sessions").select("*").eq("business_id", businessId).order("start_at"),
+    ]);
+    throwOnError(bookingResult.error);
+    throwOnError(sessionResult.error);
+    const sessionsByBooking = new Map<string, BookingSession[]>();
+    for (const row of rows(sessionResult.data)) {
+      const session = bookingSessionFromRow(row);
+      const grouped = sessionsByBooking.get(session.bookingId) ?? [];
+      grouped.push(session);
+      sessionsByBooking.set(session.bookingId, grouped);
+    }
+    return rows(bookingResult.data)
+      .map((row) => bookingFromRow(row, sessionsByBooking.get(valueAsString(row, "id")) ?? []))
+      .filter((booking) => booking.sessions.length > 0)
+      .sort((left, right) => left.sessions[0].startAt.localeCompare(right.sessions[0].startAt));
+  },
   async create(booking: Booking) {
-    await insert("bookings", await bookingToRow(booking));
+    const { error } = await createClient().rpc("save_booking", {
+      booking_payload: bookingToPayload(booking),
+    });
+    throwOnError(error);
   },
   async update(booking: Booking) {
-    await update("bookings", booking.id, await bookingToRow(booking));
+    const { error } = await createClient().rpc("save_booking", {
+      booking_payload: bookingToPayload(booking),
+    });
+    throwOnError(error);
   },
   async delete(id: string): Promise<BookingDeleteResult> {
     const { businessId } = await getActiveBusinessContext();

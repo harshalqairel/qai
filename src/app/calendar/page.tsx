@@ -19,12 +19,18 @@ export default function CalendarPage() {
     bookingsWithNames,
     customers,
     services,
+    serviceCategories,
+    createCustomerAndReturn,
+    createServiceAndReturn,
     selectedBooking,
     initialBookingValues,
     dialogOpen,
     goPrevious,
     goNext,
     goToday,
+    goPreviousMonth,
+    goNextMonth,
+    selectDate,
     setView,
     openCreateForDate,
     openEditBooking,
@@ -34,6 +40,8 @@ export default function CalendarPage() {
     isLoading: calendarLoading,
     loadError: calendarError,
     retry: retryCalendar,
+    timezone,
+    todayKey,
   } = useCalendar();
   const paymentData = usePayments();
   const expenseData = useExpenses();
@@ -83,6 +91,8 @@ export default function CalendarPage() {
             onPrevious={goPrevious}
             onNext={goNext}
             onToday={goToday}
+            onPreviousMonth={goPreviousMonth}
+            onNextMonth={goNextMonth}
           />
 
           <div className="surface-card p-3 sm:p-6">
@@ -92,6 +102,8 @@ export default function CalendarPage() {
               bookings={bookingsWithNames}
               onBookingClick={openEditBooking}
               onDateClick={handleDateClick}
+              onSelectDate={selectDate}
+              todayKey={todayKey}
             />
           </div>
         </div>
@@ -103,14 +115,18 @@ export default function CalendarPage() {
         initialValues={initialBookingValues}
         customers={customers}
         services={services}
+        serviceCategories={serviceCategories}
         payments={payments}
         expenses={expenses}
+        timezone={timezone}
         onClose={closeDialog}
         onCreate={handleCreate}
         onUpdate={handleUpdate}
         onAddPaymentClick={(bookingId) => openPaymentDialog(bookingId)}
         onEditPaymentClick={(payment) => openPaymentDialog(payment.bookingId, payment)}
         onDeletePayment={(id) => deletePayment(id)}
+        onQuickCreateCustomer={createCustomerAndReturn}
+        onQuickCreateService={createServiceAndReturn}
       />
 
       <PaymentDialog

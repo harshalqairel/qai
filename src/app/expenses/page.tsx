@@ -14,6 +14,7 @@ import { Expense } from "@/features/expense/types";
 import { useExpenseCategories } from "@/features/expense-category/hooks/useExpenseCategories";
 import PageSkeleton from "@/components/system/PageSkeleton";
 import DataErrorState from "@/components/system/DataErrorState";
+import { firstBookingSession, instantParts } from "@/features/booking/utils/bookingSessions";
 
 type BookingOption = ExpenseBookingDetails & {
   id: string;
@@ -53,20 +54,23 @@ export default function ExpensesPage() {
       const service = services.find((item) => item.id === booking.serviceId);
       const customerName = customer?.name ?? "Customer not found";
       const serviceName = service?.name ?? "Service not found";
-      const bookingDate = formatBookingDate(booking.bookingDate);
+      const session = firstBookingSession(booking);
+      const start = instantParts(session.startAt, bookingData.timezone);
+      const end = instantParts(session.endAt, bookingData.timezone);
+      const bookingDate = formatBookingDate(start.date);
 
       return {
         id: booking.id,
         customerName,
         serviceName,
         bookingDateLabel: bookingDate,
-        bookingDateKey: booking.bookingDate,
-        startTime: booking.startTime,
-        endTime: booking.endTime,
+        bookingDateKey: start.date,
+        startTime: start.time,
+        endTime: end.time,
         label: `${customerName} · ${serviceName} · ${bookingDate}`,
       };
     });
-  }, [bookings, customers, services]);
+  }, [bookings, customers, services, bookingData.timezone]);
 
   const bookingDisplayMap = useMemo(
     () => new Map(bookingOptions.map((option) => [option.id, option])),

@@ -17,18 +17,26 @@ export default function BookingCalendar() {
     bookingsWithNames,
     customers,
     services,
+    serviceCategories,
+    createCustomerAndReturn,
+    createServiceAndReturn,
     selectedBooking,
     initialBookingValues,
     dialogOpen,
     goPrevious,
     goNext,
     goToday,
+    goPreviousMonth,
+    goNextMonth,
+    selectDate,
     setView,
     openCreateForDate,
     openEditBooking,
     closeDialog,
     createBooking,
     updateBooking,
+    timezone,
+    todayKey,
   } = useCalendar();
 
   const { payments, createPayment, updatePayment, deletePayment } = usePayments();
@@ -67,6 +75,8 @@ export default function BookingCalendar() {
           onPrevious={goPrevious}
           onNext={goNext}
           onToday={goToday}
+          onPreviousMonth={goPreviousMonth}
+          onNextMonth={goNextMonth}
         />
         <div className="rounded-xl border border-border bg-white p-3 shadow-sm sm:p-6">
           <CalendarView
@@ -75,6 +85,8 @@ export default function BookingCalendar() {
             bookings={bookingsWithNames}
             onBookingClick={openEditBooking}
             onDateClick={openCreateForDate}
+            onSelectDate={selectDate}
+            todayKey={todayKey}
           />
         </div>
       </div>
@@ -85,14 +97,18 @@ export default function BookingCalendar() {
         initialValues={initialBookingValues}
         customers={customers}
         services={services}
+        serviceCategories={serviceCategories}
         payments={payments}
         expenses={expenses}
+        timezone={timezone}
         onClose={closeDialog}
         onCreate={handleCreate}
         onUpdate={handleUpdate}
         onAddPaymentClick={(bookingId) => openPaymentDialog(bookingId)}
         onEditPaymentClick={(payment) => openPaymentDialog(payment.bookingId, payment)}
         onDeletePayment={(id) => deletePayment(id)}
+        onQuickCreateCustomer={createCustomerAndReturn}
+        onQuickCreateService={createServiceAndReturn}
       />
 
       <PaymentDialog

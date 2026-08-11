@@ -164,7 +164,7 @@ export default function RevenueChart({ data }: RevenueChartProps) {
         <div>
           <h2 className="text-lg font-semibold text-[var(--dashboard-text)]">Monthly Money Flow</h2>
           <p className="mt-1 text-sm text-[var(--dashboard-muted-text)]">
-            Money received, expenses, and profit from January to December.
+            Income, expenses, and profit from January to December.
           </p>
         </div>
 
@@ -175,7 +175,7 @@ export default function RevenueChart({ data }: RevenueChartProps) {
               style={{ backgroundColor: CHART_COLORS.received }}
               aria-hidden="true"
             />
-            Money Received
+            Income
           </span>
           <span className="flex items-center gap-2">
             <span
@@ -218,7 +218,7 @@ export default function RevenueChart({ data }: RevenueChartProps) {
               >
                 <p className="font-semibold text-[var(--dashboard-text)]">{activeItem.month.label}</p>
                 <p className="mt-1 text-[var(--dashboard-muted-text)]">
-                  Money Received:{" "}
+                  Income:{" "}
                   <span className="font-medium text-[var(--dashboard-text)]">
                     {formatRupiah(activeItem.month.realized)}
                   </span>
@@ -242,7 +242,7 @@ export default function RevenueChart({ data }: RevenueChartProps) {
               viewBox={`0 0 ${chart.width} ${chart.height}`}
               className="h-64 w-full sm:h-72"
               role="img"
-              aria-label="Monthly money flow: Money Received and Expenses bars with a Profit line"
+              aria-label="Monthly money flow: Income and Expenses bars with a Profit line"
             >
               {chart.tickValues.map((tick) => {
                 const y = chart.valueToY(tick);

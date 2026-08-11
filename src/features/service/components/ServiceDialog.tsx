@@ -44,6 +44,7 @@ const defaultValues: ServiceFormValues = {
   categoryId: "",
   price: 0,
   duration: 0,
+  defaultSessionCount: 1,
   description: "",
   active: true,
 };
@@ -90,6 +91,7 @@ export default function ServiceDialog({
         categoryId: service.categoryId,
         price: service.price,
         duration: service.duration,
+        defaultSessionCount: service.defaultSessionCount,
         description: service.description,
         active: service.active,
       });
@@ -119,6 +121,7 @@ export default function ServiceDialog({
       categoryId: values.categoryId,
       price: values.price,
       duration: values.duration,
+      defaultSessionCount: values.defaultSessionCount,
       description: values.description.trim(),
       active: service?.active ?? true,
     };
@@ -298,6 +301,23 @@ export default function ServiceDialog({
                 </p>
               )}
             </div>
+          </div>
+
+          <div>
+            <Label className="mb-2 block font-semibold">Default Session Count</Label>
+            <Input
+              type="number"
+              min={1}
+              max={50}
+              inputMode="numeric"
+              {...register("defaultSessionCount", { valueAsNumber: true })}
+            />
+            <p className="mt-2 text-sm text-muted-foreground">
+              New bookings start with this many editable schedules. Users can add or remove them.
+            </p>
+            {errors.defaultSessionCount && (
+              <p className="mt-2 text-sm text-destructive">{errors.defaultSessionCount.message}</p>
+            )}
           </div>
 
           <div>

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { bookingRepository } from "@/features/booking/api/bookingRepository";
 import { bookingRecordSchema } from "@/features/booking/schema";
+import { migrateLegacyBookingRecords } from "@/features/booking/api/localStorageRepository";
 import { customerRepository } from "@/features/customer/api/customerRepository";
 import { customerRecordSchema } from "@/features/customer/schema";
 import { expenseCategoryRepository } from "@/features/expense-category/api/expenseCategoryRepository";
@@ -125,6 +126,21 @@ function validateDataSets(data: unknown): ValidationResult {
   };
 }
 
+function migrateBackupData(data: unknown, version: number): unknown {
+  if (version !== 1 || !data || typeof data !== "object" || Array.isArray(data)) return data;
+  const source = data as Record<string, unknown>;
+  const bookings = Array.isArray(source.bookings)
+    ? migrateLegacyBookingRecords(source.bookings)
+    : source.bookings;
+  const services = Array.isArray(source.services)
+    ? source.services.map((record) => {
+        if (!record || typeof record !== "object" || Array.isArray(record)) return record;
+        return { defaultSessionCount: 1, ...record };
+      })
+    : source.services;
+  return { ...source, bookings, services };
+}
+
 function readAllData(): QaiBackupData {
   return {
     serviceCategories: serviceCategoryRepository.getAll(),
@@ -228,7 +244,7 @@ export async function parseBackupFile(file: File): Promise<ValidationResult> {
     return { ok: false, code: "INVALID_FILE" };
   }
 
-  if (payload.backupVersion !== QAI_BACKUP_VERSION) {
+  if (payload.backupVersion !== 1 && payload.backupVersion !== QAI_BACKUP_VERSION) {
     return { ok: false, code: "UNSUPPORTED_VERSION" };
   }
 
@@ -236,7 +252,7 @@ export async function parseBackupFile(file: File): Promise<ValidationResult> {
     return { ok: false, code: "INVALID_FILE" };
   }
 
-  const validated = validateDataSets(payload.data);
+  const validated = validateDataSets(migrateBackupData(payload.data, payload.backupVersion));
   if (!validated.ok) return validated;
 
   return {

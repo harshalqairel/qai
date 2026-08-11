@@ -41,7 +41,12 @@ import type { DerivedPaymentStatus } from "@/features/payment/types";
 import {
   formatRupiah,
 } from "@/features/payment/utils/paymentCalculations";
-import { formatBookingTimeRange } from "@/features/booking/utils/bookingDateRange";
+import {
+  firstBookingSession,
+  formatSessionDate,
+  formatSessionTime,
+  sortBookingSessions,
+} from "@/features/booking/utils/bookingSessions";
 import type { BookingFinancialDetails } from "./BookingFinancialDetailsDialog";
 
 type BookingWithNames = BookingFinancialDetails;
@@ -52,6 +57,7 @@ type BookingTableProps = {
   onDelete: (booking: BookingWithNames) => boolean | "blocked" | Promise<boolean | "blocked">;
   onStatusChange: (booking: BookingWithNames, status: BookingStatus) => boolean | Promise<boolean>;
   onFinancialDetailsClick: (booking: BookingWithNames) => void;
+  timezone: string;
 };
 
 const BOOKING_STATUS_STYLES: Record<BookingStatus, string> = {
@@ -233,12 +239,76 @@ function BookingActions({
   );
 }
 
+function ScheduleSummary({ booking, timezone }: { booking: BookingWithNames; timezone: string }) {
+  const [open, setOpen] = useState(false);
+  const sessions = sortBookingSessions(booking.sessions);
+  const first = firstBookingSession(booking);
+
+  if (sessions.length === 1) {
+    return (
+      <div>
+        <span className="block">{formatSessionDate(first, timezone)}</span>
+        <span className="mt-1 block text-sm text-muted-foreground">{formatSessionTime(first, timezone)}</span>
+        {first.location && <span className="mt-1 block text-sm text-muted-foreground">{first.location}</span>}
+      </div>
+    );
+  }
+
+  const compactDates = sessions
+    .slice(0, 3)
+    .map((session) => formatSessionDate(session, timezone, { day: "numeric", month: "short" }))
+    .join(" · ");
+
+  return (
+    <>
+      <button
+        type="button"
+        className="rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        onClick={() => setOpen(true)}
+      >
+        <span className="block font-semibold text-foreground">{sessions.length} sessions</span>
+        <span className="mt-1 block text-sm text-muted-foreground">
+          {compactDates}{sessions.length > 3 ? ` · +${sessions.length - 3}` : ""}
+        </span>
+      </button>
+      <AlertDialog open={open} onOpenChange={setOpen}>
+        <AlertDialogContent className="max-h-[85dvh] overflow-y-auto">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Complete Schedule</AlertDialogTitle>
+            <AlertDialogDescription>
+              {booking.customerName} · {booking.serviceName}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-3">
+            {sessions.map((session, index) => (
+              <div key={session.id} className="rounded-xl border border-border p-4">
+                <p className="font-semibold text-foreground">
+                  Session {index + 1}{session.label ? ` · ${session.label}` : ""}
+                </p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {formatSessionDate(session, timezone)} · {formatSessionTime(session, timezone)}
+                </p>
+                {session.location && <p className="mt-1 text-sm text-muted-foreground">{session.location}</p>}
+                {session.notes && <p className="mt-2 text-sm text-foreground">{session.notes}</p>}
+              </div>
+            ))}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogAction type="button" onClick={() => setOpen(false)}>Close</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
 export default function BookingTable({
   bookings,
   onEdit,
   onDelete,
   onStatusChange,
   onFinancialDetailsClick,
+  timezone,
 }: BookingTableProps) {
   if (bookings.length === 0) {
     return (
@@ -274,13 +344,7 @@ export default function BookingTable({
                   </span>
                 </TableCell>
                 <TableCell className="py-3 whitespace-normal">
-                  <span className="block">{booking.bookingDate}</span>
-                  <span className="mt-1 block text-sm text-muted-foreground">
-                    {formatBookingTimeRange(booking.bookingDate, booking.startTime, booking.endTime)}
-                  </span>
-                  {booking.location && (
-                    <span className="mt-1 block text-sm text-muted-foreground">{booking.location}</span>
-                  )}
+                  <ScheduleSummary booking={booking} timezone={timezone} />
                 </TableCell>
                 <TableCell className="py-3">
                   <BookingStatusControl booking={booking} onStatusChange={onStatusChange} />
@@ -329,9 +393,9 @@ export default function BookingTable({
               <div className="min-w-0 flex-1">
                 <h2 className="truncate font-semibold text-foreground">{booking.customerName}</h2>
                 <p className="mt-1 truncate text-sm text-muted-foreground">{booking.serviceName}</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {booking.bookingDate} · {formatBookingTimeRange(booking.bookingDate, booking.startTime, booking.endTime)}
-                </p>
+                <div className="mt-2 text-sm text-muted-foreground">
+                  <ScheduleSummary booking={booking} timezone={timezone} />
+                </div>
               </div>
               <BookingActions booking={booking} onEdit={onEdit} onDelete={onDelete} />
             </div>

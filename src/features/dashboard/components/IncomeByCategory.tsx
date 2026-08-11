@@ -19,7 +19,7 @@ export default function IncomeByCategory({ items }: IncomeByCategoryProps) {
     <section>
       <div>
         <h2 className="text-lg font-semibold text-[var(--dashboard-text)]">Income by Category</h2>
-        <p className="mt-1 text-sm text-[var(--dashboard-muted-text)]">All-time money received for each service category.</p>
+        <p className="mt-1 text-sm text-[var(--dashboard-muted-text)]">Income in the selected period, grouped by service category.</p>
       </div>
 
       {items.length === 0 ? (

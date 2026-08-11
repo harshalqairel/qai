@@ -16,6 +16,12 @@ export const serviceSchema = z.object({
     .number()
     .min(1, "Duration must be greater than 0."),
 
+  defaultSessionCount: z.coerce
+    .number()
+    .int("Default session count must be a whole number.")
+    .min(1, "At least one default session is required.")
+    .max(50, "Default session count cannot exceed 50."),
+
   description: z.string().trim(),
 
   active: z.boolean(),
@@ -30,6 +36,7 @@ export const serviceRecordSchema = z
     categoryId: z.string().min(1),
     price: z.number().finite().positive(),
     duration: z.number().finite().positive(),
+    defaultSessionCount: z.number().int().min(1).max(50),
     description: z.string(),
     active: z.boolean(),
   })

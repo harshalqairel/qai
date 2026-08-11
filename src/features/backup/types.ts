@@ -7,7 +7,7 @@ import type { ServiceCategory } from "@/features/service-category/types";
 import type { Service } from "@/features/service/types";
 
 export const QAI_BACKUP_APP = "Qai";
-export const QAI_BACKUP_VERSION = 1;
+export const QAI_BACKUP_VERSION = 2;
 
 // Keep this conservative for the MVP to avoid large-memory parsing spikes in the browser.
 export const MAX_BACKUP_FILE_SIZE_BYTES = 5 * 1024 * 1024;

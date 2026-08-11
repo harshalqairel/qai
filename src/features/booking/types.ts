@@ -1,13 +1,33 @@
 export type BookingStatus = "Scheduled" | "Completed" | "Cancelled";
 
+export type BookingSession = {
+  id: string;
+  bookingId: string;
+  sequence: number;
+  label: string;
+  startAt: string;
+  endAt: string;
+  location: string;
+  notes: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type BookingSessionInput = {
+  id?: string;
+  label: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  location: string;
+  notes: string;
+};
+
 export type Booking = {
   id: string;
   customerId: string;
   serviceId: string;
-  bookingDate: string;
-  startTime: string;
-  endTime: string;
-  location: string;
+  sessions: BookingSession[];
   servicePrice: number;
   bookingStatus: BookingStatus;
   fullPaymentDueDate: string;
@@ -19,10 +39,7 @@ export type Booking = {
 export type CreateBookingInput = {
   customerId: string;
   serviceId: string;
-  bookingDate: string;
-  startTime: string;
-  endTime: string;
-  location: string;
+  sessions: BookingSessionInput[];
   servicePrice: number;
   bookingStatus: BookingStatus;
   fullPaymentDueDate: string;

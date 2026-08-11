@@ -12,7 +12,7 @@ export default function ExpenseByCategory({ items }: ExpenseByCategoryProps) {
     <section>
       <div>
         <h2 className="text-lg font-semibold text-[var(--dashboard-text)]">Expenses by Category</h2>
-        <p className="mt-1 text-sm text-[var(--dashboard-muted-text)]">All recorded expenses grouped by category.</p>
+        <p className="mt-1 text-sm text-[var(--dashboard-muted-text)]">Expenses in the selected period, grouped by category.</p>
       </div>
 
       {items.length === 0 ? (

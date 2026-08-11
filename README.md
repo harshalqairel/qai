@@ -29,6 +29,27 @@ The initial schema is in
 6. Set `NEXT_PUBLIC_QAI_CLOUD_ENABLED=true`, restart Next.js, sign in, create a
    business workspace, and import any existing local data from Settings.
 
+The foundation models a booking and its schedule separately: one `bookings` row
+owns one or more `booking_sessions` rows. Apply the migration before enabling
+cloud mode so legacy single-date bookings can be imported as an idempotent
+sequence-1 session. The import RPC, booking write RPC, ownership foreign keys,
+deferred minimum-session constraint, and RLS policies are all defined in that
+same migration.
+
+Do not apply an older version of the commercial migration first. If a Supabase
+project was created from an earlier draft, recreate the development project or
+review a forward migration before enabling cloud mode.
+
+## Financial reports and exports
+
+The Reports area uses the same financial calculation module as the dashboard.
+Excel exports are genuine `.xlsx` workbooks with numeric currency cells and
+spreadsheet date values. Google Sheets export is an explicit, user-initiated
+snapshot: configure `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, enable the Google Drive API,
+and allow the `drive.file` scope. Each export creates a new spreadsheet and does
+not overwrite a prior report. Calendar credentials are separate server-side
+settings.
+
 Never expose `SUPABASE_SERVICE_ROLE_KEY` to client code. It is reserved for
 verified server jobs and webhooks in later launch phases.
 
@@ -36,6 +57,7 @@ verified server jobs and webhooks in later launch phases.
 
 ```bash
 npm run lint
+npm test
 npx tsc --noEmit
 npm run build
 ```

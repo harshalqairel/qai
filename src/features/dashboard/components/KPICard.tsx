@@ -1,9 +1,11 @@
 import { CircleAlertIcon, HandCoinsIcon, ReceiptTextIcon, TrendingUpIcon } from "lucide-react";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
 import type { KPI, KPITone } from "@/features/dashboard/hooks/useDashboard";
+import Link from "next/link";
 
 type KPICardProps = {
   metric: KPI;
+  periodQuery?: string;
 };
 
 const TONE_STYLES: Record<
@@ -41,12 +43,12 @@ const TONE_STYLES: Record<
   },
 };
 
-export default function KPICard({ metric }: KPICardProps) {
+export default function KPICard({ metric, periodQuery }: KPICardProps) {
   const tone = TONE_STYLES[metric.tone];
   const Icon = tone.Icon;
 
   return (
-    <article className={`min-w-0 rounded-2xl border border-[var(--dashboard-border)] bg-[var(--dashboard-card)] p-5 ${tone.accentBorder}`}>
+    <Link href={metric.label === "Unpaid Amount" ? "/bookings?payment=outstanding" : `/reports${periodQuery ? `?${periodQuery}` : ""}`} className={`block min-w-0 rounded-2xl border border-[var(--dashboard-border)] bg-[var(--dashboard-card)] p-5 transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${tone.accentBorder}`}>
       <div className="flex items-center justify-between gap-3">
         <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${tone.soft}`}>
           <Icon className={`h-5 w-5 ${tone.iconText}`} aria-hidden="true" />
@@ -59,6 +61,6 @@ export default function KPICard({ metric }: KPICardProps) {
       <p className="mt-1 break-words text-2xl font-semibold tracking-tight text-[var(--dashboard-text)] tabular-nums sm:text-[1.65rem]">
         {formatRupiah(metric.value)}
       </p>
-    </article>
+    </Link>
   );
 }
