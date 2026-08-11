@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { queueWorkspaceDocumentWrite } from "@/lib/validation/workspaceSync";
 
 export const DASHBOARD_SECTION_IDS = ["setup", "income", "expenses", "profit", "unpaid", "upcoming", "due-soon", "overdue", "requests"] as const;
 export type DashboardSectionId = typeof DASHBOARD_SECTION_IDS[number];
@@ -37,5 +38,5 @@ export function loadDashboardPreferences(): DashboardPreference[] {
 }
 
 export function saveDashboardPreferences(preferences: DashboardPreference[]): DashboardPreference[] {
-  const normalized = normalizeDashboardPreferences(preferences); window.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized)); return normalized;
+  const normalized = normalizeDashboardPreferences(preferences); const serialized = JSON.stringify(normalized); window.localStorage.setItem(STORAGE_KEY, serialized); queueWorkspaceDocumentWrite(STORAGE_KEY, serialized); return normalized;
 }

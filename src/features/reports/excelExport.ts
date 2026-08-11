@@ -188,6 +188,23 @@ export async function buildFinancialReportWorkbook(report: FinancialReport): Pro
     { header: "Notes", key: "notes", width: 32 },
   ], report.schedule);
 
+  addDataSheet(workbook, report, "Invoices", [
+    { header: "Invoice Date", key: "invoiceDate", width: 14, kind: "date" },
+    { header: "Invoice Number", key: "invoiceNumber", width: 22 },
+    { header: "Version", key: "version", width: 10, kind: "number" },
+    { header: "Status", key: "lifecycle", width: 16 },
+    { header: "Client", key: "client", width: 24 },
+    { header: "Service", key: "service", width: 26 },
+    { header: "Due Date", key: "dueDate", width: 14, kind: "date" },
+    { header: "Style", key: "style", width: 16 },
+    { header: "Subtotal", key: "subtotal", width: 18, kind: "currency" },
+    { header: "Discount", key: "discount", width: 18, kind: "currency" },
+    { header: "Tax", key: "tax", width: 18, kind: "currency" },
+    { header: "Invoice Total", key: "total", width: 18, kind: "currency" },
+    { header: "Recorded Payments", key: "paid", width: 20, kind: "currency" },
+    { header: "Remaining", key: "remaining", width: 18, kind: "currency" },
+  ], report.invoices, ["subtotal", "discount", "tax", "total", "paid", "remaining"]);
+
   const buffer = await workbook.xlsx.writeBuffer();
   const bytes = new Uint8Array(buffer.byteLength);
   bytes.set(new Uint8Array(buffer));

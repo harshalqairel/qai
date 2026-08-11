@@ -10,6 +10,7 @@ function usesApplicationChrome(pathname: string): boolean {
     return false;
   }
   if (pathname.startsWith("/q/")) return false;
+  if (pathname.startsWith("/test/") || pathname.startsWith("/validation/founder")) return false;
   return !pathname.startsWith("/auth/");
 }
 

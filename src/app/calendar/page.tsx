@@ -12,6 +12,7 @@ import { useExpenses } from "@/features/expense/hooks/useExpenses";
 import { useState } from "react";
 import PageSkeleton from "@/components/system/PageSkeleton";
 import DataErrorState from "@/components/system/DataErrorState";
+import GoogleCalendarSyncCard from "@/features/calendar/components/GoogleCalendarSyncCard";
 
 export default function CalendarPage() {
   const {
@@ -97,6 +98,8 @@ export default function CalendarPage() {
             onPreviousMonth={goPreviousMonth}
             onNextMonth={goNextMonth}
           />
+
+          <GoogleCalendarSyncCard />
 
           <div className="surface-card p-3 sm:p-6">
             <CalendarView

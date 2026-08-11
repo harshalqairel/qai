@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 
-import type { Invoice, InvoiceSettings, InvoiceShareContext } from "./invoice";
+import type { Invoice, InvoiceSettings, InvoiceShareContext, InvoiceStyle } from "./invoice";
 import {
   DEFAULT_INVOICE_SHARE_TEMPLATES,
+  DEFAULT_INVOICE_SETTINGS,
   generateInvoicePdf,
+  createInvoiceRevision,
   insertInvoiceTemplateVariable,
   invoiceEmailUrl,
   invoicePaidAmount,
@@ -13,12 +16,14 @@ import {
   invoiceTotals,
   invoiceWhatsAppUrl,
   issueInvoice,
+  latestReportableInvoiceVersions,
   normalizeIndonesianPhone,
   renderInvoiceShareTemplate,
   validateInvoiceShareTemplate,
 } from "./invoice";
 
 const settings: InvoiceSettings = {
+  ...DEFAULT_INVOICE_SETTINGS,
   businessId: "business-1", businessLogo: "", businessName: "Nuyi Makeup Studio", legalName: "PT Nuyi", address: "Bandung", phone: "0812",
   email: "studio@example.com", invoicePrefix: "INV", paymentInstructions: "BCA 1234567890", defaultNotes: "Thank you.", defaultPaymentTerms: "7 days",
   showSchedules: true, showQaiAttribution: true,
@@ -26,23 +31,23 @@ const settings: InvoiceSettings = {
 
 function sampleInvoice(changes: Partial<Invoice> = {}): Invoice {
   return {
-    id: "invoice-1", businessId: "business-1", bookingId: "booking-1", clientId: "client-1", lifecycle: "Draft", invoiceNumber: null,
+    id: "invoice-1", previousVersionId: null, version: 1, businessId: "business-1", bookingId: "booking-1", clientId: "client-1", lifecycle: "Draft", invoiceNumber: null,
     clientName: "Sarah Wijaya", clientPhone: "081234567890", clientEmail: "sarah@example.com", serviceName: "Wedding Package",
     invoiceDate: "2026-08-11", dueDate: "2026-08-18", lineItems: [
       { id: "item-1", item: "Wedding makeup", description: "Akad and reception", quantity: 1, unitPrice: 5_000_000 },
       { id: "item-2", item: "Assistant", description: "", quantity: 2, unitPrice: 350_000 },
-    ], discount: 200_000, tax: 100_000, paymentInstructions: "BCA 1234567890", notes: "Long-form notes remain attached to the invoice.",
+    ], discount: 200_000, tax: 100_000, discountMode: "fixed", discountValue: 200_000, taxPercent: 0, invoiceStyle: "Neutral", paymentInstructions: "BCA 1234567890", notes: "Long-form notes remain attached to the invoice.",
     schedules: [
       { label: "Akad", startAt: "2026-08-12T03:00:00.000Z", endAt: "2026-08-12T05:00:00.000Z", location: "Bandung" },
       { label: "Reception", startAt: "2026-08-15T10:00:00.000Z", endAt: "2026-08-15T13:00:00.000Z", location: "Bandung" },
-    ], showSchedules: true, snapshot: null, createdAt: 1, updatedAt: 1, issuedAt: null, ...changes,
+    ], showSchedules: true, snapshot: null, createdAt: 1, updatedAt: 1, issuedAt: null, ...changes, rootInvoiceId: changes.rootInvoiceId ?? "invoice-1",
   };
 }
 
 describe("invoice financial rules", () => {
   it("calculates quantities, discount, tax, and payment status", () => {
     const invoice = sampleInvoice();
-    expect(invoiceTotals(invoice)).toEqual({ subtotal: 5_700_000, total: 5_600_000 });
+    expect(invoiceTotals(invoice)).toEqual({ subtotal: 5_700_000, discount: 200_000, tax: 0, total: 5_500_000 });
     expect(invoicePaymentStatus(5_600_000, 0)).toBe("Unpaid");
     expect(invoicePaymentStatus(5_600_000, 2_000_000)).toBe("Part paid");
     expect(invoicePaymentStatus(5_600_000, 5_600_000)).toBe("Paid");
@@ -52,7 +57,7 @@ describe("invoice financial rules", () => {
     const invoice = sampleInvoice();
     const payments = [{ id: "p1", bookingId: "booking-1", amount: 2_000_000, date: "2026-08-11", method: "Bank Transfer" as const, notes: "", createdAt: 1 }];
     expect(invoicePaidAmount(invoice, payments)).toBe(2_000_000);
-    expect(invoiceRemainingAmount(invoice, payments)).toBe(3_600_000);
+    expect(invoiceRemainingAmount(invoice, payments)).toBe(3_500_000);
     expect(invoicePaidAmount({ ...invoice, bookingId: null }, payments)).toBe(0);
   });
 });
@@ -67,6 +72,22 @@ describe("invoice lifecycle", () => {
     expect(unchanged.snapshot?.schedules).toHaveLength(2);
     const second = issueInvoice(sampleInvoice({ id: "invoice-2" }), settings, [first], Date.UTC(2026, 7, 12));
     expect(second.invoiceNumber).toBe("INV-2026-0002");
+  });
+
+  it("creates an immutable revision draft and applies percentage discount before tax", () => {
+    const issued = issueInvoice(sampleInvoice({ discountMode: "percentage", discountValue: 10, taxPercent: 11 }), settings, [], Date.UTC(2026, 7, 11));
+    expect(invoiceTotals(issued.snapshot!)).toEqual({ subtotal: 5_700_000, discount: 570_000, tax: 564_300, total: 5_694_300 });
+    const revision = createInvoiceRevision(issued, 99);
+    expect(revision).toMatchObject({ lifecycle: "Revision Draft", version: 2, rootInvoiceId: issued.id, previousVersionId: issued.id, snapshot: null });
+    expect(issued.snapshot?.version).toBe(1);
+  });
+
+  it("keeps the latest issued version reportable while a newer revision is still a draft", () => {
+    const issued = issueInvoice(sampleInvoice(), settings, [], Date.UTC(2026, 7, 11));
+    const revisionDraft = createInvoiceRevision(issued, 99);
+    expect(latestReportableInvoiceVersions([issued, revisionDraft])).toEqual([issued]);
+    const reissued = issueInvoice(revisionDraft, settings, [issued, revisionDraft], 100);
+    expect(latestReportableInvoiceVersions([issued, revisionDraft, reissued])).toEqual([reissued]);
   });
 });
 
@@ -108,13 +129,28 @@ describe("invoice sharing", () => {
 });
 
 describe("invoice PDF", () => {
-  it("creates a genuine PDF blob for a multipage-capable issued invoice", async () => {
+  it("creates genuine multipage PDFs for every style and optional business-mark combination", async () => {
     const items = Array.from({ length: 45 }, (_, index) => ({ id: `item-${index}`, item: `Professional service line ${index + 1}`, description: "A clear description that can wrap safely without clipping.", quantity: 1, unitPrice: 100_000 }));
-    const issued = issueInvoice(sampleInvoice({ lineItems: items, notes: "Detailed notes ".repeat(80) }), settings, [], Date.UTC(2026, 7, 11));
-    const blob = await generateInvoicePdf(issued, settings, [], "blob");
-    expect(blob).toBeInstanceOf(Blob);
-    const bytes = new Uint8Array(await blob!.arrayBuffer());
-    expect(new TextDecoder().decode(bytes.slice(0, 5))).toBe("%PDF-");
-    expect(bytes.length).toBeGreaterThan(5_000);
+    const iconBytes = await readFile("public/icons/qai-icon-192.png");
+    const businessMark = `data:image/png;base64,${iconBytes.toString("base64")}`;
+    const variants: Array<{ style: InvoiceStyle; businessLogo: string; signatureImage: string; stampImage: string }> = [
+      { style: "Creative", businessLogo: businessMark, signatureImage: businessMark, stampImage: "" },
+      { style: "Neutral", businessLogo: "", signatureImage: "", stampImage: businessMark },
+      { style: "Professional", businessLogo: businessMark, signatureImage: businessMark, stampImage: businessMark },
+    ];
+
+    for (const variant of variants) {
+      const variantSettings = { ...settings, ...variant, invoiceStyle: variant.style };
+      const issued = issueInvoice(sampleInvoice({ lineItems: items, notes: "Detailed notes ".repeat(80), invoiceStyle: variant.style }), variantSettings, [], Date.UTC(2026, 7, 11));
+      const blob = await generateInvoicePdf(issued, variantSettings, [], "blob");
+      expect(blob).toBeInstanceOf(Blob);
+      const bytes = new Uint8Array(await blob!.arrayBuffer());
+      expect(new TextDecoder().decode(bytes.slice(0, 5))).toBe("%PDF-");
+      expect(bytes.length).toBeGreaterThan(5_000);
+      if (process.env.QAI_INVOICE_FIXTURE_DIR) {
+        await mkdir(process.env.QAI_INVOICE_FIXTURE_DIR, { recursive: true });
+        await writeFile(`${process.env.QAI_INVOICE_FIXTURE_DIR}/${variant.style.toLowerCase()}.pdf`, bytes);
+      }
+    }
   }, 20_000);
 });

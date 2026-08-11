@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { queueWorkspaceDocumentWrite } from "@/lib/validation/workspaceSync";
 
 export const CURRENT_STORAGE_VERSION = 1;
 
@@ -151,6 +152,7 @@ function isStorageUnavailable(error: unknown): boolean {
 function setStoredValue(storage: Storage, storageKey: string, serialized: string): void {
   try {
     storage.setItem(storageKey, serialized);
+    queueWorkspaceDocumentWrite(storageKey, serialized);
   } catch (error) {
     if (isQuotaExceeded(error)) {
       throw new PersistenceError("QUOTA_EXCEEDED", storageKey);

@@ -7,6 +7,7 @@ import type { Expense } from "@/features/expense/types";
 import type { Payment } from "@/features/payment/types";
 import type { Service } from "@/features/service/types";
 import type { ExpenseCategory } from "@/features/expense-category/types";
+import { createInvoiceRevision, DEFAULT_INVOICE_SETTINGS, issueInvoice, type Invoice } from "@/features/invoice/invoice";
 import { buildFinancialReport } from "./financialReport";
 import { buildFinancialReportWorkbook } from "./excelExport";
 import { uploadFinancialReportWorkbookToGoogleSheets } from "./googleSheetsExport";
@@ -73,6 +74,15 @@ const expenses: Expense[] = [
   { id: "expense-2", date: "2026-08-14", categoryId: "expense-category-1", amount: 50_000, paymentMethod: "Cash", expenseType: "Business Expense", bookingId: null, vendor: "Office", notes: "", createdAt: 1, updatedAt: 1 },
 ];
 
+const invoiceDraft: Invoice = {
+  id: "invoice-1", rootInvoiceId: "invoice-1", previousVersionId: null, version: 1, businessId: "local-business", bookingId: "booking-1", clientId: "customer-1", lifecycle: "Draft", invoiceNumber: null,
+  clientName: "Ayu", clientPhone: "", clientEmail: "", serviceName: "Wedding", invoiceDate: "2026-08-12", dueDate: "2026-08-25",
+  lineItems: [{ id: "line-1", item: "Wedding", description: "", quantity: 1, unitPrice: 1_000_000 }], discount: 0, tax: 0, discountMode: "none", discountValue: 0, taxPercent: 0,
+  invoiceStyle: "Professional", paymentInstructions: "", notes: "", schedules: [], showSchedules: true, snapshot: null, createdAt: 1, updatedAt: 1, issuedAt: null,
+};
+const issuedInvoice = issueInvoice(invoiceDraft, { ...DEFAULT_INVOICE_SETTINGS, businessName: "Qai Test" }, [], Date.UTC(2026, 7, 12));
+const invoiceRevisionDraft = createInvoiceRevision(issuedInvoice, Date.UTC(2026, 7, 13));
+
 function report(period: Parameters<typeof buildFinancialReport>[0]["period"] = { preset: "this-month" }) {
   return buildFinancialReport({
     businessName: "Qai Test",
@@ -85,6 +95,7 @@ function report(period: Parameters<typeof buildFinancialReport>[0]["period"] = {
     payments,
     expenses,
     expenseCategories,
+    invoices: [issuedInvoice, invoiceRevisionDraft],
     generatedAt: new Date("2026-08-20T08:00:00.000Z"),
   });
 }
@@ -128,6 +139,12 @@ describe("financial reporting domain", () => {
     expect(result.summary.bookings).toBe(2);
     expect(result.summary.scheduledSessions).toBe(4);
   });
+
+  it("reports one issued Invoice version without adding Invoice total to Income", () => {
+    const result = report();
+    expect(result.invoices).toMatchObject([{ invoiceNumber: "INV-2026-0001", version: 1, lifecycle: "Issued", total: 1_000_000, paid: 300_000 }]);
+    expect(result.summary.moneyReceived).toBe(500_000);
+  });
 });
 
 describe("Excel export", () => {
@@ -140,13 +157,15 @@ describe("Excel export", () => {
     const workbook = new Workbook();
     await workbook.xlsx.load(bytes);
     expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual([
-      "Summary", "Income", "Expenses", "Job Profit", "Outstanding", "Bookings", "Schedule",
+      "Summary", "Income", "Expenses", "Job Profit", "Outstanding", "Bookings", "Schedule", "Invoices",
     ]);
     expect(workbook.getWorksheet("Income")?.getCell("F6").value).toBeTypeOf("number");
     expect(workbook.getWorksheet("Income")?.getCell("A6").value).toBeInstanceOf(Date);
     expect(workbook.getWorksheet("Summary")?.getCell("B6").value).toBe(source.summary.moneyReceived);
     expect(workbook.getWorksheet("Schedule")?.rowCount).toBe(9);
     expect(workbook.getWorksheet("Schedule")?.getCell("B6").value).toBeInstanceOf(Date);
+    expect(workbook.getWorksheet("Invoices")?.getCell("A6").value).toBeInstanceOf(Date);
+    expect(workbook.getWorksheet("Invoices")?.getCell("L6").value).toBeTypeOf("number");
 
     for (const sheet of workbook.worksheets) {
       const headers = sheet.getRow(5).values as unknown[];

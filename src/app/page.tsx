@@ -3,8 +3,19 @@ import Link from "next/link";
 import { QaiLogo } from "@/components/brand/QaiLogo";
 import { buttonVariants } from "@/components/ui/button";
 import { ArrowRight, CalendarDays, CircleDollarSign, UsersRound } from "lucide-react";
+import { redirect } from "next/navigation";
+import ValidationAccess from "@/components/validation/ValidationAccess";
+import { isValidationModeEnabled } from "@/lib/supabase/config";
+import { requireValidationSession } from "@/lib/validation/session";
 
-export default function Home() {
+export default async function Home({ searchParams }: { searchParams: Promise<{ invite?: string }> }) {
+  if (isValidationModeEnabled()) {
+    let activeSession = false;
+    try { await requireValidationSession(); activeSession = true; } catch { /* Show access for absent, expired, disabled, or revoked sessions. */ }
+    if (activeSession) redirect("/dashboard");
+    const { invite } = await searchParams;
+    return <ValidationAccess invalidInvite={invite === "invalid"} />;
+  }
   return (
     <main className="min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,var(--background)_0%,var(--accent)_100%)]">
       <Container className="flex min-h-screen items-center py-10 sm:py-16">
@@ -12,7 +23,7 @@ export default function Home() {
           <section className="max-w-xl text-left">
             <QaiLogo size="lg" />
             <h1 className="mt-8 text-4xl font-bold leading-[1.08] tracking-tight text-foreground sm:text-5xl lg:text-6xl">Your business, organized.</h1>
-            <p className="mt-5 max-w-lg text-base leading-7 text-muted-foreground sm:text-lg">Manage bookings, clients, income, expenses, and reminders in one place.</p>
+            <p className="mt-5 max-w-lg text-base leading-7 text-muted-foreground sm:text-lg">Connect requests, bookings, schedules, invoices, payments, reminders, and reports in one workspace—without replacing the channels your customers already use.</p>
             <Link href="/dashboard" className={buttonVariants({ size: "lg", className: "mt-8 w-full sm:w-auto" })}>Go to dashboard <ArrowRight aria-hidden="true" /></Link>
           </section>
 

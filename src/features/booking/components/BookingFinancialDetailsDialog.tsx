@@ -8,6 +8,7 @@ import type { Booking } from "@/features/booking/types";
 import type { Payment, DerivedPaymentStatus } from "@/features/payment/types";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
 import ReminderHistoryList from "@/features/reminder/components/ReminderHistoryList";
+import { invoiceRepository, latestInvoiceVersions } from "@/features/invoice/invoice";
 
 export type BookingFinancialDetails = Booking & {
   customerName: string;
@@ -62,6 +63,7 @@ export default function BookingFinancialDetailsDialog({
   const canAddPayment = isPaymentAllowed(booking);
   const canAddExpense = booking.bookingStatus !== "Cancelled";
   const isCancelled = booking.bookingStatus === "Cancelled";
+  const relatedInvoice = latestInvoiceVersions(invoiceRepository.getAll().filter((invoice) => invoice.bookingId === booking.id))[0] ?? null;
 
   return (
     <div
@@ -188,9 +190,9 @@ export default function BookingFinancialDetailsDialog({
 
         <section className="mt-6 border-t border-border pt-6">
           <h3 className="font-semibold">Invoice</h3>
-          <p className="mt-1 text-sm text-muted-foreground">Create an invoice using this booking and its recorded payments.</p>
+          <p className="mt-1 text-sm text-muted-foreground">{relatedInvoice ? `${relatedInvoice.invoiceNumber ?? relatedInvoice.lifecycle} · Version ${relatedInvoice.version}` : "Create an invoice using this booking and its recorded payments."}</p>
           <Button className="mt-3" variant="outline" render={<Link href={`/invoices?booking=${encodeURIComponent(booking.id)}`} />}>
-            Create invoice
+            {relatedInvoice ? "Open invoice" : "Create invoice"}
           </Button>
         </section>
       </section>

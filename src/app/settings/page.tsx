@@ -6,6 +6,7 @@ import { useServiceCategories } from "@/features/service-category/hooks/useServi
 import { useExpenseCategories } from "@/features/expense-category/hooks/useExpenseCategories";
 import DataBackupSection from "@/features/backup/components/DataBackupSection";
 import LocalDataImportSection from "@/features/import/components/LocalDataImportSection";
+import SpreadsheetImportSection from "@/features/import/components/SpreadsheetImportSection";
 import { isCloudModeEnabled } from "@/lib/supabase/config";
 import HowToUseQai from "@/features/settings/components/HowToUseQai";
 import PaymentReminderSettings from "@/features/reminder/components/PaymentReminderSettings";
@@ -21,6 +22,9 @@ import {
   ChevronRight,
   MessagesSquare,
   Palette,
+  CalendarDays,
+  FileCheck2,
+  Waypoints,
 } from "lucide-react";
 import PageSkeleton from "@/components/system/PageSkeleton";
 import { QaiLogo } from "@/components/brand/QaiLogo";
@@ -164,7 +168,7 @@ export default function SettingsPage() {
           <div className="min-w-0">
             {activeSection === "how-to-use" && <HowToUseQai />}
             {activeSection === "data-backup" && (
-              isCloudModeEnabled() ? <LocalDataImportSection /> : <DataBackupSection />
+              <div className="space-y-5">{isCloudModeEnabled() ? <LocalDataImportSection /> : <DataBackupSection />}<SpreadsheetImportSection /></div>
             )}
             {activeSection === "service-categories" && (
               <CategoryManager
@@ -200,21 +204,10 @@ export default function SettingsPage() {
             {activeSection === "invoice-sharing" && <InvoiceSharingSettings />}
             {activeSection === "appearance" && <AppearanceSettings />}
             {activeSection === "about" && (
-              <section className="surface-card p-5 sm:p-6">
-                <QaiLogo size="md" />
-                <h2 className="mt-5 text-lg font-bold tracking-tight">About Qai</h2>
-                <dl className="mt-5 grid gap-5 text-sm sm:grid-cols-[140px_1fr]">
-                  <div className="contents">
-                    <dt className="font-semibold text-foreground">Product</dt>
-                    <dd className="text-muted-foreground">Qai</dd>
-                  </div>
-                  <div className="contents">
-                    <dt className="font-semibold text-foreground">Description</dt>
-                    <dd className="text-muted-foreground">
-                      Manage bookings, clients, income, expenses, and reminders in one place.
-                    </dd>
-                  </div>
-                </dl>
+              <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+                <div className="bg-[linear-gradient(135deg,var(--accent),var(--card)_65%)] p-6 sm:p-9"><QaiLogo size="lg" /><p className="mt-7 text-xs font-bold uppercase tracking-[0.16em] text-[var(--brand)]">Your connected business workspace</p><h2 className="mt-2 max-w-2xl text-2xl font-bold tracking-tight sm:text-3xl">Keep the work connected from first request to financial report.</h2><p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">Qai helps independent creative businesses reuse the same client, service, booking, and schedule details across the workflow—without pretending to replace the channels where customers already find and contact you.</p></div>
+                <div className="grid gap-px bg-border sm:grid-cols-3"><AboutValue icon={Waypoints} title="One underlying job" text="Request, booking, schedules, invoice, payment, reminder, and reporting stay related." /><AboutValue icon={CalendarDays} title="Works with your tools" text="Use Instagram and WhatsApp for conversations, and optionally send Qai schedules to Google Calendar." /><AboutValue icon={FileCheck2} title="Your business records" text="Export your financial report and keep access to the records you create in Qai." /></div>
+                <div className="p-6 sm:p-8"><h3 className="font-semibold">About this validation build</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">This temporary environment is for real-user product feedback. It is not the final commercial authentication or billing system. Please use copied or non-sensitive test data.</p><p className="mt-5 text-xs text-muted-foreground">Qai · Validation build · Built for independent creative businesses</p></div>
               </section>
             )}
           </div>
@@ -223,3 +216,5 @@ export default function SettingsPage() {
     </main>
   );
 }
+
+function AboutValue({ icon: Icon, title, text }: { icon: typeof Info; title: string; text: string }) { return <article className="bg-card p-6"><span className="flex size-10 items-center justify-center rounded-xl bg-accent text-[var(--brand)]"><Icon className="size-5" /></span><h3 className="mt-4 font-semibold">{title}</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">{text}</p></article>; }

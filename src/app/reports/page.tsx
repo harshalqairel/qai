@@ -26,6 +26,8 @@ import { formatSessionTime } from "@/features/booking/utils/bookingSessions";
 import { getActiveBusinessContext, type ActiveBusinessContext } from "@/lib/supabase/cloudRepositories";
 import { isCloudModeEnabled } from "@/lib/supabase/config";
 import { notify } from "@/lib/notifications";
+import { invoiceRepository } from "@/features/invoice/invoice";
+import { getInvoiceSettings } from "@/features/invoice/invoice";
 
 function formatMoney(value: number, currency: string): string {
   return new Intl.NumberFormat("id-ID", {
@@ -99,7 +101,7 @@ export default function ReportsPage() {
   const cloudMode = isCloudModeEnabled();
   const business = useMemo<ActiveBusinessContext | null>(() => cloudMode ? cloudBusiness : ({
     businessId: "local",
-    businessName: "Qai Business",
+    businessName: getInvoiceSettings().businessName,
     currency: "IDR",
     timezone: bookingData.timezone,
   }), [cloudMode, cloudBusiness, bookingData.timezone]);
@@ -127,6 +129,7 @@ export default function ReportsPage() {
         payments: paymentData.payments,
         expenses: expenseData.expenses,
         expenseCategories: categoryData.categories,
+        invoices: invoiceRepository.getAll(),
       });
     } catch {
       return null;

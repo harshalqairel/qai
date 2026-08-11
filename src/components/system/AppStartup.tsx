@@ -13,6 +13,7 @@ import { serviceRepository } from "@/features/service/api/serviceRepository";
 import { serviceCategoryRepository } from "@/features/service-category/api/serviceCategoryRepository";
 import { PersistenceError } from "@/lib/persistence";
 import { isCloudModeEnabled } from "@/lib/supabase/config";
+import { hydrateWorkspaceDocuments } from "@/lib/validation/workspaceSync";
 import {
   cloudBookingRepository,
   cloudCustomerRepository,
@@ -32,6 +33,7 @@ export default function AppStartup({ children }: { children: React.ReactNode }) 
   const prepare = useCallback(async () => {
     setFailure(null);
     try {
+      await hydrateWorkspaceDocuments();
       if (isCloudModeEnabled()) {
         await Promise.all([
           cloudCustomerRepository.getAll(),

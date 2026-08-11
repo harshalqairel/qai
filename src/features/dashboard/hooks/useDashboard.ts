@@ -32,7 +32,7 @@ import {
 } from "@/features/reports/financialReport";
 import { isPaymentReminderEligible } from "@/features/reminder/reminderTransport";
 import { getActiveBusinessContext } from "@/lib/supabase/cloudRepositories";
-import { isCloudModeEnabled } from "@/lib/supabase/config";
+import { isCloudModeEnabled, isValidationModeEnabled } from "@/lib/supabase/config";
 
 export type KPITone = "received" | "unpaid" | "expenses" | "profit";
 
@@ -102,6 +102,7 @@ export function useDashboard({ period }: UseDashboardArgs) {
   const selectedYear = new Date().getFullYear();
 
   useEffect(() => {
+    if (isValidationModeEnabled()) { const timer = window.setTimeout(() => { try { const metadata = JSON.parse(window.localStorage.getItem("qai:validation-workspace") ?? "null") as { label?: string } | null; if (metadata?.label) setBusinessName(metadata.label); } catch { /* Keep fallback. */ } }, 0); return () => window.clearTimeout(timer); }
     if (!isCloudModeEnabled()) return;
     let active = true;
     void getActiveBusinessContext().then((context) => {

@@ -6,6 +6,8 @@ import type { Expense } from "@/features/expense/types";
 import type { Payment } from "@/features/payment/types";
 import { sumPaymentsForBooking } from "@/features/payment/utils/paymentCalculations";
 import type { Service } from "@/features/service/types";
+import type { Invoice } from "@/features/invoice/invoice";
+import { invoicePaidAmount, invoiceRemainingAmount, invoiceTotals, latestReportableInvoiceVersions } from "@/features/invoice/invoice";
 
 export type ReportPeriodPreset =
   | "this-month"
@@ -40,6 +42,7 @@ export type FinancialReportInput = {
   payments: Payment[];
   expenses: Expense[];
   expenseCategories: ExpenseCategory[];
+  invoices?: Invoice[];
   generatedAt?: Date;
 };
 
@@ -101,6 +104,12 @@ export type ScheduleReportRow = {
   notes: string;
 };
 
+export type InvoiceReportRow = {
+  rootInvoiceId: string; invoiceId: string; invoiceNumber: string; version: number; lifecycle: Invoice["lifecycle"];
+  invoiceDate: string; dueDate: string; client: string; service: string; style: string; subtotal: number; discount: number; tax: number;
+  total: number; paid: number; remaining: number; bookingId: string | null;
+};
+
 export type FinancialReport = {
   businessName: string;
   currency: string;
@@ -123,6 +132,7 @@ export type FinancialReport = {
   outstanding: BookingReportRow[];
   bookings: BookingReportRow[];
   schedule: ScheduleReportRow[];
+  invoices: InvoiceReportRow[];
 };
 
 function addDays(dateKey: string, days: number): string {
@@ -296,6 +306,16 @@ export function buildFinancialReport(input: FinancialReportInput): FinancialRepo
     .filter((row): row is ScheduleReportRow => row !== null)
     .sort((left, right) => left.startAt.localeCompare(right.startAt));
 
+  const invoices = latestReportableInvoiceVersions(input.invoices ?? [])
+    .filter((invoice) => dateIsInReportPeriod(invoice.invoiceDate, period))
+    .map((invoice): InvoiceReportRow => {
+      const source = invoice.snapshot ?? invoice; const totals = invoiceTotals(source); const paid = invoicePaidAmount(invoice, validPayments);
+      return { rootInvoiceId: invoice.rootInvoiceId || invoice.id, invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber ?? "Draft", version: invoice.version,
+        lifecycle: invoice.lifecycle, invoiceDate: source.invoiceDate, dueDate: source.dueDate, client: source.clientName, service: source.serviceName,
+        style: source.invoiceStyle, subtotal: totals.subtotal, discount: totals.discount, tax: totals.tax, total: totals.total, paid,
+        remaining: invoiceRemainingAmount(invoice, validPayments), bookingId: invoice.bookingId };
+    }).sort((left, right) => left.invoiceDate.localeCompare(right.invoiceDate));
+
   const jobProfit = bookingRows.filter((row) => row.estimatedJobProfit !== null);
   const outstanding = bookingRows.filter((row) => row.outstanding !== null && row.outstanding > 0);
   const moneyReceivedTotal = moneyReceived.reduce((sum, row) => sum + row.amount, 0);
@@ -325,6 +345,7 @@ export function buildFinancialReport(input: FinancialReportInput): FinancialRepo
     outstanding,
     bookings: bookingRows,
     schedule,
+    invoices,
   };
 }
 

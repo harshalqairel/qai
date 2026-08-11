@@ -13,8 +13,8 @@ function page(): QaiPageConfig {
   return {
     ...defaultQaiPage(), id: "page-1", slug: "nuyi", businessName: "Nuyi Makeup Studio",
     services: [
-      { serviceId: "request-service", visible: true, title: "Wedding Package", description: "", price: 7_500_000, priceMode: "Starting from", actionMode: "Booking request", durationMinutes: 120 },
-      { serviceId: "instant-service", visible: true, title: "Studio Rental", description: "", price: 350_000, priceMode: "Fixed price", actionMode: "Instant booking", durationMinutes: 60 },
+      { serviceId: "request-service", visible: true, title: "Wedding Package", description: "", price: 7_500_000, priceMode: "Starting from", actionMode: "Booking request", durationMinutes: 120, defaultSessionCount: 3 },
+      { serviceId: "instant-service", visible: true, title: "Studio Rental", description: "", price: 350_000, priceMode: "Fixed price", actionMode: "Instant booking", durationMinutes: 60, defaultSessionCount: 1 },
     ],
     slots: [{ id: "slot-1", serviceId: "instant-service", startAt: "2026-08-18T03:00:00.000Z", endAt: "2026-08-18T04:00:00.000Z", location: "Studio", status: "Available", requestId: null }],
   };

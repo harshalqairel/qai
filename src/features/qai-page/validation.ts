@@ -24,6 +24,7 @@ export const publicServiceSchema = z.object({
   priceMode: z.enum(["Fixed price", "Starting from", "Ask for price"]),
   actionMode: z.enum(["Booking request", "Inquiry", "Instant booking"]),
   durationMinutes: z.number().int().positive().max(1440),
+  defaultSessionCount: z.number().int().min(1).max(12).default(1),
 });
 
 export const instantSlotSchema = z.object({
@@ -31,11 +32,16 @@ export const instantSlotSchema = z.object({
   location: z.string().trim().max(300), status: z.enum(["Available", "Reserved"]), requestId: z.string().nullable(),
 });
 
+export const portfolioItemSchema = z.object({
+  id: z.string().min(1).max(100), imageUrl: z.string().min(1).max(500), caption: z.string().trim().max(240),
+  serviceId: z.string().max(100).nullable(), visible: z.boolean(), position: z.number().int().min(0).max(100),
+});
+
 export const qaiPageSchema = z.object({
   id: z.string().min(1).max(100), businessId: z.string().min(1).max(100), slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   businessName: z.string().trim().min(1).max(160), shortDescription: z.string().trim().max(500), location: z.string().trim().max(200),
   whatsapp: z.string().trim().max(50), email: z.string().trim().email().or(z.literal("")), instagram: z.string().trim().max(200),
-  logo: z.string().max(3_000_000), coverImage: z.string().max(3_000_000), services: z.array(publicServiceSchema).max(100), slots: z.array(instantSlotSchema).max(500),
+  logo: z.string().max(3_000_000), coverImage: z.string().max(3_000_000), portfolio: z.array(portfolioItemSchema).max(12).default([]), services: z.array(publicServiceSchema).max(100), slots: z.array(instantSlotSchema).max(500),
   timezone: z.string().trim().min(1).max(100).default("Asia/Jakarta"),
   updatedAt: z.number().int().nonnegative(),
 });
@@ -52,13 +58,14 @@ export const publicRequestSchema = z.object({
 export type PublicSchedule = z.infer<typeof publicScheduleSchema>;
 export type PublicService = z.infer<typeof publicServiceSchema>;
 export type InstantSlot = z.infer<typeof instantSlotSchema>;
+export type PortfolioItem = z.infer<typeof portfolioItemSchema>;
 export type QaiPageConfig = z.infer<typeof qaiPageSchema>;
 export type PublicRequest = z.infer<typeof publicRequestSchema>;
 
 export type ValidationStore = { pages: QaiPageConfig[]; requests: PublicRequest[] };
 
 export function normalizeSlug(value: string): string {
-  return value.normalize("NFKD").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+  return value.normalize("NFKD").replace(/\p{M}+/gu, "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
 }
 
 export function normalizeContactPhone(value: string): string {
@@ -93,10 +100,17 @@ export function requestToBookingValues(request: PublicRequest, service: Service,
   };
 }
 
+export function derivePublicEndTime(startTime: string, durationMinutes: number): string {
+  const [hour, minute] = startTime.split(":").map(Number);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) return startTime;
+  const total = (hour * 60 + minute + Math.max(1, durationMinutes)) % (24 * 60);
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
 export function defaultQaiPage(): QaiPageConfig {
   return {
     id: "local-page", businessId: "local-business", slug: "my-business", businessName: "My business", shortDescription: "", location: "",
-    whatsapp: "", email: "", instagram: "", logo: "", coverImage: "", services: [], slots: [], timezone: "Asia/Jakarta", updatedAt: Date.now(),
+    whatsapp: "", email: "", instagram: "", logo: "", coverImage: "", portfolio: [], services: [], slots: [], timezone: "Asia/Jakarta", updatedAt: Date.now(),
   };
 }
 
@@ -113,4 +127,10 @@ export const validationClient = {
   savePage(page: QaiPageConfig): Promise<QaiPageConfig> { return api("/api/validation", { method: "POST", body: JSON.stringify({ action: "save-page", page }) }); },
   submitRequest(request: Omit<PublicRequest, "id" | "status" | "submittedAt" | "updatedAt" | "bookingId">): Promise<PublicRequest> { return api("/api/validation", { method: "POST", body: JSON.stringify({ action: "submit-request", request }) }); },
   updateRequest(requestId: string, status: PublicRequestStatus, bookingId: string | null): Promise<PublicRequest> { return api("/api/validation", { method: "POST", body: JSON.stringify({ action: "update-request", requestId, status, bookingId }) }); },
+  async uploadMedia(file: File, kind: "page-logo" | "page-cover" | "portfolio" | "invoice-logo" | "invoice-signature" | "invoice-stamp"): Promise<{ id: string; url: string }> {
+    const body = new FormData(); body.set("file", file); body.set("kind", kind);
+    const response = await fetch("/api/validation/media", { method: "POST", body }); const result = await response.json() as { data?: { id: string; url: string }; error?: string };
+    if (!response.ok || !result.data) throw new Error(result.error ?? "Could not upload that image."); return result.data;
+  },
+  async deleteMedia(url: string): Promise<void> { const id = url.split("/").pop(); if (!id) return; await api(`/api/validation/media/${encodeURIComponent(id)}`, { method: "DELETE" }); },
 };

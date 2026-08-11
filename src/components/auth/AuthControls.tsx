@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import { LogOut } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
-import { isCloudModeEnabled } from "@/lib/supabase/config";
+import { isCloudModeEnabled, isValidationModeEnabled } from "@/lib/supabase/config";
 
 export default function AuthControls() {
   const [email, setEmail] = useState<string | null>(null);
   const configured = isCloudModeEnabled();
+  const validation = isValidationModeEnabled();
 
   useEffect(() => {
     if (!configured) return;
@@ -21,6 +22,13 @@ export default function AuthControls() {
       active = false;
     };
   }, [configured]);
+
+  if (validation) return (
+    <div className="border-t border-border pt-4">
+      <p className="px-2 text-xs text-muted-foreground">Temporary validation workspace</p>
+      <button type="button" onClick={async () => { await fetch("/api/validation/sign-out", { method: "POST" }); window.location.assign("/"); }} className="mt-2 flex min-h-10 w-full items-center gap-2 rounded-lg px-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><LogOut className="size-4" aria-hidden="true" />Leave workspace</button>
+    </div>
+  );
 
   if (!configured || !email) return null;
 
