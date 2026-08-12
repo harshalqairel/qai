@@ -61,6 +61,7 @@ export default function KPICard({ metric, periodQuery }: KPICardProps) {
       <p className="mt-1 break-words text-2xl font-semibold tracking-tight text-[var(--dashboard-text)] tabular-nums sm:text-[1.65rem]">
         {formatRupiah(metric.value)}
       </p>
+      <p className="mt-2 text-xs leading-5 text-[var(--dashboard-muted-text)]">{metric.description}</p>
     </Link>
   );
 }

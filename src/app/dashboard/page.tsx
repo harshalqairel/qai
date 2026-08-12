@@ -18,6 +18,7 @@ import CustomizeDashboardDialog from "@/features/dashboard/components/CustomizeD
 import { loadDashboardPreferences, saveDashboardPreferences, type DashboardPreference, type DashboardSectionId } from "@/features/dashboard/customization";
 import { validationClient, type PublicRequest } from "@/features/qai-page/validation";
 import { Button } from "@/components/ui/button";
+import NeedsAttention from "@/features/dashboard/components/NeedsAttention";
 
 const CARD_CLASS =
   "surface-card min-w-0 p-5 sm:p-6";
@@ -54,6 +55,13 @@ export default function DashboardPage() {
     <main className="dashboard-theme min-h-screen overflow-x-hidden bg-[var(--dashboard-bg)]">
       <div className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:space-y-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
         <DashboardHeader period={period} currentMonth={dashboard.currentMonth} resolvedLabel={dashboard.financialReport.period.label} onPeriodChange={setPeriod} onCustomize={() => setCustomizeOpen(true)} />
+
+        <NeedsAttention
+          overdueCount={dashboard.latePaymentsCount}
+          dueSoonCount={dashboard.paymentsDueSoonCount}
+          requestCount={newRequests.length}
+          todayCount={dashboard.todaysSchedule.length}
+        />
 
         <div className="grid min-w-0 gap-5 lg:grid-cols-2 lg:gap-6">
           {preferences.filter((item) => item.visible).map((item) => (

@@ -1,3 +1,6 @@
+"use client";
+
+import { useRouter } from "next/navigation";
 import type { ScheduledSessionItem } from "@/features/dashboard/hooks/useDashboard";
 import { formatSessionTime } from "@/features/booking/utils/bookingSessions";
 import { BookingStatusBadge, PaymentStatusBadge } from "./DashboardStatusBadge";
@@ -8,6 +11,8 @@ type TodayScheduleProps = {
 };
 
 export default function TodaySchedule({ items, timezone }: TodayScheduleProps) {
+  const router = useRouter();
+  const openBooking = (id: string) => router.push(`/bookings?booking=${encodeURIComponent(id)}`);
   return (
     <section>
       <div className="flex items-center justify-between gap-3">
@@ -29,7 +34,16 @@ export default function TodaySchedule({ items, timezone }: TodayScheduleProps) {
           {items.map((booking) => (
             <article
               key={booking.session.id}
-              className="rounded-xl border border-[var(--dashboard-border)] bg-white p-4"
+              role="link"
+              tabIndex={0}
+              onClick={() => openBooking(booking.id)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  openBooking(booking.id);
+                }
+              }}
+              className="cursor-pointer rounded-xl border border-[var(--dashboard-border)] bg-white p-4 transition hover:border-[var(--brand)] hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">

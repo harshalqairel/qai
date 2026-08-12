@@ -28,7 +28,7 @@ import ActionButton from "@/components/system/ActionButton";
 import DeleteAction from "@/components/system/DeleteAction";
 import { useActionGuard } from "@/hooks/useActionGuard";
 import { notify } from "@/lib/notifications";
-import { Info, Plus, Trash2, XIcon } from "lucide-react";
+import { Copy, Info, Plus, Trash2, XIcon } from "lucide-react";
 
 type BookingDialogProps = {
   open: boolean;
@@ -203,6 +203,28 @@ export default function BookingDialog({
     );
   }
 
+  function duplicateSession(index: number) {
+    const source = watchedSessions?.[index];
+    if (!source || scheduleFields.length >= 50) return;
+    append({
+      label: "",
+      date: "",
+      startTime: source.startTime ?? "",
+      endTime: source.endTime ?? "",
+      location: source.location ?? "",
+      notes: source.notes ?? "",
+    });
+  }
+
+  function applyLocationToAll(index: number) {
+    const location = watchedSessions?.[index]?.location?.trim();
+    if (!location) return;
+    scheduleFields.forEach((_, sessionIndex) => {
+      setValue(`sessions.${sessionIndex}.location`, location, { shouldDirty: true });
+    });
+    notify.success("Location applied to every schedule.");
+  }
+
   async function createCustomerInline() {
     if (!onQuickCreateCustomer || !quickCustomer.name.trim() || !quickCustomer.phone.trim()) {
       setQuickError("Client name and phone are required.");
@@ -326,13 +348,13 @@ export default function BookingDialog({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm" onClick={() => !action.pending && handleClose()}>
-      <div className="h-dvh w-full max-w-xl overflow-y-auto border-l border-border bg-white p-5 shadow-xl sm:p-8" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-8 flex items-center justify-between">
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm" role="presentation" onClick={() => !action.pending && handleClose()}>
+      <div className="h-dvh w-full max-w-xl overflow-y-auto border-l border-border bg-white p-5 shadow-xl sm:p-8" role="dialog" aria-modal="true" aria-labelledby="booking-dialog-title" onClick={(e) => e.stopPropagation()}>
+        <div className="sticky top-0 z-10 -mx-5 -mt-5 mb-6 flex items-center justify-between border-b border-border bg-white/95 px-5 py-4 backdrop-blur sm:-mx-8 sm:-mt-8 sm:mb-8 sm:px-8 sm:py-5">
           <div>
-            <h2 className="dialog-title">{booking ? "Edit Booking" : "Add Booking"}</h2>
+            <h2 id="booking-dialog-title" className="dialog-title">{booking ? "Edit Booking" : "Add Booking"}</h2>
             <p className="mt-2 text-slate-500">
-              {booking ? "Update booking and payment details." : "Create a new booking."}
+              {booking ? "Update the booking details." : "Client, service, schedule, and price are all you need."}
             </p>
           </div>
           <Button type="button" variant="ghost" size="icon" disabled={action.pending} onClick={handleClose} aria-label="Close booking form">
@@ -468,25 +490,25 @@ export default function BookingDialog({
                 <div key={field.id} className="space-y-4 rounded-2xl border border-border bg-muted/30 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <p className="font-semibold text-foreground">Schedule {index + 1}</p>
-                    {scheduleFields.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive"
-                        onClick={() => remove(index)}
-                        aria-label={`Remove schedule ${index + 1}`}
-                      >
-                        <Trash2 className="size-4" aria-hidden="true" /> Remove
+                    <div className="flex items-center gap-1">
+                      <Button type="button" variant="ghost" size="sm" disabled={scheduleFields.length >= 50} onClick={() => duplicateSession(index)} aria-label={`Duplicate schedule ${index + 1}`}>
+                        <Copy className="size-4" aria-hidden="true" /> Duplicate
                       </Button>
-                    )}
+                      {scheduleFields.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive"
+                          onClick={() => remove(index)}
+                          aria-label={`Remove schedule ${index + 1}`}
+                        >
+                          <Trash2 className="size-4" aria-hidden="true" /> Remove
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   <input type="hidden" {...register(`sessions.${index}.id`)} />
-                  <div>
-                    <Label className="mb-2 block">Label <span className="font-normal text-muted-foreground">(optional)</span></Label>
-                    <Input {...register(`sessions.${index}.label`)} placeholder="e.g. Akad, Reception, Class 2" />
-                    {sessionError?.label && <p className="mt-2 text-sm text-destructive">{sessionError.label.message}</p>}
-                  </div>
                   <div>
                     <Label className="mb-2 block">Date</Label>
                     <Input type="date" {...register(`sessions.${index}.date`)} />
@@ -519,11 +541,28 @@ export default function BookingDialog({
                   <div>
                     <Label className="mb-2 block">Location <span className="font-normal text-muted-foreground">(optional)</span></Label>
                     <Input {...register(`sessions.${index}.location`)} />
+                    {scheduleFields.length > 1 && session?.location?.trim() && (
+                      <Button type="button" variant="ghost" size="sm" className="mt-2" onClick={() => applyLocationToAll(index)}>
+                        Apply this location to all
+                      </Button>
+                    )}
                   </div>
-                  <div>
-                    <Label className="mb-2 block">Notes <span className="font-normal text-muted-foreground">(optional)</span></Label>
-                    <Textarea rows={2} {...register(`sessions.${index}.notes`)} />
-                  </div>
+                  <details className="group rounded-xl border border-border bg-white">
+                    <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+                      Optional schedule details
+                    </summary>
+                    <div className="space-y-4 border-t border-border p-4">
+                      <div>
+                        <Label className="mb-2 block">Label</Label>
+                        <Input {...register(`sessions.${index}.label`)} placeholder="e.g. Akad, Reception, Class 2" />
+                        {sessionError?.label && <p className="mt-2 text-sm text-destructive">{sessionError.label.message}</p>}
+                      </div>
+                      <div>
+                        <Label className="mb-2 block">Notes</Label>
+                        <Textarea rows={2} {...register(`sessions.${index}.notes`)} />
+                      </div>
+                    </div>
+                  </details>
                 </div>
               );
             })}
@@ -794,11 +833,11 @@ export default function BookingDialog({
             </div>
           )}
 
-          <div className="mt-8 flex justify-end gap-3">
-            <Button type="button" variant="outline" disabled={action.pending} onClick={handleClose}>
+          <div className="sticky bottom-0 z-10 -mx-5 -mb-5 mt-8 flex gap-3 border-t border-border bg-white/95 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 backdrop-blur sm:-mx-8 sm:-mb-8 sm:justify-end sm:px-8 sm:pb-8">
+            <Button type="button" variant="outline" className="flex-1 sm:flex-none" disabled={action.pending} onClick={handleClose}>
               Cancel
             </Button>
-            <ActionButton type="submit" loading={action.pending || isSubmitting} loadingText={booking ? "Updating…" : "Saving…"}>
+            <ActionButton type="submit" className="flex-1 sm:flex-none" loading={action.pending || isSubmitting} loadingText={booking ? "Updating…" : "Saving…"}>
               {booking ? "Save changes" : "Add booking"}
             </ActionButton>
           </div>

@@ -41,6 +41,7 @@ export type KPI = {
   value: number;
   period: string;
   tone: KPITone;
+  description: string;
 };
 
 export type RevenuePoint = {
@@ -180,27 +181,28 @@ export function useDashboard({ period }: UseDashboardArgs) {
       .slice(0, 6);
   }, [enrichedBookings, todayContext.now]);
 
-  const paymentsDueSoon = useMemo(() => {
+  const allPaymentsDueSoon = useMemo(() => {
     return enrichedBookings
       .filter(
         (booking) =>
           isPaymentReminderEligible(booking) &&
           booking.fullPaymentDueDate >= todayContext.todayKey,
       )
-      .sort((a, b) => a.fullPaymentDueDate.localeCompare(b.fullPaymentDueDate))
-      .slice(0, 6);
+      .sort((a, b) => a.fullPaymentDueDate.localeCompare(b.fullPaymentDueDate));
   }, [enrichedBookings, todayContext.todayKey]);
 
-  const latePayments = useMemo(() => {
+  const allLatePayments = useMemo(() => {
     return enrichedBookings
       .filter(
         (booking) =>
           isPaymentReminderEligible(booking) &&
           booking.fullPaymentDueDate < todayContext.todayKey,
       )
-      .sort((a, b) => a.fullPaymentDueDate.localeCompare(b.fullPaymentDueDate))
-      .slice(0, 6);
+      .sort((a, b) => a.fullPaymentDueDate.localeCompare(b.fullPaymentDueDate));
   }, [enrichedBookings, todayContext.todayKey]);
+
+  const paymentsDueSoon = allPaymentsDueSoon.slice(0, 6);
+  const latePayments = allLatePayments.slice(0, 6);
 
   const statusCounts = useMemo<Record<Booking["bookingStatus"], number>>(() => {
     const counts = { Scheduled: 0, Completed: 0, Cancelled: 0 };
@@ -230,24 +232,28 @@ export function useDashboard({ period }: UseDashboardArgs) {
         value: financialReport.summary.moneyReceived,
         period: financialReport.period.label,
         tone: "received",
+        description: "Payments actually recorded during this period.",
       },
       {
         label: "Unpaid amount",
         value: financialReport.summary.outstanding,
         period: financialReport.period.label,
         tone: "unpaid",
+        description: "Balances still due on active bookings.",
       },
       {
         label: "Expenses",
         value: financialReport.summary.expenses,
         period: financialReport.period.label,
         tone: "expenses",
+        description: "Business and booking expenses in this period.",
       },
       {
         label: "Profit",
         value: financialReport.summary.realizedProfit,
         period: financialReport.period.label,
         tone: "profit",
+        description: "Money received minus expenses in this period.",
       },
     ],
     [financialReport],
@@ -301,8 +307,10 @@ export function useDashboard({ period }: UseDashboardArgs) {
     metrics,
     todaysSchedule,
     paymentsDueSoon,
+    paymentsDueSoonCount: allPaymentsDueSoon.length,
     upcomingJobs,
     latePayments,
+    latePaymentsCount: allLatePayments.length,
     statusCounts,
     revenueSeries,
     incomeByCategory,
