@@ -16,7 +16,11 @@ export function isSupabaseConfigured(): boolean {
 }
 
 export function isCloudModeEnabled(): boolean {
-  return isSupabaseConfigured() && process.env.NEXT_PUBLIC_QAI_CLOUD_ENABLED === "true";
+  return (
+    isSupabaseConfigured() &&
+    process.env.NEXT_PUBLIC_QAI_CLOUD_ENABLED === "true" &&
+    !isValidationModeEnabled()
+  );
 }
 
 export function isValidationModeEnabled(): boolean {
