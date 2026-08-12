@@ -8,6 +8,7 @@ export default function ExpenseHeader({ onAdd }: ExpenseHeaderProps) {
         <p className="mt-3 text-sm leading-6 text-muted-foreground sm:text-base">Record general and booking expenses.</p>
       </div>
       <button
+        type="button"
         onClick={onAdd}
         className="min-h-11 rounded-lg bg-primary px-5 py-2.5 font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-[var(--brand-hover)]"
       >

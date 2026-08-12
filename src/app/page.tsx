@@ -28,7 +28,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ i
           </section>
 
           <section className="relative min-w-0" aria-label="Qai dashboard preview">
-            <div className="absolute -inset-5 rounded-[2rem] bg-[var(--brand)]/5 blur-2xl" aria-hidden="true" />
+            <div className="pointer-events-none absolute -inset-5 rounded-[2rem] bg-[var(--brand)]/5 blur-2xl" aria-hidden="true" />
             <div className="surface-card relative overflow-hidden p-3 shadow-xl sm:p-5">
               <div className="flex items-center justify-between border-b border-border px-2 pb-4">
                 <div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--brand)]">Business overview</p><p className="mt-1 text-lg font-bold">Good morning</p></div>

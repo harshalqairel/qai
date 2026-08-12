@@ -44,7 +44,7 @@ export default function ValidationAccess({ invalidInvite = false }: { invalidInv
           <Label htmlFor="validation-code">Test code</Label>
           <Input id="validation-code" className="mt-2 h-12 uppercase tracking-[0.12em]" value={code} onChange={(event) => setCode(event.target.value)} autoComplete="one-time-code" placeholder="ARDI-7K29" required />
           {error && <p className="mt-3 text-sm text-destructive" role="alert">{error}</p>}
-          <Button className="mt-5 w-full" size="lg" disabled={busy || code.trim().length < 4}>
+          <Button type="submit" className="mt-5 w-full" size="lg" disabled={busy || code.trim().length < 4}>
             {busy ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}
             Continue
           </Button>

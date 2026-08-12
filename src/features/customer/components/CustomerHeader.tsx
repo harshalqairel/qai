@@ -17,6 +17,7 @@ export default function CustomerHeader({ onAdd }: CustomerHeaderProps) {
       </div>
 
       <button
+        type="button"
         onClick={onAdd}
         className="
           min-h-11 rounded-lg

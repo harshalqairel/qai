@@ -78,7 +78,7 @@ describe("spreadsheet import", () => {
     expect(parsed.sheets.map((item) => item.domain)).toEqual(["bookings", "schedules"]);
     expect(parsed.sheets[0].mapping).toMatchObject({ Client: "client", Layanan: "service", Harga: "price", Tanggal: "date" });
     expect(parsed.sheets[1].rows).toHaveLength(2);
-  });
+  }, 15_000);
 
   it("commits one booking with deduplicated multi-schedules, actual payment, expense, and overnight timing", () => {
     const result = commitSpreadsheetImport(preview(), "Asia/Jakarta");

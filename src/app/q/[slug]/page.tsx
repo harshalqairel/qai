@@ -1,17 +1,19 @@
-/* eslint-disable @next/next/no-img-element, react/no-unescaped-entities -- Validation-only owner-provided data URLs cannot use the Next image optimizer. */
+/* eslint-disable @next/next/no-img-element -- Validation-only owner-provided data URLs cannot use the Next image optimizer. */
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { ArrowLeft, AtSign, CheckCircle2, Mail, MapPin, MessageCircle, Plus, X } from "lucide-react";
+import { ArrowLeft, AtSign, CheckCircle2, Clock3, Mail, MapPin, MessageCircle, Plus, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { formatDuration } from "@/features/service/utils/duration";
 import {
   canShowBookedThroughQai,
   derivePublicEndTime,
+  normalizeContactPhone,
   publicActionLabel,
   publicPriceLabel,
   validationClient,
@@ -67,19 +69,7 @@ export default function PublicQaiPage() {
   }
 
   return <main className="min-h-screen overflow-x-hidden bg-[#f7f8f5] text-[#17272a]">
-    {!selected ? <>
-      {page.coverImage && <div className="h-40 w-full overflow-hidden bg-[#eef1ec] sm:h-56"><img src={page.coverImage} alt="" className="h-full w-full object-cover" /></div>}
-      <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
-        <header className={`flex flex-col gap-5 ${page.coverImage ? "-mt-20 relative rounded-2xl border border-[#dde3dd] bg-white p-6 shadow-sm sm:p-8" : ""}`}>
-          {page.logo && <img src={page.logo} alt={`${page.businessName} logo`} className="size-20 rounded-2xl border border-[#dde3dd] bg-white object-cover p-1" />}
-          <div><h1 className="break-words text-3xl font-bold tracking-tight sm:text-4xl">{page.businessName}</h1>{page.shortDescription && <p className="mt-3 max-w-2xl whitespace-pre-wrap text-base leading-7 text-[#66726f]">{page.shortDescription}</p>}{page.location && <p className="mt-3 flex items-center gap-2 text-sm text-[#66726f]"><MapPin className="size-4" /> {page.location}</p>}</div>
-          {(page.whatsapp || page.email || page.instagram) && <div className="flex flex-wrap gap-2">{page.whatsapp && <span className="inline-flex items-center gap-2 rounded-full bg-[#eef1ec] px-3 py-2 text-sm"><MessageCircle className="size-4" /> WhatsApp available</span>}{page.email && <span className="inline-flex items-center gap-2 rounded-full bg-[#eef1ec] px-3 py-2 text-sm"><Mail className="size-4" /> Email available</span>}{page.instagram && <span className="inline-flex items-center gap-2 rounded-full bg-[#eef1ec] px-3 py-2 text-sm"><Instagram className="size-4" /> Social profile</span>}</div>}
-        </header>
-        {portfolio.length > 0 && <section className="mt-10"><div><p className="text-sm font-semibold uppercase tracking-[0.14em] text-[#356f6b]">Portfolio</p><h2 className="mt-1 text-xl font-bold">Selected work</h2></div><div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">{portfolio.map((item, index) => { const related = services.find((service) => service.serviceId === item.serviceId); return <figure key={item.id} className={`group overflow-hidden rounded-2xl border border-[#dde3dd] bg-white ${index === 0 ? "col-span-2 sm:row-span-2" : ""}`}><img src={item.imageUrl} alt={item.caption || `${page.businessName} selected work ${index + 1}`} className={`w-full object-cover ${index === 0 ? "aspect-[4/3] sm:h-full" : "aspect-square"}`} loading={index < 3 ? "eager" : "lazy"} />{(item.caption || related) && <figcaption className="p-3 sm:p-4">{item.caption && <p className="text-sm leading-5">{item.caption}</p>}{related && <button type="button" onClick={() => choose(related)} className="mt-2 text-left text-xs font-semibold text-[#356f6b] hover:underline">View {related.title} →</button>}</figcaption>}</figure>; })}</div></section>}
-        <section className="mt-10"><p className="text-sm font-semibold uppercase tracking-[0.14em] text-[#356f6b]">Work with {page.businessName}</p><h2 className="mt-1 text-xl font-bold">Services</h2>{services.length === 0 ? <div className="mt-4 rounded-2xl border border-dashed border-[#cfd8d2] bg-white p-8 text-center"><p className="font-semibold">This business hasn't added any public services yet.</p></div> : <div className="mt-4 grid gap-4 sm:grid-cols-2">{services.map((service) => <article key={service.serviceId} className="flex flex-col rounded-2xl border border-[#dde3dd] bg-white p-5 shadow-sm sm:p-6"><h3 className="break-words text-lg font-bold">{service.title}</h3>{service.description && <p className="mt-2 flex-1 whitespace-pre-wrap break-words text-sm leading-6 text-[#66726f]">{service.description}</p>}<p className="mt-5 font-semibold text-[#356f6b]">{publicPriceLabel(service)}</p><Button className="mt-5 w-full" onClick={() => choose(service)}>{publicActionLabel(service.actionMode)}</Button></article>)}</div>}</section>
-        <footer className="pt-14 text-center text-xs text-[#8a9692]">Powered by Qai</footer>
-      </div>
-    </> : <div className="mx-auto w-full max-w-2xl px-4 py-5 sm:px-6 sm:py-10">
+    {!selected ? <PublicLanding page={page} services={services} portfolio={portfolio} onChoose={choose} /> : <div className="mx-auto w-full max-w-2xl px-4 py-5 sm:px-6 sm:py-10">
       <button type="button" onClick={() => setSelected(null)} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-[#356f6b] hover:bg-[#eef1ec]"><ArrowLeft className="size-4" /> Back to services</button>
       <section className="mt-3 rounded-2xl border border-[#dde3dd] bg-white p-5 shadow-sm sm:p-8"><header><p className="text-sm font-semibold text-[#356f6b]">{selected.actionMode}</p><h1 className="mt-2 break-words text-2xl font-bold">{selected.title}</h1><p className="mt-2 font-semibold">{publicPriceLabel(selected)}</p></header>
         <div className="mt-7 space-y-5"><div className="grid gap-5 sm:grid-cols-2"><Field label="Name"><Input value={form.clientName} maxLength={160} onChange={(event) => setForm({ ...form, clientName: event.target.value })} /></Field><Field label="WhatsApp"><Input inputMode="tel" placeholder="0812 3456 7890" value={form.whatsapp} maxLength={50} onChange={(event) => setForm({ ...form, whatsapp: event.target.value })} /></Field><Field label="Email (optional)"><Input type="email" value={form.email} maxLength={160} onChange={(event) => setForm({ ...form, email: event.target.value })} /></Field><Field label="Location (optional)"><Input value={form.location} maxLength={300} onChange={(event) => setForm({ ...form, location: event.target.value })} /></Field></div>
@@ -92,6 +82,134 @@ export default function PublicQaiPage() {
       </section><footer className="py-8 text-center text-xs text-[#8a9692]">Powered by Qai</footer>
     </div>}
   </main>;
+}
+
+function socialHref(value: string): string | null {
+  const contact = value.trim();
+  if (!contact) return null;
+  if (/^https?:\/\//i.test(contact)) {
+    try {
+      const url = new URL(contact);
+      return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null;
+    } catch {
+      return null;
+    }
+  }
+  const handle = contact.replace(/^@/, "");
+  if (/^[a-zA-Z0-9._]+$/.test(handle)) return `https://instagram.com/${handle}`;
+  if (/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:\/.*)?$/.test(contact)) return `https://${contact}`;
+  return null;
+}
+
+function PublicLanding({
+  page,
+  services,
+  portfolio,
+  onChoose,
+}: {
+  page: QaiPageConfig;
+  services: PublicService[];
+  portfolio: QaiPageConfig["portfolio"];
+  onChoose: (service: PublicService) => void;
+}) {
+  const instagramHref = socialHref(page.instagram);
+
+  return (
+    <div className="mx-auto w-full max-w-7xl px-4 pb-8 pt-4 sm:px-6 sm:pb-10 sm:pt-6 lg:px-8 lg:pt-8">
+      {page.coverImage && (
+        <div className="aspect-[16/7] w-full overflow-hidden rounded-2xl bg-[#eef1ec] sm:aspect-[3/1] lg:aspect-[3.35/1]">
+          <img src={page.coverImage} alt="" className="h-full w-full object-cover" />
+        </div>
+      )}
+
+      <header className={`relative z-10 mx-auto flex max-w-5xl flex-col gap-5 rounded-2xl border border-[#dde3dd] bg-white p-5 shadow-sm sm:p-7 md:flex-row md:items-center md:gap-7 lg:p-8 ${page.coverImage ? "-mt-8 sm:-mt-12 lg:-mt-14" : "mt-4 sm:mt-6"}`}>
+        {page.logo && (
+          <img
+            src={page.logo}
+            alt={`${page.businessName} logo`}
+            className="size-20 shrink-0 rounded-2xl border border-[#dde3dd] bg-white object-cover p-1 sm:size-24"
+          />
+        )}
+        <div className="min-w-0 flex-1">
+          <h1 className="break-words text-3xl font-bold tracking-tight sm:text-4xl lg:text-[2.75rem]">{page.businessName}</h1>
+          {page.shortDescription && (
+            <p className="mt-3 max-w-3xl whitespace-pre-wrap text-base leading-7 text-[#66726f] sm:text-lg sm:leading-8">{page.shortDescription}</p>
+          )}
+          {page.location && (
+            <p className="mt-3 flex items-center gap-2 text-sm text-[#66726f]"><MapPin className="size-4 shrink-0" /> {page.location}</p>
+          )}
+          {(page.whatsapp || page.email || instagramHref) && (
+            <div className="mt-5 flex flex-wrap gap-2">
+              {page.whatsapp && (
+                <a href={`https://wa.me/${normalizeContactPhone(page.whatsapp)}`} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[#eef1ec] px-4 py-2 text-sm font-semibold text-[#274f4c] transition-colors hover:bg-[#e3eeeb] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#356f6b]">
+                  <MessageCircle className="size-4" /> WhatsApp
+                </a>
+              )}
+              {page.email && (
+                <a href={`mailto:${page.email}`} className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[#eef1ec] px-4 py-2 text-sm font-semibold text-[#274f4c] transition-colors hover:bg-[#e3eeeb] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#356f6b]">
+                  <Mail className="size-4" /> Email
+                </a>
+              )}
+              {instagramHref && (
+                <a href={instagramHref} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[#eef1ec] px-4 py-2 text-sm font-semibold text-[#274f4c] transition-colors hover:bg-[#e3eeeb] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#356f6b]">
+                  <Instagram className="size-4" /> Instagram
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+      </header>
+
+      {portfolio.length > 0 && (
+        <section className="mt-12 sm:mt-14 lg:mt-16">
+          <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[#356f6b]">Portfolio</p>
+          <h2 className="mt-1 text-2xl font-bold">Selected work</h2>
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:gap-5">
+            {portfolio.map((item, index) => {
+              const related = services.find((service) => service.serviceId === item.serviceId);
+              return (
+                <figure key={item.id} className={`group overflow-hidden rounded-2xl border border-[#dde3dd] bg-white ${index === 0 ? "col-span-2 row-span-2" : ""}`}>
+                  <img src={item.imageUrl} alt={item.caption || `${page.businessName} selected work ${index + 1}`} className={`w-full object-cover ${index === 0 ? "aspect-[4/3]" : "aspect-square"}`} loading={index < 3 ? "eager" : "lazy"} />
+                  {(item.caption || related) && (
+                    <figcaption className="p-3 sm:p-4">
+                      {item.caption && <p className="text-sm leading-5">{item.caption}</p>}
+                      {related && <button type="button" onClick={() => onChoose(related)} className="mt-2 min-h-10 text-left text-xs font-semibold text-[#356f6b] hover:underline">View {related.title} →</button>}
+                    </figcaption>
+                  )}
+                </figure>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      <section className="mt-12 sm:mt-14 lg:mt-16">
+        <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[#356f6b]">Work with {page.businessName}</p>
+        <h2 className="mt-1 text-2xl font-bold">Services</h2>
+        {services.length === 0 ? (
+          <div className="mt-5 max-w-xl rounded-xl border border-dashed border-[#cfd8d2] bg-white/70 p-5 text-sm text-[#66726f]">
+            Public services are coming soon. Contact {page.businessName} directly for current availability.
+          </div>
+        ) : (
+          <div className="mt-5 grid gap-4 md:grid-cols-2 lg:gap-5">
+            {services.map((service) => (
+              <article key={service.serviceId} className="flex flex-col rounded-2xl border border-[#dde3dd] bg-white p-5 shadow-sm sm:p-6 lg:p-7">
+                <h3 className="break-words text-xl font-bold">{service.title}</h3>
+                {service.description && <p className="mt-2 flex-1 whitespace-pre-wrap break-words text-sm leading-6 text-[#66726f]">{service.description}</p>}
+                <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[#eef1ec] pt-5">
+                  <p className="font-bold text-[#356f6b]">{publicPriceLabel(service)}</p>
+                  <p className="inline-flex items-center gap-1.5 text-sm text-[#66726f]"><Clock3 className="size-4" />{formatDuration(service.durationMinutes)}</p>
+                </div>
+                <Button type="button" className="mt-5 w-full sm:w-auto sm:self-start" onClick={() => onChoose(service)}>{publicActionLabel(service.actionMode)}</Button>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <footer className="pt-14 text-center text-xs text-[#8a9692] sm:pt-16">Powered by Qai</footer>
+    </div>
+  );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <div><Label className="mb-2 text-[#17272a]">{label}</Label>{children}</div>; }

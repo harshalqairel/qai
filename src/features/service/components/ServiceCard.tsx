@@ -84,6 +84,7 @@ export default function ServiceCard({
 
       <div className="mt-5 flex gap-3 border-t border-border pt-5">
         <button
+          type="button"
           onClick={() => onEdit(service)}
           className="
           min-h-10 rounded-lg

@@ -21,6 +21,7 @@ export default function ServiceHeader({
       </div>
 
       <button
+        type="button"
         onClick={onAdd}
         className="
         min-h-11 rounded-lg
