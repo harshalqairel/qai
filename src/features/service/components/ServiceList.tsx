@@ -1,11 +1,13 @@
 import { Service } from "@/features/service/types";
-import ServiceCard from "./ServiceCard";
+import ServiceTable from "./ServiceTable";
 import EmptyState from "@/components/system/EmptyState";
 import { BriefcaseBusiness } from "lucide-react";
 
 type ServiceListProps = {
   services: Service[];
   onAdd: () => void;
+  sort: string;
+  onSortChange: (value: string) => void;
   getCategoryName: (categoryId: string) => string;
   getCategoryColor: (categoryId: string) => string;
   onEdit: (service: Service) => void;
@@ -15,6 +17,8 @@ type ServiceListProps = {
 export default function ServiceList({
   services,
   onAdd,
+  sort,
+  onSortChange,
   getCategoryName,
   getCategoryColor,
   onEdit,
@@ -24,18 +28,5 @@ export default function ServiceList({
     return <EmptyState icon={BriefcaseBusiness} title="No services yet." description="Add the services you offer." actionLabel="Add service" onAction={onAdd} />;
   }
 
-  return (
-    <div className="space-y-6">
-      {services.map((service) => (
-        <ServiceCard
-          key={service.id}
-          service={service}
-          categoryName={getCategoryName(service.categoryId)}
-          categoryColor={getCategoryColor(service.categoryId)}
-          onEdit={onEdit}
-          onDelete={onDelete}
-        />
-      ))}
-    </div>
-  );
+  return <ServiceTable services={services} sort={sort} onSortChange={onSortChange} getCategoryName={getCategoryName} getCategoryColor={getCategoryColor} onEdit={onEdit} onDelete={onDelete} />;
 }

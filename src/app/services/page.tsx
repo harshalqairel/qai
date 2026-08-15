@@ -71,6 +71,18 @@ export default function ServicesPage() {
     sortedServices.sort((a, b) => b.duration - a.duration);
     break;
 
+  case "sessions-asc":
+    sortedServices.sort((a, b) => a.defaultSessionCount - b.defaultSessionCount);
+    break;
+
+  case "sessions-desc":
+    sortedServices.sort((a, b) => b.defaultSessionCount - a.defaultSessionCount);
+    break;
+
+  case "status":
+    sortedServices.sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name));
+    break;
+
   default:
     // Newest (keep insertion order)
     break;
@@ -105,6 +117,8 @@ export default function ServicesPage() {
 
           <ServiceList
             services={sortedServices}
+            sort={sort}
+            onSortChange={setSort}
             onAdd={() => {
               setSelectedService(null);
               setDialogOpen(true);

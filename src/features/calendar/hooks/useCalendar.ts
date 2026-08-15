@@ -11,6 +11,7 @@ import { CalendarBooking, CalendarView } from "../types";
 import { instantParts } from "@/features/booking/utils/bookingSessions";
 import { useServiceCategories } from "@/features/service-category/hooks/useServiceCategories";
 import { calendarDateFromKey, shiftMonthClamped } from "../calendarUtils";
+import { suggestCategoryColor } from "@/features/category/constants";
 
 const DEFAULT_BOOKING_VALUES: BookingFormValues = {
   customerId: "",
@@ -133,6 +134,10 @@ export function useCalendar() {
     serviceCategories,
     createCustomerAndReturn: customerData.createCustomerAndReturn,
     createServiceAndReturn: serviceData.createServiceAndReturn,
+    createServiceCategoryAndReturn: (name: string) => serviceCategoryData.createCategoryAndReturn({
+      name,
+      color: suggestCategoryColor(serviceCategories.map((category) => category.color)),
+    }),
     selectedBooking,
     initialBookingValues,
     dialogOpen,

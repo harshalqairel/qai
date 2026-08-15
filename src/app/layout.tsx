@@ -9,19 +9,20 @@ export const metadata: Metadata = {
   title: "Qai",
   description: "Manage bookings, clients, income, expenses, and reminders in one place.",
   applicationName: "Qai",
-  manifest: "/manifest.webmanifest",
+  manifest: "/manifest.webmanifest?v=20260814",
   icons: {
     icon: [
-      { url: "/icon.svg", type: "image/svg+xml" },
-      { url: "/icons/qai-icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon.svg?v=20260814", type: "image/svg+xml" },
+      { url: "/icons/qai-favicon-32.png?v=20260814", sizes: "32x32", type: "image/png" },
+      { url: "/icons/qai-icon-192.png?v=20260814", sizes: "192x192", type: "image/png" },
     ],
-    shortcut: [{ url: "/icon.svg", type: "image/svg+xml" }],
-    apple: [{ url: "/icons/qai-icon-512.png", sizes: "512x512", type: "image/png" }],
+    shortcut: [{ url: "/icon.svg?v=20260814", type: "image/svg+xml" }],
+    apple: [{ url: "/icons/qai-apple-touch-180.png?v=20260814", sizes: "180x180", type: "image/png" }],
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0D5C5A",
+  themeColor: "#4F6BFF",
 };
 
 export default function RootLayout({

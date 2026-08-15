@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 import { bookingRecordSchema } from "@/features/booking/schema";
 import { customerRecordSchema } from "@/features/customer/schema";
@@ -14,8 +15,13 @@ type GoogleEvent = { id: string };
 function documentRecords(value: unknown): unknown[] { if (!value || typeof value !== "object") return []; const data = (value as Envelope).data; return Array.isArray(data) ? data : []; }
 function payloadHash(value: unknown) { return createHash("sha256").update(JSON.stringify(value)).digest("base64url"); }
 
-export async function POST() {
+const syncInputSchema = z.object({ scheduleIds: z.array(z.string().min(1).max(100)).max(100) }).optional();
+
+export async function POST(request: NextRequest) {
   try {
+    const rawInput = await request.json().catch(() => undefined);
+    const input = syncInputSchema.parse(rawInput);
+    const requestedScheduleIds = input ? new Set(input.scheduleIds) : null;
     const session = await requireValidationSession(); const admin = createValidationAdminClient(); const { accessToken, calendarId } = await workspaceGoogleAccessToken(session.workspaceId);
     const { data: documents } = await admin.from("validation_workspace_documents").select("storage_key, value").eq("workspace_id", session.workspaceId).in("storage_key", ["qai:bookings", "qai:customers", "qai:services"]);
     const byKey = new Map((documents ?? []).map((item) => [item.storage_key, item.value]));
@@ -25,14 +31,16 @@ export async function POST() {
     const activeScheduleIds = new Set<string>(); const now = Date.now(); const summary = { created: 0, updated: 0, cancelled: 0, unchanged: 0, skipped: 0, failed: 0 };
 
     for (const booking of bookings) for (const schedule of booking.sessions) {
-      activeScheduleIds.add(schedule.id); const link = linkBySchedule.get(schedule.id); const future = Date.parse(schedule.startAt) > now;
+      activeScheduleIds.add(schedule.id);
+      if (requestedScheduleIds && !requestedScheduleIds.has(schedule.id)) continue;
+      const link = linkBySchedule.get(schedule.id); const future = Date.parse(schedule.startAt) > now;
       if (booking.bookingStatus === "Cancelled") {
         if (link && future && !link.cancelled_at) { try { await googleApi<void>(accessToken, `/calendars/${encodeURIComponent(link.google_calendar_id)}/events/${encodeURIComponent(link.google_event_id)}`, { method: "DELETE" }); const { error } = await admin.from("validation_calendar_event_links").update({ cancelled_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("workspace_id", session.workspaceId).eq("schedule_id", schedule.id); if (error) throw error; summary.cancelled += 1; } catch { summary.failed += 1; } } else summary.skipped += 1; continue;
       }
       if (!link && Date.parse(schedule.endAt) < now - 24 * 60 * 60 * 1000) { summary.skipped += 1; continue; }
       const customer = customerById.get(booking.customerId); const service = serviceById.get(booking.serviceId);
       const event = { summary: `${service?.name ?? "Qai booking"} — ${customer?.name ?? "Client"}`, location: schedule.location || undefined,
-        description: [`Qai booking${schedule.label ? ` · ${schedule.label}` : ""}`, customer?.phone ? `Client: ${customer.name} (${customer.phone})` : customer?.name ? `Client: ${customer.name}` : "", booking.notes].filter(Boolean).join("\n"),
+        description: [`Qai booking${schedule.label ? ` · ${schedule.label}` : ""}`, customer?.phone ? `Client: ${customer.name} (${customer.phone})` : customer?.name ? `Client: ${customer.name}` : ""].filter(Boolean).join("\n"),
         start: { dateTime: schedule.startAt }, end: { dateTime: schedule.endAt }, extendedProperties: { private: { qaiBookingId: booking.id, qaiScheduleId: schedule.id } } };
       const hash = payloadHash(event);
       try {
@@ -58,7 +66,7 @@ export async function POST() {
       } catch { summary.failed += 1; }
     }
 
-    for (const link of links ?? []) if (!activeScheduleIds.has(link.schedule_id) && !link.cancelled_at) { try { await googleApi<void>(accessToken, `/calendars/${encodeURIComponent(link.google_calendar_id)}/events/${encodeURIComponent(link.google_event_id)}`, { method: "DELETE" }); const { error } = await admin.from("validation_calendar_event_links").update({ cancelled_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("workspace_id", session.workspaceId).eq("schedule_id", link.schedule_id); if (error) throw error; summary.cancelled += 1; } catch { summary.failed += 1; } }
+    for (const link of links ?? []) if ((!requestedScheduleIds || requestedScheduleIds.has(link.schedule_id)) && !activeScheduleIds.has(link.schedule_id) && !link.cancelled_at) { try { await googleApi<void>(accessToken, `/calendars/${encodeURIComponent(link.google_calendar_id)}/events/${encodeURIComponent(link.google_event_id)}`, { method: "DELETE" }); const { error } = await admin.from("validation_calendar_event_links").update({ cancelled_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("workspace_id", session.workspaceId).eq("schedule_id", link.schedule_id); if (error) throw error; summary.cancelled += 1; } catch { summary.failed += 1; } }
     const { error: statusError } = await admin.from("validation_calendar_connections").update({ last_sync_at: new Date().toISOString(), last_error: summary.failed ? `${summary.failed} event operations failed` : null, updated_at: new Date().toISOString() }).eq("workspace_id", session.workspaceId);
     if (statusError) throw statusError;
     return NextResponse.json({ data: summary });

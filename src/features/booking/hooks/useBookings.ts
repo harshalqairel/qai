@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { Booking, CreateBookingCommand, UpdateBookingInput } from "../types";
+import { Booking, BookingAdditionalCharge, CreateBookingCommand, UpdateBookingInput } from "../types";
 import { bookingRepository } from "../api/bookingRepository";
 import { bookingCreationRepository } from "../api/bookingCreationRepository";
 import type { BookingDeleteResult } from "../api/bookingRepository";
@@ -15,6 +15,7 @@ import {
   getDeviceTimezone,
 } from "@/features/booking/utils/bookingSessions";
 import { prepareBookingCreation } from "@/features/booking/domain/bookingCreation";
+import { calendarRelevantSessionIds, synchronizeAffectedCalendarSessions } from "@/features/calendar/calendarIncrementalSync";
 
 export function useBookings() {
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -73,6 +74,7 @@ export function useBookings() {
         ? prev
         : [...prev, savedBooking]);
       emitDataRefresh();
+      void synchronizeAffectedCalendarSessions(savedBooking.sessions.map((session) => session.id));
       return savedBooking;
     } catch {
       return null;
@@ -106,6 +108,7 @@ export function useBookings() {
         prev.map((booking) => (booking.id === updated.id ? updated : booking)),
       );
       emitDataRefresh();
+      void synchronizeAffectedCalendarSessions(calendarRelevantSessionIds(current, updated));
       return true;
     } catch {
       return false;
@@ -122,11 +125,28 @@ export function useBookings() {
       }
       setBookings((prev) => prev.filter((booking) => booking.id !== id));
       emitDataRefresh();
+      const deleted = bookings.find((booking) => booking.id === id);
+      if (deleted) void synchronizeAffectedCalendarSessions(deleted.sessions.map((session) => session.id));
       return "deleted";
     } catch {
       return "error";
     }
-  }, []);
+  }, [bookings]);
+
+  const updateAdditionalCharges = useCallback(async (bookingId: string, additionalCharges: BookingAdditionalCharge[]): Promise<boolean> => {
+    const current = bookings.find((booking) => booking.id === bookingId);
+    if (!current) return false;
+    const updated = { ...current, additionalCharges, updatedAt: Date.now() };
+    try {
+      if (isCloudModeEnabled()) await cloudBookingRepository.update(updated);
+      else bookingRepository.update(updated);
+      setBookings((previous) => previous.map((booking) => booking.id === bookingId ? updated : booking));
+      emitDataRefresh();
+      return true;
+    } catch {
+      return false;
+    }
+  }, [bookings]);
 
   return {
     bookings,
@@ -134,6 +154,7 @@ export function useBookings() {
     createBookingAndReturn,
     updateBooking,
     deleteBooking,
+    updateAdditionalCharges,
     isLoading,
     loadError,
     retry,

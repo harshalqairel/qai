@@ -1,18 +1,25 @@
 import { z } from "zod";
 import { bookingRepository } from "@/features/booking/api/bookingRepository";
 import { bookingRecordSchema } from "@/features/booking/schema";
+import { BOOKING_STORAGE_KEY, BOOKING_STORAGE_VERSION } from "@/features/booking/constants";
 import { migrateLegacyBookingRecords } from "@/features/booking/api/localStorageRepository";
 import { customerRepository } from "@/features/customer/api/customerRepository";
 import { customerRecordSchema } from "@/features/customer/schema";
+import { CUSTOMER_STORAGE_KEY } from "@/features/customer/constants";
 import { expenseCategoryRepository } from "@/features/expense-category/api/expenseCategoryRepository";
 import { expenseRepository } from "@/features/expense/api/expenseRepository";
 import { expenseRecordSchema } from "@/features/expense/schema";
+import { EXPENSE_CATEGORY_STORAGE_KEY, EXPENSE_STORAGE_KEY, EXPENSE_STORAGE_VERSION } from "@/features/expense/constants";
 import { paymentRepository } from "@/features/payment/api/paymentRepository";
 import { paymentRecordSchema } from "@/features/payment/schema";
+import { PAYMENT_STORAGE_KEY, PAYMENT_STORAGE_VERSION } from "@/features/payment/constants";
 import { serviceCategoryRepository } from "@/features/service-category/api/serviceCategoryRepository";
 import { serviceRepository } from "@/features/service/api/serviceRepository";
 import { serviceRecordSchema } from "@/features/service/schema";
+import { SERVICE_CATEGORY_STORAGE_KEY, SERVICE_STORAGE_KEY, SERVICE_STORAGE_VERSION } from "@/features/service/constants";
 import { categoryRecordSchema } from "@/features/category/schema";
+import { BulkPersistenceError, writeVersionedCollectionsAndConfirm } from "@/lib/persistence";
+import { ADDITIONAL_CHARGE_CATEGORY_STORAGE_KEY, additionalChargeCategorySchema, getAdditionalChargeCategories } from "@/features/booking/domain/additionalChargeCategories";
 import {
   MAX_BACKUP_FILE_SIZE_BYTES,
   QAI_BACKUP_APP,
@@ -25,6 +32,10 @@ import {
 type ValidationResult =
   | { ok: true; backup: QaiBackupFile }
   | { ok: false; code: BackupValidationErrorCode };
+
+export type RestoreBackupResult =
+  | { ok: true }
+  | { ok: false; stage: "local-write" | "remote-confirmation" | "rollback"; storageKey: string };
 
 function duplicateIds(records: readonly { id: string }[]): boolean {
   const ids = new Set<string>();
@@ -52,6 +63,7 @@ function validateDataSets(data: unknown): ValidationResult {
   const expenses = toArraySchema(expenseRecordSchema).safeParse(source.expenses);
   const serviceCategories = toArraySchema(categoryRecordSchema).safeParse(source.serviceCategories);
   const expenseCategories = toArraySchema(categoryRecordSchema).safeParse(source.expenseCategories);
+  const additionalChargeCategories = toArraySchema(additionalChargeCategorySchema).safeParse(source.additionalChargeCategories ?? []);
 
   if (
     !customers.success ||
@@ -60,7 +72,8 @@ function validateDataSets(data: unknown): ValidationResult {
     !payments.success ||
     !expenses.success ||
     !serviceCategories.success ||
-    !expenseCategories.success
+    !expenseCategories.success ||
+    !additionalChargeCategories.success
   ) {
     return { ok: false, code: "INCOMPLETE_RECORDS" };
   }
@@ -73,6 +86,7 @@ function validateDataSets(data: unknown): ValidationResult {
     expenses: expenses.data,
     serviceCategories: serviceCategories.data,
     expenseCategories: expenseCategories.data,
+    additionalChargeCategories: additionalChargeCategories.data,
   };
 
   if (
@@ -82,7 +96,8 @@ function validateDataSets(data: unknown): ValidationResult {
     duplicateIds(parsedData.payments) ||
     duplicateIds(parsedData.expenses) ||
     duplicateIds(parsedData.serviceCategories) ||
-    duplicateIds(parsedData.expenseCategories)
+    duplicateIds(parsedData.expenseCategories) ||
+    duplicateIds(parsedData.additionalChargeCategories ?? [])
   ) {
     return { ok: false, code: "INCOMPLETE_RECORDS" };
   }
@@ -145,6 +160,7 @@ function readAllData(): QaiBackupData {
   return {
     serviceCategories: serviceCategoryRepository.getAll(),
     expenseCategories: expenseCategoryRepository.getAll(),
+    additionalChargeCategories: getAdditionalChargeCategories(),
     customers: customerRepository.getAll(),
     services: serviceRepository.getAll(),
     bookings: bookingRepository.getAll(),
@@ -153,14 +169,17 @@ function readAllData(): QaiBackupData {
   };
 }
 
-function writeAllData(data: QaiBackupData): void {
-  serviceCategoryRepository.save(data.serviceCategories);
-  expenseCategoryRepository.save(data.expenseCategories);
-  customerRepository.save(data.customers);
-  serviceRepository.save(data.services);
-  bookingRepository.save(data.bookings);
-  paymentRepository.save(data.payments);
-  expenseRepository.save(data.expenses);
+function backupCollectionWrites(data: QaiBackupData) {
+  return [
+    { storageKey: SERVICE_CATEGORY_STORAGE_KEY, recordSchema: categoryRecordSchema, records: data.serviceCategories },
+    { storageKey: EXPENSE_CATEGORY_STORAGE_KEY, recordSchema: categoryRecordSchema, records: data.expenseCategories },
+    { storageKey: ADDITIONAL_CHARGE_CATEGORY_STORAGE_KEY, recordSchema: additionalChargeCategorySchema, records: data.additionalChargeCategories ?? [] },
+    { storageKey: CUSTOMER_STORAGE_KEY, recordSchema: customerRecordSchema, records: data.customers },
+    { storageKey: SERVICE_STORAGE_KEY, recordSchema: serviceRecordSchema, records: data.services, version: SERVICE_STORAGE_VERSION },
+    { storageKey: BOOKING_STORAGE_KEY, recordSchema: bookingRecordSchema, records: data.bookings, version: BOOKING_STORAGE_VERSION },
+    { storageKey: PAYMENT_STORAGE_KEY, recordSchema: paymentRecordSchema, records: data.payments, version: PAYMENT_STORAGE_VERSION },
+    { storageKey: EXPENSE_STORAGE_KEY, recordSchema: expenseRecordSchema, records: data.expenses, version: EXPENSE_STORAGE_VERSION },
+  ];
 }
 
 function sortedById<T extends { id: string }>(records: readonly T[]): T[] {
@@ -176,6 +195,7 @@ function normalizeForCompare(data: QaiBackupData) {
     expenses: sortedById(data.expenses),
     serviceCategories: sortedById(data.serviceCategories),
     expenseCategories: sortedById(data.expenseCategories),
+    additionalChargeCategories: sortedById(data.additionalChargeCategories?.length ? data.additionalChargeCategories : getAdditionalChargeCategories()),
   };
 }
 
@@ -266,27 +286,20 @@ export async function parseBackupFile(file: File): Promise<ValidationResult> {
   };
 }
 
-export function restoreBackup(backup: QaiBackupFile): boolean {
-  const previousData = readAllData();
-
+export async function restoreBackup(backup: QaiBackupFile): Promise<RestoreBackupResult> {
   try {
-    writeAllData(backup.data);
+    await writeVersionedCollectionsAndConfirm(backupCollectionWrites(backup.data));
     const restoredData = readAllData();
     if (!dataMatches(backup.data, restoredData)) {
       throw new Error("RESTORE_VERIFY_FAILED");
     }
-    return true;
-  } catch {
-    try {
-      writeAllData(previousData);
-      const rolledBack = readAllData();
-      if (!dataMatches(previousData, rolledBack)) {
-        throw new Error("ROLLBACK_VERIFY_FAILED");
-      }
-    } catch {
-      return false;
-    }
-    return false;
+    return { ok: true };
+  } catch (error) {
+    const failure = error instanceof BulkPersistenceError
+      ? { stage: error.stage, storageKey: error.storageKey }
+      : { stage: "local-write" as const, storageKey: "qai:backup" };
+    console.error("[QAI_BULK_PERSISTENCE] backup restore failed", failure);
+    return { ok: false, ...failure };
   }
 }
 

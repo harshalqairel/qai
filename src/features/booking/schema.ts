@@ -60,6 +60,18 @@ export const bookingSessionRecordSchema = z.object({
   updatedAt: storedTimestampSchema,
 });
 
+export const bookingAdditionalChargeRecordSchema = z.object({
+  id: z.string().min(1),
+  bookingId: z.string().min(1),
+  sessionId: z.string().min(1).nullable(),
+  categoryId: z.string().min(1),
+  categoryName: z.string().trim().min(1).max(80),
+  description: z.string().trim().max(240),
+  amount: z.number().finite().positive(),
+  createdAt: storedTimestampSchema,
+  updatedAt: storedTimestampSchema,
+});
+
 export const bookingRecordSchema = z
   .object({
     id: z.string().min(1),
@@ -67,6 +79,7 @@ export const bookingRecordSchema = z
     serviceId: z.string().min(1),
     sessions: z.array(bookingSessionRecordSchema).min(1).max(MAX_BOOKING_SESSIONS),
     servicePrice: z.number().finite().nonnegative(),
+    additionalCharges: z.array(bookingAdditionalChargeRecordSchema).max(100).default([]),
     bookingStatus: z.enum(BOOKING_STATUSES),
     fullPaymentDueDate: storedDateSchema,
     notes: z.string(),
@@ -87,5 +100,10 @@ export const bookingRecordSchema = z
       if (Date.parse(session.endAt) <= Date.parse(session.startAt)) {
         context.addIssue({ code: "custom", message: "Schedule end must be after its start." });
       }
+    }
+    const sessionIds = new Set(booking.sessions.map((session) => session.id));
+    for (const charge of booking.additionalCharges) {
+      if (charge.bookingId !== booking.id) context.addIssue({ code: "custom", message: "Additional charge belongs to another booking." });
+      if (charge.sessionId && !sessionIds.has(charge.sessionId)) context.addIssue({ code: "custom", message: "Additional charge schedule was not found." });
     }
   });

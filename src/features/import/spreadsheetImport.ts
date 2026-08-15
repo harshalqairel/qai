@@ -26,7 +26,7 @@ import { SERVICE_CATEGORY_STORAGE_KEY, SERVICE_STORAGE_KEY, SERVICE_STORAGE_VERS
 import { serviceRecordSchema } from "@/features/service/schema";
 import type { Service } from "@/features/service/types";
 import { emitDataRefresh } from "@/lib/dataRefresh";
-import { readVersionedCollection, writeVersionedCollectionsAtomically } from "@/lib/persistence";
+import { readVersionedCollection, writeVersionedCollectionsAndConfirm } from "@/lib/persistence";
 
 export const IMPORT_DOMAINS = ["ignore", "clients", "services", "bookings", "schedules", "payments", "expenses"] as const;
 export type ImportDomain = typeof IMPORT_DOMAINS[number];
@@ -100,7 +100,7 @@ export function validateSpreadsheetPreview(preview: SpreadsheetPreview): string[
   if (!preview.sheets.some((sheet) => sheet.domain !== "ignore")) errors.push("Choose what at least one sheet contains."); return errors;
 }
 
-export function commitSpreadsheetImport(preview: SpreadsheetPreview, timezone: string): ImportResult {
+export async function commitSpreadsheetImport(preview: SpreadsheetPreview, timezone: string): Promise<ImportResult> {
   const receipts = readVersionedCollection(RECEIPTS_KEY, receiptSchema); if (receipts.some((item) => item.sourceHash === preview.sourceHash)) return { status: "already_imported", counts: { clients: 0, services: 0, bookings: 0, schedules: 0, payments: 0, expenses: 0 } };
   const errors = validateSpreadsheetPreview(preview); if (errors.length) throw new Error(errors[0]);
   const customers = [...customerRepository.getAll()] as Array<Customer & { importKey?: string }>;
@@ -108,8 +108,7 @@ export function commitSpreadsheetImport(preview: SpreadsheetPreview, timezone: s
   return commitCollections(preview, timezone, receipts, customers, services);
 }
 
-function commitCollections(preview: SpreadsheetPreview, timezone: string, receipts: z.infer<typeof receiptSchema>[], customers: Array<Customer & { importKey?: string }>, services: Array<Service & { importKey?: string }>): ImportResult {
-  // Kept synchronous so local collections and the remote mirror advance together.
+async function commitCollections(preview: SpreadsheetPreview, timezone: string, receipts: z.infer<typeof receiptSchema>[], customers: Array<Customer & { importKey?: string }>, services: Array<Service & { importKey?: string }>): Promise<ImportResult> {
   const bookings = [...bookingRepository.getAll()] as Array<Booking & { importKey?: string }>;
   const payments = [...paymentRepository.getAll()] as Array<Payment & { importKey?: string }>;
   const expenses = [...expenseRepository.getAll()] as Array<Expense & { importKey?: string }>;
@@ -148,7 +147,7 @@ function commitCollections(preview: SpreadsheetPreview, timezone: string, receip
   for (const sheet of preview.sheets.filter((item) => item.domain === "payments")) sheet.rows.forEach((row, index) => { const key = importedKey(preview.sourceHash, "payments", index); const booking = findBookingByReference(valueAt(sheet, row, "booking_id")); const amount = numberValue(valueAt(sheet, row, "amount")); const date = dateValue(valueAt(sheet, row, "date")); const method = paymentMethod(valueAt(sheet, row, "method")); if (!booking || !date || amount <= 0 || payments.some((item) => item.importKey === key || (item.bookingId === booking.id && item.date === date && item.amount === amount && item.method === method))) return; payments.push({ id: crypto.randomUUID(), bookingId: booking.id, date, amount, method, notes: valueAt(sheet, row, "notes"), createdAt: now, importKey: key } as Payment & { importKey: string }); counts.payments += 1; });
   for (const sheet of preview.sheets.filter((item) => item.domain === "expenses")) sheet.rows.forEach((row, index) => { const key = importedKey(preview.sourceHash, "expenses", index); const amount = numberValue(valueAt(sheet, row, "amount")); const date = dateValue(valueAt(sheet, row, "date")); const vendor = valueAt(sheet, row, "vendor"); const notes = valueAt(sheet, row, "notes"); if (!date || amount <= 0 || expenses.some((item) => item.importKey === key || (item.date === date && item.amount === amount && normalized(item.vendor) === normalized(vendor) && normalized(item.notes) === normalized(notes)))) return; const categoryName = valueAt(sheet, row, "category") || "Other"; let cat = expenseCategories.find((item) => normalized(item.name) === normalized(categoryName)); if (!cat) { cat = category(categoryName, "#718096"); expenseCategories.push(cat); } const booking = findBookingByReference(valueAt(sheet, row, "booking_id")); const bookingExpense = Boolean(booking) || /booking|job|proyek/.test(normalized(valueAt(sheet, row, "type"))); expenses.push({ id: crypto.randomUUID(), date, categoryId: cat.id, amount, paymentMethod: paymentMethod(valueAt(sheet, row, "method")), expenseType: bookingExpense && booking ? "Booking Expense" : "Business Expense", bookingId: bookingExpense && booking ? booking.id : null, vendor, notes, createdAt: now, updatedAt: now, importKey: key } as Expense & { importKey: string }); counts.expenses += 1; });
   const nextReceipts = [...receipts, { id: crypto.randomUUID(), sourceHash: preview.sourceHash, fileName: preview.fileName, createdAt: now }];
-  writeVersionedCollectionsAtomically([
+  await writeVersionedCollectionsAndConfirm([
     { storageKey: CUSTOMER_STORAGE_KEY, recordSchema: customerRecordSchema, records: customers }, { storageKey: SERVICE_CATEGORY_STORAGE_KEY, recordSchema: categoryRecordSchema, records: serviceCategories },
     { storageKey: SERVICE_STORAGE_KEY, recordSchema: serviceRecordSchema, records: services, version: SERVICE_STORAGE_VERSION }, { storageKey: BOOKING_STORAGE_KEY, recordSchema: bookingRecordSchema, records: bookings, version: BOOKING_STORAGE_VERSION },
     { storageKey: PAYMENT_STORAGE_KEY, recordSchema: paymentRecordSchema, records: payments, version: PAYMENT_STORAGE_VERSION }, { storageKey: EXPENSE_CATEGORY_STORAGE_KEY, recordSchema: categoryRecordSchema, records: expenseCategories },

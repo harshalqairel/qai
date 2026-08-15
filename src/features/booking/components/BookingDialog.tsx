@@ -20,6 +20,7 @@ import { Expense } from "@/features/expense/types";
 import { getBookingExpenses } from "@/features/expense/utils/expenseAggregations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { EditableNumberInput } from "@/components/ui/editable-number-input";
 import { MoneyInput } from "@/components/ui/money-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -28,12 +29,13 @@ import ActionButton from "@/components/system/ActionButton";
 import DeleteAction from "@/components/system/DeleteAction";
 import { useActionGuard } from "@/hooks/useActionGuard";
 import { notify } from "@/lib/notifications";
+import { bookingAdditionalChargesTotal } from "@/features/booking/domain/bookingFinancials";
 import { Copy, Info, Plus, Trash2, XIcon } from "lucide-react";
 
 type BookingDialogProps = {
   open: boolean;
   booking: Booking | null;
-  initialValues?: BookingFormValues;
+  initialValues?: Partial<BookingFormValues>;
   customers: { id: string; name: string }[];
   services: Service[];
   serviceCategories?: ServiceCategory[];
@@ -163,8 +165,9 @@ export default function BookingDialog({
   const totalPaid = bookingPayments.reduce((sum, p) => sum + p.amount, 0);
   const bookingExpensesTotal = booking ? getBookingExpenses(booking.id, expenses) : 0;
   const effectivePrice = Number(servicePriceValue) || 0;
+  const clientTotal = effectivePrice + (booking ? bookingAdditionalChargesTotal(booking) : 0);
   const isCancelled = booking?.bookingStatus === "Cancelled";
-  const outstanding = isCancelled ? 0 : Math.max(effectivePrice - totalPaid, 0);
+  const outstanding = isCancelled ? 0 : Math.max(clientTotal - totalPaid, 0);
   const canAddPayment = !isCancelled && outstanding > 0;
   const netRevenue = totalPaid - bookingExpensesTotal;
 
@@ -465,9 +468,9 @@ export default function BookingDialog({
                     )}
                     <div className="grid grid-cols-2 gap-3">
                       <div><Label className="mb-2 block">Price</Label><MoneyInput value={quickService.price} onChange={(price) => setQuickService((value) => ({ ...value, price }))} /></div>
-                      <div><Label className="mb-2 block">Typical duration</Label><Input type="number" min={1} inputMode="numeric" value={quickService.duration} onChange={(event) => setQuickService((value) => ({ ...value, duration: Number(event.target.value) }))} /></div>
+                      <div><Label className="mb-2 block">Typical duration</Label><EditableNumberInput min={1} inputMode="numeric" value={quickService.duration} emptyValue={1} onValueChange={(duration) => setQuickService((value) => ({ ...value, duration }))} /></div>
                     </div>
-                    <div><Label className="mb-2 block">Usual number of schedules</Label><Input type="number" min={1} max={50} inputMode="numeric" value={quickService.defaultSessionCount} onChange={(event) => setQuickService((value) => ({ ...value, defaultSessionCount: Number(event.target.value) }))} /></div>
+                    <div><Label className="mb-2 block">Usual number of schedules</Label><EditableNumberInput min={1} max={50} inputMode="numeric" value={quickService.defaultSessionCount} emptyValue={1} onValueChange={(defaultSessionCount) => setQuickService((value) => ({ ...value, defaultSessionCount }))} /></div>
                     {quickError && <p className="text-sm text-destructive">{quickError}</p>}
                     <div className="flex gap-2"><Button type="button" size="sm" disabled={quickPending} onClick={createServiceInline}>{quickPending ? "Adding…" : "Add and select"}</Button><Button type="button" size="sm" variant="ghost" onClick={() => setQuickServiceOpen(false)}>Cancel</Button></div>
                   </div>
@@ -756,7 +759,7 @@ export default function BookingDialog({
                     {[...bookingPayments]
                       .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt - b.createdAt)
                       .map((payment) => {
-                        const label = getPaymentLabel(payment, bookingPayments, Number(servicePriceValue) || 0);
+                        const label = getPaymentLabel(payment, bookingPayments, clientTotal);
                         return (
                           <div key={payment.id} className="flex items-center justify-between gap-3 rounded-xl bg-zinc-50 p-3 text-sm">
                             <div className="min-w-0 flex-1">

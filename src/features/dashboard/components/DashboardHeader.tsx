@@ -19,18 +19,22 @@ export default function DashboardHeader({
   onCustomize,
 }: DashboardHeaderProps) {
   return (
-    <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <h1 className="page-title">
-          Dashboard
-        </h1>
+    <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className="min-w-0">
+        <div className="flex items-center justify-between gap-3 sm:justify-start">
+          <h1 className="page-title">Dashboard</h1>
+          <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={onCustomize}>
+            <Settings2 className="size-4" aria-hidden="true" />
+            <span className="sm:hidden">Customize</span>
+            <span className="hidden sm:inline">Customize dashboard</span>
+          </Button>
+        </div>
         <p className="mt-2 max-w-xl text-sm leading-6 text-[var(--dashboard-muted-text)] sm:text-base">
           See your income, expenses, payments, and upcoming work.
         </p>
       </div>
 
-      <div className="flex flex-col gap-2 sm:items-end">
-        <Button type="button" variant="ghost" size="sm" onClick={onCustomize}><Settings2 className="size-4" /> Customize dashboard</Button>
+      <div className="flex shrink-0 sm:justify-end">
         <ReportPeriodSelector value={period} currentMonth={currentMonth} resolvedLabel={resolvedLabel} onChange={onPeriodChange} />
       </div>
     </header>

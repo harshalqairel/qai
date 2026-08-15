@@ -2,82 +2,44 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Download, ExternalLink, FileSpreadsheet } from "lucide-react";
+
+import DataErrorState from "@/components/system/DataErrorState";
+import PageSkeleton from "@/components/system/PageSkeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import DataErrorState from "@/components/system/DataErrorState";
-import PageSkeleton from "@/components/system/PageSkeleton";
+import { instantParts } from "@/features/booking/utils/bookingSessions";
 import { useBookings } from "@/features/booking/hooks/useBookings";
 import { useCustomers } from "@/features/customer/hooks/useCustomers";
-import { useServices } from "@/features/service/hooks/useServices";
-import { usePayments } from "@/features/payment/hooks/usePayments";
-import { useExpenses } from "@/features/expense/hooks/useExpenses";
 import { useExpenseCategories } from "@/features/expense-category/hooks/useExpenseCategories";
+import { useExpenses } from "@/features/expense/hooks/useExpenses";
+import { getInvoiceSettings, invoiceRepository } from "@/features/invoice/invoice";
+import { usePayments } from "@/features/payment/hooks/usePayments";
+import { downloadFinancialReport } from "@/features/reports/excelExport";
 import {
   buildFinancialReport,
   type FinancialReport,
   type ReportPeriodPreset,
 } from "@/features/reports/financialReport";
-import ReportPeriodSelector from "@/features/reports/ReportPeriodSelector";
-import { instantParts } from "@/features/booking/utils/bookingSessions";
-import { downloadFinancialReport } from "@/features/reports/excelExport";
 import { exportFinancialReportToGoogleSheets } from "@/features/reports/googleSheetsExport";
-import { formatSessionTime } from "@/features/booking/utils/bookingSessions";
+import ReportPeriodSelector from "@/features/reports/ReportPeriodSelector";
+import { useServices } from "@/features/service/hooks/useServices";
+import { notify } from "@/lib/notifications";
 import { getActiveBusinessContext, type ActiveBusinessContext } from "@/lib/supabase/cloudRepositories";
 import { isCloudModeEnabled } from "@/lib/supabase/config";
-import { notify } from "@/lib/notifications";
-import { invoiceRepository } from "@/features/invoice/invoice";
-import { getInvoiceSettings } from "@/features/invoice/invoice";
 
 function formatMoney(value: number, currency: string): string {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(value);
+  return new Intl.NumberFormat("id-ID", { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
 }
 
-function expenseTypeLabel(type: string): string {
-  return type === "Business Expense" ? "General expense" : "Booking expense";
+function SummaryCard({ label, value, detail, tone = "default" }: { label: string; value: string; detail: string; tone?: "default" | "positive" | "warning" }) {
+  const toneClass = tone === "positive" ? "text-emerald-700" : tone === "warning" ? "text-amber-700" : "text-foreground";
+  return <article className="surface-card min-w-0 p-4 sm:p-5"><p className="text-sm font-medium text-muted-foreground">{label}</p><p className={`mt-3 break-words text-xl font-bold tabular-nums sm:text-2xl ${toneClass}`}>{value}</p><p className="mt-2 text-xs leading-5 text-muted-foreground">{detail}</p></article>;
 }
 
-function dateLabel(date: string): string {
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(new Date(`${date}T00:00:00.000Z`));
-}
-
-function ReportSection({ title, subtitle, children, id }: {
-  title: string;
-  subtitle: string;
-  children: React.ReactNode;
-  id?: string;
-}) {
-  return (
-    <details id={id} open className="surface-card group scroll-mt-6 p-4 sm:p-6">
-      <summary className="cursor-pointer list-none rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h2 className="font-semibold text-foreground">{title}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
-          </div>
-          <span className="text-sm text-muted-foreground group-open:hidden">Show</span>
-        </div>
-      </summary>
-      <div className="mt-5">{children}</div>
-    </details>
-  );
-}
-
-function EmptyRows() {
-  return <p className="rounded-xl border border-dashed border-border p-5 text-center text-sm text-muted-foreground">No activity in this period.</p>;
-}
-
-function ReportCards({ children }: { children: React.ReactNode }) {
-  return <div className="grid gap-3 lg:grid-cols-2">{children}</div>;
+function Breakdown({ title, subtitle, rows, currency, money = true }: { title: string; subtitle: string; rows: Array<{ label: string; value: number }>; currency: string; money?: boolean }) {
+  const maximum = Math.max(...rows.map((row) => row.value), 1);
+  return <section className="surface-card p-5 sm:p-6"><h2 className="font-semibold">{title}</h2><p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>{rows.length === 0 ? <p className="mt-6 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">No activity in this period.</p> : <div className="mt-6 space-y-4">{rows.map((row) => <div key={row.label}><div className="flex items-center justify-between gap-4 text-sm"><span className="min-w-0 truncate font-medium">{row.label}</span><strong className="shrink-0 tabular-nums">{money ? formatMoney(row.value, currency) : row.value.toLocaleString("en-US")}</strong></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(4, (row.value / maximum) * 100)}%` }} /></div></div>)}</div>}</section>;
 }
 
 export default function ReportsPage() {
@@ -99,200 +61,68 @@ export default function ReportsPage() {
   const [exporting, setExporting] = useState<"excel" | "sheets" | null>(null);
   const [sheetsExport, setSheetsExport] = useState<{ url: string; periodLabel: string } | null>(null);
   const cloudMode = isCloudModeEnabled();
-  const business = useMemo<ActiveBusinessContext | null>(() => cloudMode ? cloudBusiness : ({
-    businessId: "local",
-    businessName: getInvoiceSettings().businessName,
-    currency: "IDR",
-    timezone: bookingData.timezone,
-  }), [cloudMode, cloudBusiness, bookingData.timezone]);
+  const business = useMemo<ActiveBusinessContext | null>(() => cloudMode ? cloudBusiness : ({ businessId: "local", businessName: getInvoiceSettings().businessName, currency: "IDR", timezone: bookingData.timezone }), [cloudMode, cloudBusiness, bookingData.timezone]);
 
   useEffect(() => {
     let active = true;
     if (!cloudMode) return () => { active = false; };
-    void getActiveBusinessContext()
-      .then((context) => { if (active) setCloudBusiness(context); })
-      .catch(() => { if (active) setCloudBusiness(null); });
+    void getActiveBusinessContext().then((context) => { if (active) setCloudBusiness(context); }).catch(() => { if (active) setCloudBusiness(null); });
     return () => { active = false; };
-  }, [cloudMode, bookingData.timezone]);
+  }, [cloudMode]);
 
   const report = useMemo<FinancialReport | null>(() => {
     if (!business) return null;
     try {
-      return buildFinancialReport({
-        businessName: business.businessName,
-        currency: business.currency,
-        timezone: business.timezone,
-        period: { preset, selectedMonth, customFrom, customTo },
-        bookings: bookingData.bookings,
-        customers: customerData.customers,
-        services: serviceData.services,
-        payments: paymentData.payments,
-        expenses: expenseData.expenses,
-        expenseCategories: categoryData.categories,
-        invoices: invoiceRepository.getAll(),
-      });
+      return buildFinancialReport({ businessName: business.businessName, currency: business.currency, timezone: business.timezone, period: { preset, selectedMonth, customFrom, customTo }, bookings: bookingData.bookings, customers: customerData.customers, services: serviceData.services, payments: paymentData.payments, expenses: expenseData.expenses, expenseCategories: categoryData.categories, invoices: invoiceRepository.getAll() });
     } catch {
       return null;
     }
   }, [business, preset, selectedMonth, customFrom, customTo, bookingData.bookings, customerData.customers, serviceData.services, paymentData.payments, expenseData.expenses, categoryData.categories]);
 
+  const paymentMethods = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const payment of report?.moneyReceived ?? []) totals.set(payment.method, (totals.get(payment.method) ?? 0) + payment.amount);
+    return [...totals].map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
+  }, [report]);
+  const expenseCategories = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const expense of report?.expenses ?? []) totals.set(expense.category, (totals.get(expense.category) ?? 0) + expense.amount);
+    return [...totals].map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
+  }, [report]);
+  const bookingStatuses = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const booking of report?.bookings ?? []) totals.set(booking.status, (totals.get(booking.status) ?? 0) + 1);
+    return [...totals].map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
+  }, [report]);
+
   async function exportExcel() {
     if (!report) return;
     setExporting("excel");
-    try {
-      await downloadFinancialReport(report);
-      notify.success("Excel report downloaded.");
-    } catch {
-      notify.error("Could not create the Excel report.");
-    } finally {
-      setExporting(null);
-    }
+    try { await downloadFinancialReport(report); notify.success("Excel report downloaded."); }
+    catch { notify.error("Could not create the Excel report."); }
+    finally { setExporting(null); }
   }
 
   async function exportSheets() {
     if (!report) return;
-    if (!cloudMode) {
-      notify.info("Sign in and enable Qai Cloud before exporting to Google Sheets.");
-      return;
-    }
+    if (!cloudMode) return notify.info("Sign in and enable Qai Cloud before exporting to Google Sheets.");
     setExporting("sheets");
-    try {
-      const url = await exportFinancialReportToGoogleSheets(report);
-      setSheetsExport({ url, periodLabel: report.period.label });
-      notify.success("Google Sheets report created.");
-    } catch (error) {
-      notify.error(error instanceof Error ? error.message : "Could not create the Google Sheets report.");
-    } finally {
-      setExporting(null);
-    }
+    try { const url = await exportFinancialReportToGoogleSheets(report); setSheetsExport({ url, periodLabel: report.period.label }); notify.success("Google Sheets report created."); }
+    catch (error) { notify.error(error instanceof Error ? error.message : "Could not create the Google Sheets report."); }
+    finally { setExporting(null); }
   }
 
   const dataSources = [bookingData, customerData, serviceData, paymentData, expenseData, categoryData];
-  if (dataSources.some((source) => source.isLoading) || !business) {
-    return <main className="min-h-screen"><PageSkeleton variant="list" /></main>;
-  }
-  if (dataSources.some((source) => source.loadError)) {
-    return <main className="min-h-screen"><div className="page-shell"><DataErrorState onRetry={() => dataSources.forEach((source) => source.retry())} /></div></main>;
-  }
+  if (dataSources.some((source) => source.isLoading) || !business) return <main className="min-h-screen"><PageSkeleton variant="list" /></main>;
+  if (dataSources.some((source) => source.loadError)) return <main className="min-h-screen"><div className="page-shell"><DataErrorState onRetry={() => dataSources.forEach((source) => source.retry())} /></div></main>;
 
-  return (
-    <main className="min-h-screen overflow-x-hidden">
-      <div className="page-shell space-y-5">
-        <header>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Financial reports</h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted-foreground sm:text-base">
-            Review income, expenses, profit, unpaid amounts, bookings, and schedules.
-          </p>
-        </header>
-
-        <section className="surface-card grid gap-4 p-4 sm:p-6 lg:grid-cols-[1fr_auto] lg:items-end">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div>
-              <Label className="mb-2 block">Report period</Label>
-              <ReportPeriodSelector
-                value={{ preset, selectedMonth, customFrom, customTo }}
-                currentMonth={instantParts(new Date().toISOString(), business.timezone).date.slice(0, 7)}
-                resolvedLabel={report?.period.label}
-                includeCustom
-                className="w-full"
-                onChange={(next) => { setPreset(next.preset); setSelectedMonth(next.selectedMonth ?? ""); }}
-              />
-            </div>
-            {preset === "custom" && (
-              <>
-                <div><Label className="mb-2 block">From</Label><Input type="date" value={customFrom} onChange={(event) => setCustomFrom(event.target.value)} /></div>
-                <div><Label className="mb-2 block">To</Label><Input type="date" value={customTo} onChange={(event) => setCustomTo(event.target.value)} /></div>
-              </>
-            )}
-          </div>
-          <div className={`grid gap-2 ${cloudMode ? "sm:grid-cols-2" : ""}`}>
-            <Button type="button" variant="outline" disabled={!report || exporting !== null} onClick={exportExcel}>
-              <Download className="size-4" aria-hidden="true" /> {exporting === "excel" ? "Creating…" : "Export to Excel"}
-            </Button>
-            {cloudMode && (
-              <Button type="button" disabled={!report || exporting !== null} onClick={exportSheets}>
-                <FileSpreadsheet className="size-4" aria-hidden="true" /> {exporting === "sheets" ? "Creating…" : "Export to Google Sheets"}
-              </Button>
-            )}
-          </div>
-          {sheetsExport && sheetsExport.periodLabel === report?.period.label && (
-            <a className="font-semibold text-[var(--brand)] hover:underline lg:col-span-2" href={sheetsExport.url} target="_blank" rel="noreferrer">
-              Open in Google Sheets <ExternalLink className="ml-1 inline size-4" aria-hidden="true" />
-            </a>
-          )}
-        </section>
-
-        {!report ? (
-          <p className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">Choose a valid custom date range.</p>
-        ) : (
-          <>
-            <section aria-label="Report summary" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              {[
-                ["Income", report.summary.moneyReceived, true],
-                ["Expenses", report.summary.expenses, true],
-                ["Profit", report.summary.realizedProfit, true],
-                ["Unpaid amount", report.summary.outstanding, true],
-                ["Expected booking value", report.summary.expectedBookingValue, true],
-                ["Est. job profit", report.summary.estimatedJobProfit, true],
-                ["Bookings", report.summary.bookings, false],
-                ["Schedules", report.summary.scheduledSessions, false],
-              ].map(([label, value, money]) => (
-                <article key={String(label)} className="surface-card min-w-0 p-4">
-                  <p className="text-xs font-medium text-muted-foreground sm:text-sm">{label}</p>
-                  <p className="mt-2 break-words text-lg font-bold text-foreground sm:text-xl">
-                    {money ? formatMoney(Number(value), report.currency) : Number(value).toLocaleString("en-US")}
-                  </p>
-                </article>
-              ))}
-            </section>
-
-            <ReportSection id="income" title="Income" subtitle={`${report.moneyReceived.length} recorded payment transactions`}>
-              {report.moneyReceived.length === 0 ? <EmptyRows /> : <ReportCards>{report.moneyReceived.map((row) => (
-                <article key={row.paymentId} className="rounded-xl border border-border p-4">
-                  <div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{row.customer}</p><p className="text-sm text-muted-foreground">{row.service} · {dateLabel(row.date)}</p></div><p className="shrink-0 font-bold">{formatMoney(row.amount, report.currency)}</p></div>
-                  <p className="mt-2 text-sm text-muted-foreground">{row.method} · Booking {row.bookingStatus}</p>
-                </article>
-              ))}</ReportCards>}
-            </ReportSection>
-
-            <ReportSection id="expenses" title="Expenses" subtitle={`${report.expenses.length} recorded expenses`}>
-              {report.expenses.length === 0 ? <EmptyRows /> : <ReportCards>{report.expenses.map((row) => (
-                <article key={row.expenseId} className="rounded-xl border border-border p-4">
-                  <div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{row.category}</p><p className="text-sm text-muted-foreground">{expenseTypeLabel(row.type)} · {dateLabel(row.date)}</p></div><p className="shrink-0 font-bold">{formatMoney(row.amount, report.currency)}</p></div>
-                  {(row.customer || row.vendor) && <p className="mt-2 text-sm text-muted-foreground">{row.customer || row.vendor}{row.service ? ` · ${row.service}` : ""}</p>}
-                </article>
-              ))}</ReportCards>}
-            </ReportSection>
-
-            <ReportSection title="Job profit" subtitle="Booking price minus direct booking expenses; general expenses are excluded">
-              {report.jobProfit.length === 0 ? <EmptyRows /> : <ReportCards>{report.jobProfit.map((row) => (
-                <article key={row.bookingId} className="rounded-xl border border-border p-4">
-                  <p className="font-semibold">{row.customer} · {row.service}</p><p className="mt-1 text-sm text-muted-foreground">{dateLabel(row.firstSessionDate)} · {row.sessionCount} schedule{row.sessionCount === 1 ? "" : "s"}</p>
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-sm"><span>Direct expenses<br /><strong>{formatMoney(row.directExpenses, report.currency)}</strong></span><span>Est. profit<br /><strong>{formatMoney(row.estimatedJobProfit ?? 0, report.currency)}</strong></span></div>
-                </article>
-              ))}</ReportCards>}
-            </ReportSection>
-
-            <ReportSection title="Unpaid amount" subtitle="Unpaid amounts from scheduled and completed bookings">
-              {report.outstanding.length === 0 ? <EmptyRows /> : <ReportCards>{report.outstanding.map((row) => (
-                <article key={row.bookingId} className="rounded-xl border border-border p-4"><div className="flex justify-between gap-3"><div><p className="font-semibold">{row.customer}</p><p className="text-sm text-muted-foreground">{row.service} · due {dateLabel(row.paymentDueDate)}</p></div><p className="font-bold text-amber-700">{formatMoney(row.outstanding ?? 0, report.currency)}</p></div></article>
-              ))}</ReportCards>}
-            </ReportSection>
-
-            <ReportSection title="Bookings" subtitle={`${report.bookings.length} bookings; each booking appears once`}>
-              {report.bookings.length === 0 ? <EmptyRows /> : <ReportCards>{report.bookings.map((row) => (
-                <article key={row.bookingId} className="rounded-xl border border-border p-4"><div className="flex justify-between gap-3"><div><p className="font-semibold">{row.customer} · {row.service}</p><p className="text-sm text-muted-foreground">{dateLabel(row.firstSessionDate)} · {row.status} · {row.sessionCount} schedule{row.sessionCount === 1 ? "" : "s"}</p></div><p className="font-bold">{formatMoney(row.bookingValue, report.currency)}</p></div></article>
-              ))}</ReportCards>}
-            </ReportSection>
-
-            <ReportSection title="Schedule" subtitle={`${report.schedule.length} individual schedules`}>
-              {report.schedule.length === 0 ? <EmptyRows /> : <ReportCards>{report.schedule.map((row) => (
-                <article key={row.sessionId} className="rounded-xl border border-border p-4"><p className="font-semibold">Schedule {row.sequence}{row.label ? ` · ${row.label}` : ""}</p><p className="mt-1 text-sm text-muted-foreground">{row.customer} · {row.service}</p><p className="mt-2 text-sm">{dateLabel(row.date)} · {formatSessionTime({ id: row.sessionId, bookingId: row.bookingId, sequence: row.sequence, label: row.label, startAt: row.startAt, endAt: row.endAt, location: row.location, notes: row.notes, createdAt: 0, updatedAt: 0 }, report.timezone)}</p>{row.location && <p className="mt-1 text-sm text-muted-foreground">{row.location}</p>}</article>
-              ))}</ReportCards>}
-            </ReportSection>
-          </>
-        )}
-      </div>
-    </main>
-  );
+  return <main className="min-h-screen overflow-x-hidden"><div className="page-shell space-y-5">
+    <header><h1 className="page-title">Financial reports</h1><p className="mt-2 max-w-2xl text-sm text-muted-foreground sm:text-base">A concise view of business performance. Detailed records remain available in your exports.</p></header>
+    <section className="surface-card grid gap-4 p-4 sm:p-6 lg:grid-cols-[1fr_auto] lg:items-end"><div className="grid gap-4 sm:grid-cols-3"><div><Label className="mb-2 block">Report period</Label><ReportPeriodSelector value={{ preset, selectedMonth, customFrom, customTo }} currentMonth={instantParts(new Date().toISOString(), business.timezone).date.slice(0, 7)} resolvedLabel={report?.period.label} includeCustom className="w-full" onChange={(next) => { setPreset(next.preset); setSelectedMonth(next.selectedMonth ?? ""); }} /></div>{preset === "custom" && <><div><Label className="mb-2 block">From</Label><Input type="date" value={customFrom} onChange={(event) => setCustomFrom(event.target.value)} /></div><div><Label className="mb-2 block">To</Label><Input type="date" value={customTo} onChange={(event) => setCustomTo(event.target.value)} /></div></>}</div><div className={`grid gap-2 ${cloudMode ? "sm:grid-cols-2" : ""}`}><Button variant="outline" disabled={!report || exporting !== null} onClick={exportExcel}><Download className="size-4" />{exporting === "excel" ? "Creating…" : "Excel"}</Button>{cloudMode && <Button disabled={!report || exporting !== null} onClick={exportSheets}><FileSpreadsheet className="size-4" />{exporting === "sheets" ? "Creating…" : "Google Sheets"}</Button>}</div>{sheetsExport && sheetsExport.periodLabel === report?.period.label && <a className="font-semibold text-primary hover:underline lg:col-span-2" href={sheetsExport.url} target="_blank" rel="noreferrer">Open in Google Sheets <ExternalLink className="ml-1 inline size-4" /></a>}</section>
+    {!report ? <p className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">Choose a valid custom date range.</p> : <>
+      <section aria-label="Report summary" className="grid grid-cols-2 gap-3 lg:grid-cols-4"><SummaryCard label="Income" value={formatMoney(report.summary.moneyReceived, report.currency)} detail={`${report.moneyReceived.length} recorded payments`} tone="positive" /><SummaryCard label="Expenses" value={formatMoney(report.summary.expenses, report.currency)} detail={`${report.expenses.length} recorded expenses`} /><SummaryCard label="Profit" value={formatMoney(report.summary.realizedProfit, report.currency)} detail="Income minus all period expenses" tone={report.summary.realizedProfit >= 0 ? "positive" : "warning"} /><SummaryCard label="Unpaid amount" value={formatMoney(report.summary.outstanding, report.currency)} detail="Scheduled and completed bookings" tone="warning" /><SummaryCard label="Expected booking value" value={formatMoney(report.summary.expectedBookingValue, report.currency)} detail="Financially active bookings" /><SummaryCard label="Est. job profit" value={formatMoney(report.summary.estimatedJobProfit, report.currency)} detail="Booking value minus direct expenses" /><SummaryCard label="Bookings" value={report.summary.bookings.toLocaleString("en-US")} detail="Each booking counted once" /><SummaryCard label="Schedules" value={report.summary.scheduledSessions.toLocaleString("en-US")} detail="Each booking session counted once" /></section>
+      <div className="grid gap-5 lg:grid-cols-3"><Breakdown title="Money received" subtitle="Recorded payments by method" rows={paymentMethods} currency={report.currency} /><Breakdown title="Expenses" subtitle="Expenses by category" rows={expenseCategories} currency={report.currency} /><Breakdown title="Booking volume" subtitle="Bookings by current status" rows={bookingStatuses} currency={report.currency} money={false} /></div>
+      <p className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">Exports include transaction-level sheets for Income, Expenses, Job Profit, Outstanding, Bookings, Schedule, and Invoices. Multi-session bookings remain one financial row; each schedule is exported separately.</p>
+    </>}
+  </div></main>;
 }

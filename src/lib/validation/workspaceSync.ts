@@ -2,24 +2,73 @@ import { isValidationModeEnabled } from "@/lib/supabase/config";
 
 type RemoteDocument = { storageKey: string; value: unknown; updatedAt: string };
 
+export class WorkspaceDocumentSyncError extends Error {
+  readonly status: number | null;
+
+  constructor(message: string, status: number | null = null) {
+    super(message);
+    this.name = "WorkspaceDocumentSyncError";
+    this.status = status;
+  }
+}
+
 let hydration = false;
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 const pending = new Map<string, unknown>();
 
+function scheduleWorkspaceDocumentFlush(): void {
+  if (flushTimer) clearTimeout(flushTimer);
+  flushTimer = setTimeout(() => { void flushWorkspaceDocuments().catch(() => undefined); }, 180);
+}
+
 export function queueWorkspaceDocumentWrite(storageKey: string, serialized: string): void {
   if (!isValidationModeEnabled() || hydration || typeof window === "undefined" || !storageKey.startsWith("qai:")) return;
   try { pending.set(storageKey, JSON.parse(serialized)); } catch { return; }
-  if (flushTimer) clearTimeout(flushTimer);
-  flushTimer = setTimeout(() => { void flushWorkspaceDocuments(); }, 180);
+  scheduleWorkspaceDocumentFlush();
 }
 
-export async function flushWorkspaceDocuments(): Promise<void> {
+export function discardPendingWorkspaceDocumentWrites(storageKeys: readonly string[]): void {
+  for (const storageKey of storageKeys) pending.delete(storageKey);
+  if (pending.size === 0 && flushTimer) {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+  }
+}
+
+async function persistWorkspaceDocuments(documents: Array<{ storageKey: string; value: unknown }>): Promise<void> {
+  if (!documents.length || !isValidationModeEnabled()) return;
+  let response: Response;
+  try {
+    response = await fetch("/api/validation/documents", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ documents }),
+    });
+  } catch {
+    throw new WorkspaceDocumentSyncError("The remote workspace could not be reached.");
+  }
+  if (!response.ok) {
+    throw new WorkspaceDocumentSyncError("The remote workspace rejected the data.", response.status);
+  }
+}
+
+export async function flushWorkspaceDocuments(storageKeys?: readonly string[]): Promise<void> {
   if (!pending.size) return;
-  const documents = Array.from(pending, ([storageKey, value]) => ({ storageKey, value }));
-  pending.clear();
+  const selectedKeys = storageKeys ? new Set(storageKeys) : null;
+  const documents = Array.from(pending, ([storageKey, value]) => ({ storageKey, value }))
+    .filter((document) => !selectedKeys || selectedKeys.has(document.storageKey));
+  if (!documents.length) return;
+  for (const document of documents) pending.delete(document.storageKey);
+  if (flushTimer) clearTimeout(flushTimer);
   flushTimer = null;
-  const response = await fetch("/api/validation/documents", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ documents }) });
-  if (!response.ok) for (const item of documents) pending.set(item.storageKey, item.value);
+  if (pending.size > 0) scheduleWorkspaceDocumentFlush();
+  try {
+    await persistWorkspaceDocuments(documents);
+  } catch (error) {
+    for (const item of documents) pending.set(item.storageKey, item.value);
+    scheduleWorkspaceDocumentFlush();
+    throw error;
+  }
 }
 
 export async function hydrateWorkspaceDocuments(): Promise<void> {

@@ -5,6 +5,7 @@ import type { Expense } from "@/features/expense/types";
 import type { Payment } from "@/features/payment/types";
 import type { ServiceCategory } from "@/features/service-category/types";
 import type { Service } from "@/features/service/types";
+import type { AdditionalChargeCategory } from "@/features/booking/domain/additionalChargeCategories";
 
 export const QAI_BACKUP_APP = "Qai";
 export const QAI_BACKUP_VERSION = 2;
@@ -20,6 +21,7 @@ export type QaiBackupData = {
   expenses: Expense[];
   serviceCategories: ServiceCategory[];
   expenseCategories: ExpenseCategory[];
+  additionalChargeCategories?: AdditionalChargeCategory[];
   settings?: Record<string, unknown>;
 };
 

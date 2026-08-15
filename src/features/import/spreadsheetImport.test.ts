@@ -44,7 +44,7 @@ beforeEach(() => {
   vi.stubGlobal("CustomEvent", class { constructor(public type: string) {} });
 });
 
-afterEach(() => { vi.unstubAllGlobals(); });
+afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe("spreadsheet import", () => {
   it("parses CSV and suggests common Indonesian and English columns deterministically", async () => {
@@ -80,20 +80,33 @@ describe("spreadsheet import", () => {
     expect(parsed.sheets[1].rows).toHaveLength(2);
   }, 15_000);
 
-  it("commits one booking with deduplicated multi-schedules, actual payment, expense, and overnight timing", () => {
-    const result = commitSpreadsheetImport(preview(), "Asia/Jakarta");
+  it("commits one booking with deduplicated multi-schedules, actual payment, expense, and overnight timing", async () => {
+    const result = await commitSpreadsheetImport(preview(), "Asia/Jakarta");
     expect(result).toMatchObject({ status: "completed", counts: { bookings: 1, schedules: 3, payments: 1, expenses: 1 } });
     const booking = bookingRepository.getAll()[0];
     expect(booking.sessions).toHaveLength(3);
     expect(Date.parse(booking.sessions[2].endAt)).toBeGreaterThan(Date.parse(booking.sessions[2].startAt));
     expect(paymentRepository.getAll()).toMatchObject([{ bookingId: booking.id, amount: 2_000_000 }]);
     expect(expenseRepository.getAll()).toMatchObject([{ expenseType: "Business Expense", bookingId: null, amount: 250_000 }]);
-    expect(commitSpreadsheetImport(preview(), "Asia/Jakarta").status).toBe("already_imported");
+    expect((await commitSpreadsheetImport(preview(), "Asia/Jakarta")).status).toBe("already_imported");
   });
 
-  it("rolls back every collection if an import write fails", () => {
+  it("rolls back every collection if an import write fails", async () => {
     storage.failOnceForKey = PAYMENT_STORAGE_KEY;
-    expect(() => commitSpreadsheetImport(preview("source-failure"), "Asia/Jakarta")).toThrow();
+    await expect(commitSpreadsheetImport(preview("source-failure"), "Asia/Jakarta")).rejects.toThrow();
+    expect(storage.getItem(BOOKING_STORAGE_KEY)).toBeNull();
+    expect(storage.getItem(PAYMENT_STORAGE_KEY)).toBeNull();
+  });
+
+  it("does not leave imported data locally when remote workspace confirmation fails", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "test-publishable-key");
+    vi.stubEnv("NEXT_PUBLIC_QAI_VALIDATION_ENABLED", "true");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 500 })));
+
+    await expect(commitSpreadsheetImport(preview("remote-failure"), "Asia/Jakarta"))
+      .rejects.toMatchObject({ stage: "remote-confirmation" });
+
     expect(storage.getItem(BOOKING_STORAGE_KEY)).toBeNull();
     expect(storage.getItem(PAYMENT_STORAGE_KEY)).toBeNull();
   });

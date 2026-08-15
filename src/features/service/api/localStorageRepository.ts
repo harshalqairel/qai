@@ -33,6 +33,7 @@ function migrateServices(
         ...service,
         description: service.description ?? "",
         defaultSessionCount: service.defaultSessionCount ?? 1,
+        locationPolicy: service.locationPolicy ?? "Client can choose",
         active: service.active ?? true,
       };
     }
@@ -48,6 +49,7 @@ function migrateServices(
       categoryId: category.id,
       description: service.description ?? "",
       defaultSessionCount: service.defaultSessionCount ?? 1,
+      locationPolicy: service.locationPolicy ?? "Client can choose",
       active: service.active ?? true,
     };
   });

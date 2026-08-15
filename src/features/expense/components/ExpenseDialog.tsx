@@ -10,7 +10,6 @@ import { MoneyInput } from "@/components/ui/money-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { EXPENSE_TYPES } from "@/features/expense/constants";
 import { PAYMENT_METHODS } from "@/features/payment/constants";
 import { expenseSchema, ExpenseFormValues } from "@/features/expense/schema";
 import { Expense, CreateExpenseInput, UpdateExpenseInput } from "@/features/expense/types";
@@ -194,67 +193,78 @@ export default function ExpenseDialog({
           </Button>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          {/* Expense Type */}
-          <div>
-            <Label className="mb-2 block font-semibold">Expense type</Label>
-            <Controller
-              control={control}
-              name="expenseType"
-              render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select type">
-                      {field.value === "Business Expense" ? "General expense" : "Booking expense"}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {EXPENSE_TYPES.map((t) => (
-                      <SelectItem key={t} value={t}>{t === "Business Expense" ? "General expense" : "Booking expense"}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-          </div>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+          <section className="space-y-5 rounded-2xl border border-border bg-slate-50/70 p-4 sm:p-5" aria-labelledby="expense-details-heading">
+            <div>
+              <h3 id="expense-details-heading" className="text-sm font-bold text-slate-900">Expense details</h3>
+              <p className="mt-1 text-sm text-slate-500">Choose where this cost belongs, then add its details.</p>
+            </div>
 
-          <div>
-            <Label className="mb-2 block font-semibold">Booking (optional)</Label>
-            <Controller
-              control={control}
-              name="bookingId"
-              render={({ field }) => (
-                <Select
-                  value={field.value ?? "none"}
-                  onValueChange={(value) => {
-                    const bookingId = value === "none" ? null : value;
-                    field.onChange(bookingId);
-                    setValue("expenseType", bookingId ? "Booking Expense" : "Business Expense");
+            <fieldset>
+              <legend className="mb-2 block text-sm font-semibold text-slate-800">Expense for</legend>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  aria-pressed={!isBookingExpense}
+                  className={`min-h-12 rounded-xl border px-4 py-3 text-left text-sm font-semibold transition-colors ${
+                    !isBookingExpense
+                      ? "border-primary bg-primary/8 text-primary ring-1 ring-primary/20"
+                      : "border-border bg-white text-slate-700 hover:border-slate-300"
+                  }`}
+                  onClick={() => {
+                    setValue("expenseType", "Business Expense", { shouldDirty: true, shouldValidate: true });
+                    setValue("bookingId", null, { shouldDirty: true, shouldValidate: true });
                   }}
                 >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="No related booking">
-                      {field.value
-                        ? bookingOptions.find((option) => option.id === field.value)?.label ?? "Booking not found"
-                        : "No related booking"}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No related booking</SelectItem>
-                    {bookingOptions.map((option) => (
-                      <SelectItem key={option.id} value={option.id}>{option.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-            {errors.bookingId && (
-              <p className="mt-2 text-sm text-destructive">{errors.bookingId.message}</p>
-            )}
-          </div>
+                  General business
+                  <span className="mt-1 block text-xs font-normal text-slate-500">Not linked to one booking</span>
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={isBookingExpense}
+                  className={`min-h-12 rounded-xl border px-4 py-3 text-left text-sm font-semibold transition-colors ${
+                    isBookingExpense
+                      ? "border-primary bg-primary/8 text-primary ring-1 ring-primary/20"
+                      : "border-border bg-white text-slate-700 hover:border-slate-300"
+                  }`}
+                  onClick={() => setValue("expenseType", "Booking Expense", { shouldDirty: true, shouldValidate: true })}
+                >
+                  Specific booking
+                  <span className="mt-1 block text-xs font-normal text-slate-500">Included in that booking&apos;s profit</span>
+                </button>
+              </div>
+            </fieldset>
 
-          {/* Category */}
-          <div>
+            {isBookingExpense && (
+              <div>
+                <Label className="mb-2 block font-semibold">Booking</Label>
+                <Controller
+                  control={control}
+                  name="bookingId"
+                  render={({ field }) => (
+                    <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select booking">
+                          {field.value
+                            ? bookingOptions.find((option) => option.id === field.value)?.label ?? "Booking not found"
+                            : undefined}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {bookingOptions.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>{option.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                {errors.bookingId && (
+                  <p className="mt-2 text-sm text-destructive">{errors.bookingId.message}</p>
+                )}
+              </div>
+            )}
+
+            <div>
             <Label className="mb-2 block font-semibold">Category</Label>
             <Controller
               control={control}
@@ -353,10 +363,9 @@ export default function ExpenseDialog({
                 )}
               </div>
             )}
-          </div>
+            </div>
 
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            {/* Date */}
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div>
               <Label className="mb-2 block font-semibold">Date</Label>
               <Input type="date" {...register("date")} />
@@ -387,10 +396,12 @@ export default function ExpenseDialog({
                 <p className="mt-2 text-sm text-destructive">{errors.amount.message}</p>
               )}
             </div>
-          </div>
+            </div>
+          </section>
 
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            {/* Payment Method */}
+          <section className="space-y-5 rounded-2xl border border-border p-4 sm:p-5" aria-labelledby="expense-payment-heading">
+            <h3 id="expense-payment-heading" className="text-sm font-bold text-slate-900">Payment</h3>
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div>
               <Label className="mb-2 block font-semibold">Payment method</Label>
               <Controller
@@ -411,18 +422,19 @@ export default function ExpenseDialog({
               />
             </div>
 
-            {/* Paid to */}
             <div>
-              <Label className="mb-2 block font-semibold">Paid to (optional)</Label>
-              <Input {...register("vendor")} placeholder="e.g. Studio rental" />
+              <Label className="mb-2 block font-semibold">Paid to</Label>
+              <Input {...register("vendor")} placeholder="e.g. Studio or supplier" />
+              <p className="mt-1.5 text-xs text-slate-500">The person or business that received the money.</p>
             </div>
-          </div>
+            </div>
+          </section>
 
-          {/* Notes */}
-          <div>
-            <Label className="mb-2 block font-semibold">Notes</Label>
-            <Textarea rows={3} {...register("notes")} />
-          </div>
+          <section className="space-y-3 rounded-2xl border border-border p-4 sm:p-5" aria-labelledby="expense-notes-heading">
+            <h3 id="expense-notes-heading" className="text-sm font-bold text-slate-900">Notes</h3>
+            <Label className="sr-only" htmlFor="expense-notes">Notes</Label>
+            <Textarea id="expense-notes" rows={3} {...register("notes")} placeholder="Add any useful context" />
+          </section>
 
           <div className="mt-8 flex justify-end gap-3">
             <Button type="button" variant="outline" disabled={action.pending} onClick={handleClose}>

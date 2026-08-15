@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import CustomerHeader from "@/features/customer/components/CustomerHeader";
 import CustomerToolbar from "@/features/customer/components/CustomerToolbar";
 import CustomerTable from "@/features/customer/components/CustomerTable";
+import ClientProfileDialog from "@/features/customer/components/ClientProfileDialog";
 import CustomerDialog from "@/features/customer/components/CustomerDialog";
 
 import {
@@ -18,6 +19,9 @@ import { usePayments } from "@/features/payment/hooks/usePayments";
 import { summarizeBookingPayments } from "@/features/payment/utils/paymentCalculations";
 import PageSkeleton from "@/components/system/PageSkeleton";
 import DataErrorState from "@/components/system/DataErrorState";
+import { useServices } from "@/features/service/hooks/useServices";
+import { invoiceRepository } from "@/features/invoice/invoice";
+import type { CustomerWithFinancials } from "@/features/customer/components/CustomerTable";
 
 const FINANCIALLY_COMMITTED_BOOKING_STATUSES: ReadonlySet<Booking["bookingStatus"]> = new Set([
   "Scheduled",
@@ -28,6 +32,7 @@ export default function CustomersPage() {
   const customerData = useCustomers();
   const bookingData = useBookings();
   const paymentData = usePayments();
+  const serviceData = useServices();
   const { customers, createCustomer, updateCustomer, deleteCustomer } = customerData;
   const { bookings } = bookingData;
   const { payments } = paymentData;
@@ -36,6 +41,8 @@ export default function CustomersPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("newest");
+  const [profileCustomer, setProfileCustomer] = useState<CustomerWithFinancials | null>(null);
+  const [loadedAt] = useState(Date.now);
 
   const keyword = search.trim().toLowerCase();
 
@@ -76,12 +83,16 @@ export default function CustomersPage() {
     const totalsByCustomerId = new Map<string, {
       lifetimeRevenue: number;
       outstanding: number;
+      bookingCount: number;
+      nextBooking: string | null;
     }>();
 
     for (const booking of bookings) {
       const totals = totalsByCustomerId.get(booking.customerId) ?? {
         lifetimeRevenue: 0,
         outstanding: 0,
+        bookingCount: 0,
+        nextBooking: null,
       };
       const paymentSummary = paymentSummaries[booking.id];
 
@@ -89,20 +100,29 @@ export default function CustomersPage() {
       if (FINANCIALLY_COMMITTED_BOOKING_STATUSES.has(booking.bookingStatus)) {
         totals.outstanding += paymentSummary?.remainingAmount ?? booking.servicePrice;
       }
+      totals.bookingCount += 1;
+      const nextSession = booking.sessions
+        .filter((session) => Date.parse(session.endAt) >= loadedAt)
+        .sort((left, right) => left.startAt.localeCompare(right.startAt))[0];
+      if (nextSession && (!totals.nextBooking || nextSession.startAt < totals.nextBooking)) totals.nextBooking = nextSession.startAt;
       totalsByCustomerId.set(booking.customerId, totals);
     }
 
     return totalsByCustomerId;
-  }, [bookings, payments]);
+  }, [bookings, payments, loadedAt]);
 
   const customersWithFinancials = sortedCustomers.map((customer) => ({
     ...customer,
     lifetimeRevenue: customerFinancials.get(customer.id)?.lifetimeRevenue ?? 0,
     outstanding: customerFinancials.get(customer.id)?.outstanding ?? 0,
+    bookingCount: customerFinancials.get(customer.id)?.bookingCount ?? 0,
+    nextBooking: customerFinancials.get(customer.id)?.nextBooking
+      ? new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(new Date(customerFinancials.get(customer.id)!.nextBooking!))
+      : null,
   }));
 
-  const isLoading = customerData.isLoading || bookingData.isLoading || paymentData.isLoading;
-  const loadError = customerData.loadError || bookingData.loadError || paymentData.loadError;
+  const isLoading = customerData.isLoading || bookingData.isLoading || paymentData.isLoading || serviceData.isLoading;
+  const loadError = customerData.loadError || bookingData.loadError || paymentData.loadError || serviceData.loadError;
 
   if (isLoading) return <main className="min-h-screen"><PageSkeleton variant="list" /></main>;
   if (loadError) return (
@@ -110,6 +130,7 @@ export default function CustomersPage() {
       customerData.retry();
       bookingData.retry();
       paymentData.retry();
+      serviceData.retry();
     }} /></div></main>
   );
 
@@ -143,6 +164,7 @@ export default function CustomersPage() {
               setDialogOpen(true);
             }}
             onDelete={(customer) => deleteCustomer(customer.id)}
+            onView={setProfileCustomer}
           />
         </div>
       </main>
@@ -157,6 +179,7 @@ export default function CustomersPage() {
         onCreate={(input: CreateCustomerInput) => createCustomer(input)}
         onUpdate={(input: UpdateCustomerInput) => updateCustomer(input)}
       />
+      <ClientProfileDialog customer={profileCustomer} bookings={bookings} payments={payments} invoices={invoiceRepository.getAll()} services={serviceData.services} onClose={() => setProfileCustomer(null)} />
     </>
   );
 }

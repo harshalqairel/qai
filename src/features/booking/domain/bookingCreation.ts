@@ -35,6 +35,7 @@ export function prepareBookingCreation(
     serviceId: bookingInput.serviceId,
     sessions: buildBookingSessions(ids.bookingId, bookingInput.sessions, timezone, [], now),
     servicePrice: bookingInput.servicePrice,
+    additionalCharges: [],
     bookingStatus: bookingInput.bookingStatus,
     fullPaymentDueDate: bookingInput.fullPaymentDueDate,
     notes: bookingInput.notes,

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { canShowBookedThroughQai, defaultQaiPage, normalizeContactPhone, normalizeSlug, publicPriceLabel, requestToBookingValues, type QaiPageConfig } from "./validation";
+import { canShowBookedThroughQai, defaultQaiPage, normalizeContactPhone, normalizeSlug, publicPriceLabel, qaiPageSchema, requestToBookingValues, requiresClientServiceLocation, resolvePublicServiceLocation, type QaiPageConfig } from "./validation";
 import { createValidationStoreRepository, ValidationStoreError, type ValidationRequestInput } from "./validationStore";
 
 const temporaryDirectories: string[] = [];
@@ -13,8 +13,8 @@ function page(): QaiPageConfig {
   return {
     ...defaultQaiPage(), id: "page-1", slug: "nuyi", businessName: "Nuyi Makeup Studio",
     services: [
-      { serviceId: "request-service", visible: true, title: "Wedding Package", description: "", price: 7_500_000, priceMode: "Starting from", actionMode: "Booking request", durationMinutes: 120, defaultSessionCount: 3 },
-      { serviceId: "instant-service", visible: true, title: "Studio Rental", description: "", price: 350_000, priceMode: "Fixed price", actionMode: "Instant booking", durationMinutes: 60, defaultSessionCount: 1 },
+      { serviceId: "request-service", visible: true, title: "Wedding Package", description: "", price: 7_500_000, priceMode: "Starting from", actionMode: "Booking request", durationMinutes: 120, defaultSessionCount: 3, locationPolicy: "Client can choose" },
+      { serviceId: "instant-service", visible: true, title: "Studio Rental", description: "", price: 350_000, priceMode: "Fixed price", actionMode: "Instant booking", durationMinutes: 60, defaultSessionCount: 1, locationPolicy: "Business/studio only" },
     ],
     slots: [{ id: "slot-1", serviceId: "instant-service", startAt: "2026-08-18T03:00:00.000Z", endAt: "2026-08-18T04:00:00.000Z", location: "Studio", status: "Available", requestId: null }],
   };
@@ -43,6 +43,24 @@ describe("Qai Page domain", () => {
     expect(normalizeContactPhone("0812-3456")).toBe("628123456");
     expect(publicPriceLabel(page().services[0])).toBe("Starting from Rp 7.500.000");
     expect(publicPriceLabel({ ...page().services[0], priceMode: "Ask for price" })).toBe("Ask for price");
+  });
+
+  it("adds presentation defaults to legacy Qai Page payloads", () => {
+    const current = defaultQaiPage();
+    const legacy: Partial<QaiPageConfig> = { ...current };
+    delete legacy.template;
+    delete legacy.style;
+    const parsed = qaiPageSchema.parse(legacy);
+    expect(parsed.template).toBe("Muse");
+    expect(parsed.style).toMatchObject({ typography: "Modern", density: "Spacious", sectionOrder: ["portfolio", "services"] });
+  });
+
+  it("collects a client address only for service policies that require it", () => {
+    expect(requiresClientServiceLocation({ locationPolicy: "Business/studio only" }, "Client location")).toBe(false);
+    expect(requiresClientServiceLocation({ locationPolicy: "Client location only" }, "Business/studio")).toBe(true);
+    expect(requiresClientServiceLocation({ locationPolicy: "Client can choose" }, "Client location")).toBe(true);
+    expect(resolvePublicServiceLocation({ locationPolicy: "Online" }, "Business/studio", "", "Bandung")).toBe("Online");
+    expect(resolvePublicServiceLocation({ locationPolicy: "Client can choose" }, "Client location", "  Jakarta  ", "Bandung")).toBe("Jakarta");
   });
 
   it("shows Booked through Qai only for confirmed instant bookings", () => {

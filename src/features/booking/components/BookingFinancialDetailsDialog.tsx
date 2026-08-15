@@ -1,14 +1,21 @@
 "use client";
 
-import { XIcon } from "lucide-react";
+import { Plus, Trash2, XIcon } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import type { Booking } from "@/features/booking/types";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { MoneyInput } from "@/components/ui/money-input";
+import type { Booking, BookingAdditionalCharge } from "@/features/booking/types";
 import type { Payment, DerivedPaymentStatus } from "@/features/payment/types";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
 import ReminderHistoryList from "@/features/reminder/components/ReminderHistoryList";
 import { invoiceRepository, latestInvoiceVersions } from "@/features/invoice/invoice";
+import { bookingAdditionalChargesTotal, bookingClientTotal } from "@/features/booking/domain/bookingFinancials";
+import { createAdditionalChargeCategoryPersistent, getAdditionalChargeCategories, loadAdditionalChargeCategories, type AdditionalChargeCategory } from "@/features/booking/domain/additionalChargeCategories";
+import { notify } from "@/lib/notifications";
 
 export type BookingFinancialDetails = Booking & {
   customerName: string;
@@ -28,6 +35,7 @@ type BookingFinancialDetailsDialogProps = {
   onClose: () => void;
   onAddPayment: (bookingId: string, remainingAmount: number) => void;
   onAddExpense: (bookingId: string) => void;
+  onUpdateAdditionalCharges: (bookingId: string, charges: BookingAdditionalCharge[]) => Promise<boolean>;
 };
 
 function isPaymentAllowed(booking: BookingFinancialDetails): boolean {
@@ -52,10 +60,32 @@ export default function BookingFinancialDetailsDialog({
   onClose,
   onAddPayment,
   onAddExpense,
+  onUpdateAdditionalCharges,
 }: BookingFinancialDetailsDialogProps) {
+  const [categories, setCategories] = useState<AdditionalChargeCategory[]>(getAdditionalChargeCategories);
+  const [addingCharge, setAddingCharge] = useState(false);
+  const [newCategoryOpen, setNewCategoryOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [categoryId, setCategoryId] = useState(() => getAdditionalChargeCategories()[0]?.id ?? "");
+  const [sessionId, setSessionId] = useState("");
+  const [description, setDescription] = useState("");
+  const [amount, setAmount] = useState(0);
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    void loadAdditionalChargeCategories().then((loaded) => {
+      if (!active) return;
+      setCategories(loaded);
+      setCategoryId((current) => loaded.some((item) => item.id === current) ? current : loaded[0]?.id ?? "");
+    }).catch(() => notify.error("Could not load additional charge categories."));
+    return () => { active = false; };
+  }, [open]);
+
   if (!open || !booking) {
     return null;
   }
+  const activeBooking = booking;
 
   const bookingPayments = payments
     .filter((payment) => payment.bookingId === booking.id)
@@ -64,6 +94,28 @@ export default function BookingFinancialDetailsDialog({
   const canAddExpense = booking.bookingStatus !== "Cancelled";
   const isCancelled = booking.bookingStatus === "Cancelled";
   const relatedInvoice = latestInvoiceVersions(invoiceRepository.getAll().filter((invoice) => invoice.bookingId === booking.id))[0] ?? null;
+  const charges = booking.additionalCharges ?? [];
+  const chargesTotal = bookingAdditionalChargesTotal(booking);
+
+  async function addCharge() {
+    const category = categories.find((item) => item.id === categoryId);
+    if (!category || amount <= 0) return notify.error("Choose a category and enter an amount.");
+    const now = Date.now();
+    const next = [...charges, { id: crypto.randomUUID(), bookingId: activeBooking.id, sessionId: sessionId || null, categoryId: category.id, categoryName: category.name, description: description.trim(), amount, createdAt: now, updatedAt: now }];
+    if (!await onUpdateAdditionalCharges(activeBooking.id, next)) return notify.error("Could not add the charge.");
+    setAmount(0); setDescription(""); setSessionId(""); setAddingCharge(false); notify.success("Additional charge added.");
+  }
+
+  async function removeCharge(id: string) {
+    if (!window.confirm("Delete this additional charge?")) return;
+    if (!await onUpdateAdditionalCharges(activeBooking.id, charges.filter((charge) => charge.id !== id))) return notify.error("Could not delete the charge.");
+    notify.success("Additional charge deleted.");
+  }
+
+  async function addCategory() {
+    try { const created = await createAdditionalChargeCategoryPersistent(newCategoryName); const loaded = await loadAdditionalChargeCategories(); setCategories(loaded); setCategoryId(created.id); setNewCategoryName(""); setNewCategoryOpen(false); }
+    catch (error) { notify.error(error instanceof Error && error.message === "DUPLICATE_CATEGORY" ? "A charge category with this name already exists." : "Enter a category name."); }
+  }
 
   return (
     <div
@@ -94,8 +146,8 @@ export default function BookingFinancialDetailsDialog({
               <p className="mt-1 font-semibold">{booking.bookingStatus}</p>
             </div>
             <div>
-              <p className="text-muted-foreground">Booking Value</p>
-              <p className="mt-1 font-semibold">{formatRupiah(booking.servicePrice)}</p>
+              <p className="text-muted-foreground">Client Total</p>
+              <p className="mt-1 font-semibold">{formatRupiah(bookingClientTotal(booking))}</p>
             </div>
             <div>
               <p className="text-muted-foreground">
@@ -168,6 +220,12 @@ export default function BookingFinancialDetailsDialog({
               ))}
             </div>
           )}
+        </section>
+
+        <section className="mt-6 border-t border-border pt-6">
+          <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold">Additional Charges</h3><p className="mt-1 text-sm text-muted-foreground">Client-facing charges stay separate from business Expenses.</p></div><Button size="sm" variant="outline" disabled={isCancelled} onClick={() => setAddingCharge((value) => !value)}><Plus className="size-4" /> Add charge</Button></div>
+          {charges.length > 0 && <div className="mt-4 space-y-2">{charges.map((charge) => { const session = charge.sessionId ? booking.sessions.find((item) => item.id === charge.sessionId) : null; return <article key={charge.id} className="flex items-start gap-3 rounded-xl border border-border p-3"><div className="min-w-0 flex-1"><p className="font-semibold">{charge.categoryName}</p><p className="mt-1 text-sm text-muted-foreground">{session ? `Schedule ${session.sequence}${session.label ? ` · ${session.label}` : ""}` : "Overall booking"}{charge.description ? ` · ${charge.description}` : ""}</p></div><p className="shrink-0 font-semibold">{formatRupiah(charge.amount)}</p><Button size="icon-sm" variant="ghost" aria-label={`Delete ${charge.categoryName} charge`} onClick={() => void removeCharge(charge.id)}><Trash2 className="size-4" /></Button></article>; })}<div className="flex justify-between px-1 text-sm font-bold"><span>Charges total</span><span>{formatRupiah(chargesTotal)}</span></div></div>}
+          {addingCharge && <div className="mt-4 space-y-4 rounded-xl bg-muted/50 p-4"><div><Label>Category</Label><select className="native-control mt-2" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select><Button className="mt-2" size="sm" variant="ghost" onClick={() => setNewCategoryOpen((value) => !value)}>+ New category</Button>{newCategoryOpen && <div className="mt-2 flex gap-2"><Input value={newCategoryName} onChange={(event) => setNewCategoryName(event.target.value)} placeholder="Category name" /><Button size="sm" onClick={addCategory}>Add</Button></div>}</div><div><Label>Apply to</Label><select className="native-control mt-2" value={sessionId} onChange={(event) => setSessionId(event.target.value)}><option value="">Overall booking</option>{booking.sessions.map((session) => <option key={session.id} value={session.id}>Schedule {session.sequence}{session.label ? ` · ${session.label}` : ""}</option>)}</select></div><div><Label>Amount</Label><MoneyInput className="mt-2" value={amount} onChange={setAmount} placeholder="0" /></div><div><Label>Description</Label><Input className="mt-2" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Optional detail" /></div><div className="flex gap-2"><Button onClick={() => void addCharge()}>Add charge</Button><Button variant="ghost" onClick={() => setAddingCharge(false)}>Cancel</Button></div></div>}
         </section>
 
         <ReminderHistoryList bookingId={booking.id} />

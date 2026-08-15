@@ -1,5 +1,6 @@
 import { Booking } from "@/features/booking/types";
 import { DerivedPaymentStatus, Payment } from "../types";
+import { bookingClientTotal } from "@/features/booking/domain/bookingFinancials";
 
 export type BookingPaymentSummary = {
   bookingId: string;
@@ -61,10 +62,11 @@ export function summarizeBookingPayments(
 
   for (const booking of bookings) {
     const totalPaid = sumPaymentsForBooking(booking.id, payments);
+    const clientTotal = bookingClientTotal(booking);
     const remainingAmount = booking.bookingStatus === "Cancelled"
       ? 0
-      : Math.max(booking.servicePrice - totalPaid, 0);
-    const paymentStatus = derivePaymentStatus(booking.bookingStatus, totalPaid, booking.servicePrice);
+      : Math.max(clientTotal - totalPaid, 0);
+    const paymentStatus = derivePaymentStatus(booking.bookingStatus, totalPaid, clientTotal);
 
     byBookingId[booking.id] = {
       bookingId: booking.id,

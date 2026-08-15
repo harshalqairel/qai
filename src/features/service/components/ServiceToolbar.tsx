@@ -23,12 +23,14 @@ export default function ServiceToolbar({
     <div className="filter-bar">
       <input
         type="text"
+        aria-label="Search services"
         placeholder="Search services..."
         className="native-control lg:flex-1"
         value={search}
         onChange={(event) => onSearchChange(event.target.value)}
       />
       <select
+        aria-label="Filter services by category"
         className="native-control lg:w-auto"
         value={category}
         onChange={(event) => onCategoryChange(event.target.value)}
@@ -39,6 +41,7 @@ export default function ServiceToolbar({
         ))}
       </select>
       <select
+        aria-label="Sort services"
         className="native-control lg:w-auto"
         value={sort}
         onChange={(event) => onSortChange(event.target.value)}
@@ -50,6 +53,9 @@ export default function ServiceToolbar({
         <option value="price-desc">Price (High → Low)</option>
         <option value="duration-asc">Duration (Short → Long)</option>
         <option value="duration-desc">Duration (Long → Short)</option>
+        <option value="sessions-asc">Schedules (Fewest first)</option>
+        <option value="sessions-desc">Schedules (Most first)</option>
+        <option value="status">Status (Active first)</option>
       </select>
     </div>
   );

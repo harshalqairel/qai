@@ -23,12 +23,25 @@ export type BookingSessionInput = {
   notes: string;
 };
 
+export type BookingAdditionalCharge = {
+  id: string;
+  bookingId: string;
+  sessionId: string | null;
+  categoryId: string;
+  categoryName: string;
+  description: string;
+  amount: number;
+  createdAt: number;
+  updatedAt: number;
+};
+
 export type Booking = {
   id: string;
   customerId: string;
   serviceId: string;
   sessions: BookingSession[];
   servicePrice: number;
+  additionalCharges?: BookingAdditionalCharge[];
   bookingStatus: BookingStatus;
   fullPaymentDueDate: string;
   notes: string;

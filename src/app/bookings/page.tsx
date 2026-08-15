@@ -20,7 +20,7 @@ import { useExpenses } from "@/features/expense/hooks/useExpenses";
 import { useExpenseCategories } from "@/features/expense-category/hooks/useExpenseCategories";
 import { suggestCategoryColor } from "@/features/category/constants";
 import { summarizeBookingPayments } from "@/features/payment/utils/paymentCalculations";
-import { getBookingExpenses } from "@/features/expense/utils/expenseAggregations";
+import { calculateBookingFinancials } from "@/features/booking/domain/bookingFinancials";
 import {
   compareBookingsByFirstSession,
   firstBookingSession,
@@ -31,6 +31,8 @@ import PageSkeleton from "@/components/system/PageSkeleton";
 import DataErrorState from "@/components/system/DataErrorState";
 import { notify } from "@/lib/notifications";
 import { useServiceCategories } from "@/features/service-category/hooks/useServiceCategories";
+import { invoiceRepository } from "@/features/invoice/invoice";
+import type { BookingFormValues } from "@/features/booking/schema";
 
 export default function BookingsPage() {
   const bookingData = useBookings();
@@ -59,6 +61,7 @@ export default function BookingsPage() {
     useState<BookingFinancialDetails | null>(null);
   const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
   const [selectedBookingIdForExpense, setSelectedBookingIdForExpense] = useState<string | null>(null);
+  const [initialBookingValues, setInitialBookingValues] = useState<Partial<BookingFormValues> | undefined>();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -83,9 +86,8 @@ export default function BookingsPage() {
     const service = services.find((item) => item.id === booking.serviceId);
     const effectiveServicePrice = booking.servicePrice > 0 ? booking.servicePrice : service?.price ?? 0;
     const paymentSummary = paymentSummaries[booking.id];
-    const directExpenses = getBookingExpenses(booking.id, expenses);
-    const isCancelled = booking.bookingStatus === "Cancelled";
-
+    const financials = calculateBookingFinancials({ ...booking, servicePrice: effectiveServicePrice }, payments, expenses);
+    const directExpenses = financials.directExpenses;
     return {
       ...booking,
       servicePrice: effectiveServicePrice,
@@ -93,10 +95,10 @@ export default function BookingsPage() {
       serviceName: service?.name ?? "Unknown Service",
       paymentStatus: paymentSummary?.paymentStatus ?? "Outstanding",
       totalPaid: paymentSummary?.totalPaid ?? 0,
-      remainingAmount: isCancelled ? null : (paymentSummary?.remainingAmount ?? effectiveServicePrice),
+      remainingAmount: financials.outstanding,
       directExpenses,
-      estimatedProfit: isCancelled ? null : effectiveServicePrice - directExpenses,
-      cashPosition: isCancelled ? null : (paymentSummary?.totalPaid ?? 0) - directExpenses,
+      estimatedProfit: financials.estimatedJobProfit,
+      cashPosition: financials.cashPosition,
     };
   });
 
@@ -106,6 +108,8 @@ export default function BookingsPage() {
       const params = new URLSearchParams(window.location.search);
       if (params.get("new") === "1") {
         setSelectedBooking(null);
+        const customerId = params.get("customer");
+        setInitialBookingValues(customerId && customers.some((customer) => customer.id === customerId) ? { customerId } : undefined);
         setDialogOpen(true);
       }
       if (params.get("payment") === "outstanding") setPaymentStatusFilter("Outstanding");
@@ -120,7 +124,7 @@ export default function BookingsPage() {
       handledDeepLink.current = true;
     }, 0);
     return () => window.clearTimeout(timeoutId);
-  }, [bookingData.isLoading, bookingsWithNames]);
+  }, [bookingData.isLoading, bookingsWithNames, customers]);
 
   const filteredBookings = bookingsWithNames.filter((booking) => {
     const matchesSearch =
@@ -247,6 +251,7 @@ export default function BookingsPage() {
             }}
             onStatusChange={updateBookingStatus}
             onFinancialDetailsClick={openFinancialDetails}
+            invoices={invoiceRepository.getAll()}
             timezone={bookingData.timezone}
           />
         </div>
@@ -255,6 +260,7 @@ export default function BookingsPage() {
       <BookingDialog
         open={dialogOpen}
         booking={selectedBooking}
+        initialValues={initialBookingValues}
         customers={customers}
         services={services}
         serviceCategories={serviceCategories}
@@ -264,6 +270,7 @@ export default function BookingsPage() {
         onClose={() => {
           setDialogOpen(false);
           setSelectedBooking(null);
+          setInitialBookingValues(undefined);
         }}
         onCreate={async (command: CreateBookingCommand) => {
           const created = await createBooking(command);
@@ -305,6 +312,27 @@ export default function BookingsPage() {
           closeFinancialDetails();
           setSelectedBookingIdForExpense(bookingId);
           setExpenseDialogOpen(true);
+        }}
+        onUpdateAdditionalCharges={async (bookingId, charges) => {
+          const succeeded = await bookingData.updateAdditionalCharges(bookingId, charges);
+          if (succeeded) {
+            setSelectedBookingForFinancialDetails((current) => {
+              if (!current || current.id !== bookingId) return current;
+              const financials = calculateBookingFinancials(
+                { ...current, additionalCharges: charges },
+                payments,
+                expenses,
+              );
+              return {
+                ...current,
+                additionalCharges: charges,
+                remainingAmount: financials.outstanding,
+                estimatedProfit: financials.estimatedJobProfit,
+                cashPosition: financials.cashPosition,
+              };
+            });
+          }
+          return succeeded;
         }}
       />
 

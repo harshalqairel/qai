@@ -24,9 +24,11 @@ import {
 import { Customer } from "@/features/customer/types";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
 
-type CustomerWithFinancials = Customer & {
+export type CustomerWithFinancials = Customer & {
   lifetimeRevenue: number;
   outstanding: number;
+  bookingCount: number;
+  nextBooking: string | null;
 };
 
 type CustomerTableProps = {
@@ -34,6 +36,7 @@ type CustomerTableProps = {
   onAdd: () => void;
   onEdit: (customer: CustomerWithFinancials) => void;
   onDelete: (customer: CustomerWithFinancials) => boolean | Promise<boolean>;
+  onView: (customer: CustomerWithFinancials) => void;
 };
 
 function getWhatsAppUrl(phone: string): string | null {
@@ -109,6 +112,7 @@ export default function CustomerTable({
   onAdd,
   onEdit,
   onDelete,
+  onView,
 }: CustomerTableProps) {
   if (customers.length === 0) {
     return (
@@ -130,23 +134,24 @@ export default function CustomerTable({
             <TableRow>
               <TableHead className="px-4">Client</TableHead>
               <TableHead>Contact</TableHead>
-              <TableHead className="text-right">Income</TableHead>
-              <TableHead className="text-right">Unpaid amount</TableHead>
+              <TableHead>Activity</TableHead>
+              <TableHead className="text-right">Paid</TableHead>
+              <TableHead className="text-right">Unpaid</TableHead>
               <TableHead className="w-16 px-4 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {customers.map((customer) => (
-              <TableRow key={customer.id}>
+              <TableRow key={customer.id} className="cursor-pointer" tabIndex={0} onClick={() => onView(customer)} onKeyDown={(event) => { if (event.key === "Enter") onView(customer); }}>
                 <TableCell className="px-4 py-3 font-semibold whitespace-normal">
-                  <div>
+                  <button type="button" className="text-left" onClick={() => onView(customer)}>
                     <p>{customer.name}</p>
                     {customer.instagram && (
                       <p className="mt-1 text-sm font-normal text-muted-foreground">
                         @{customer.instagram.replace(/^@/, "")}
                       </p>
                     )}
-                  </div>
+                  </button>
                 </TableCell>
                 <TableCell className="py-3 whitespace-normal">
                   <a
@@ -161,13 +166,14 @@ export default function CustomerTable({
                     </p>
                   )}
                 </TableCell>
+                <TableCell className="py-3 whitespace-normal"><p className="font-medium">{customer.bookingCount} {customer.bookingCount === 1 ? "booking" : "bookings"}</p><p className="mt-1 text-xs text-muted-foreground">{customer.nextBooking ? `Next ${customer.nextBooking}` : "No upcoming booking"}</p></TableCell>
                 <TableCell className="py-3 text-right font-medium">
-                  {formatRupiah(customer.lifetimeRevenue)}
+                  {customer.lifetimeRevenue > 0 ? formatRupiah(customer.lifetimeRevenue) : "—"}
                 </TableCell>
                 <TableCell className="py-3 text-right font-medium">
-                  {formatRupiah(customer.outstanding)}
+                  {customer.outstanding > 0 ? formatRupiah(customer.outstanding) : "—"}
                 </TableCell>
-                <TableCell className="px-4 py-2 text-right">
+                <TableCell className="px-4 py-2 text-right" onClick={(event) => event.stopPropagation()}>
                   <CustomerActions
                     customer={customer}
                     onEdit={onEdit}
@@ -184,7 +190,8 @@ export default function CustomerTable({
         {customers.map((customer) => (
           <article
             key={customer.id}
-            className="flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-sm"
+            className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-sm"
+            onClick={() => onView(customer)}
           >
             <div className="min-w-0 flex-1">
               <h2 className="truncate font-semibold text-foreground">{customer.name}</h2>
@@ -204,26 +211,23 @@ export default function CustomerTable({
                   {customer.email}
                 </p>
               )}
+              <p className="mt-3 text-xs text-muted-foreground">{customer.bookingCount} {customer.bookingCount === 1 ? "booking" : "bookings"}{customer.nextBooking ? ` · Next ${customer.nextBooking}` : ""}</p>
               <dl className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3 text-sm">
                 <div>
-                  <dt className="text-xs text-muted-foreground">Income</dt>
+                  <dt className="text-xs text-muted-foreground">Paid</dt>
                   <dd className="mt-1 font-semibold text-foreground">
-                    {formatRupiah(customer.lifetimeRevenue)}
+                    {customer.lifetimeRevenue > 0 ? formatRupiah(customer.lifetimeRevenue) : "—"}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-muted-foreground">Unpaid amount</dt>
+                  <dt className="text-xs text-muted-foreground">Unpaid</dt>
                   <dd className="mt-1 font-semibold text-foreground">
-                    {formatRupiah(customer.outstanding)}
+                    {customer.outstanding > 0 ? formatRupiah(customer.outstanding) : "—"}
                   </dd>
                 </div>
               </dl>
             </div>
-            <CustomerActions
-              customer={customer}
-              onEdit={onEdit}
-              onDelete={onDelete}
-            />
+            <div onClick={(event) => event.stopPropagation()}><CustomerActions customer={customer} onEdit={onEdit} onDelete={onDelete} /></div>
           </article>
         ))}
       </div>

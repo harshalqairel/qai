@@ -5,6 +5,33 @@ import type { Service } from "@/features/service/types";
 export type PublicPriceMode = "Fixed price" | "Starting from" | "Ask for price";
 export type PublicActionMode = "Booking request" | "Inquiry" | "Instant booking";
 export type PublicRequestStatus = "Pending" | "Accepted" | "Declined";
+export const QAI_PAGE_TEMPLATES = ["Muse", "Studio", "Signature", "Professional", "Warm"] as const;
+export const QAI_PAGE_TYPOGRAPHY = ["Modern", "Editorial", "Classic"] as const;
+export const QAI_PAGE_DENSITIES = ["Spacious", "Compact"] as const;
+export const QAI_PAGE_SECTIONS = ["portfolio", "services"] as const;
+export const QAI_ATTRIBUTION_HREF = "/?ref=qai-page&utm_source=qai_page&utm_medium=attribution&utm_campaign=powered_by_qai";
+
+const defaultPageStyle = {
+  accentColor: "#4F6BFF",
+  backgroundColor: "#F7F8FC",
+  typography: "Modern" as const,
+  density: "Spacious" as const,
+  sectionOrder: ["portfolio", "services"] as Array<(typeof QAI_PAGE_SECTIONS)[number]>,
+  showPortfolio: true,
+  showServices: true,
+  showContact: true,
+};
+
+export const qaiPageStyleSchema = z.object({
+  accentColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default(defaultPageStyle.accentColor),
+  backgroundColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default(defaultPageStyle.backgroundColor),
+  typography: z.enum(QAI_PAGE_TYPOGRAPHY).default(defaultPageStyle.typography),
+  density: z.enum(QAI_PAGE_DENSITIES).default(defaultPageStyle.density),
+  sectionOrder: z.array(z.enum(QAI_PAGE_SECTIONS)).length(QAI_PAGE_SECTIONS.length).default(defaultPageStyle.sectionOrder),
+  showPortfolio: z.boolean().default(true),
+  showServices: z.boolean().default(true),
+  showContact: z.boolean().default(true),
+}).default(defaultPageStyle);
 
 export const publicScheduleSchema = z.object({
   id: z.string().min(1).max(100),
@@ -25,6 +52,7 @@ export const publicServiceSchema = z.object({
   actionMode: z.enum(["Booking request", "Inquiry", "Instant booking"]),
   durationMinutes: z.number().int().positive().max(1440),
   defaultSessionCount: z.number().int().min(1).max(12).default(1),
+  locationPolicy: z.enum(["Business/studio only", "Client location only", "Client can choose", "Online"]).default("Client can choose"),
 });
 
 export const instantSlotSchema = z.object({
@@ -39,6 +67,7 @@ export const portfolioItemSchema = z.object({
 
 export const qaiPageSchema = z.object({
   id: z.string().min(1).max(100), businessId: z.string().min(1).max(100), slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+  template: z.enum(QAI_PAGE_TEMPLATES).default("Muse"), style: qaiPageStyleSchema,
   businessName: z.string().trim().min(1).max(160), shortDescription: z.string().trim().max(500), location: z.string().trim().max(200),
   whatsapp: z.string().trim().max(50), email: z.string().trim().email().or(z.literal("")), instagram: z.string().trim().max(200),
   logo: z.string().max(3_000_000), coverImage: z.string().max(3_000_000), portfolio: z.array(portfolioItemSchema).max(12).default([]), services: z.array(publicServiceSchema).max(100), slots: z.array(instantSlotSchema).max(500),
@@ -86,6 +115,20 @@ export function publicActionLabel(mode: PublicActionMode): string {
   return "Request";
 }
 
+export function requiresClientServiceLocation(service: Pick<PublicService, "locationPolicy">, choice: "Business/studio" | "Client location"): boolean {
+  return service.locationPolicy === "Client location only" || (service.locationPolicy === "Client can choose" && choice === "Client location");
+}
+
+export function resolvePublicServiceLocation(
+  service: Pick<PublicService, "locationPolicy">,
+  choice: "Business/studio" | "Client location",
+  clientLocation: string,
+  businessLocation: string,
+): string {
+  if (service.locationPolicy === "Online") return "Online";
+  return requiresClientServiceLocation(service, choice) ? clientLocation.trim() : businessLocation.trim();
+}
+
 export function canShowBookedThroughQai(request: PublicRequest): boolean {
   return request.type === "Instant booking" && request.status === "Accepted";
 }
@@ -109,7 +152,7 @@ export function derivePublicEndTime(startTime: string, durationMinutes: number):
 
 export function defaultQaiPage(): QaiPageConfig {
   return {
-    id: "local-page", businessId: "local-business", slug: "my-business", businessName: "My business", shortDescription: "", location: "",
+    id: "local-page", businessId: "local-business", slug: "my-business", template: "Muse", style: structuredClone(defaultPageStyle), businessName: "My business", shortDescription: "", location: "",
     whatsapp: "", email: "", instagram: "", logo: "", coverImage: "", portfolio: [], services: [], slots: [], timezone: "Asia/Jakarta", updatedAt: Date.now(),
   };
 }

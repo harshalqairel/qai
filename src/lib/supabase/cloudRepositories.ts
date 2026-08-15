@@ -1,6 +1,6 @@
 "use client";
 
-import type { Booking, BookingSession } from "@/features/booking/types";
+import type { Booking, BookingAdditionalCharge, BookingSession } from "@/features/booking/types";
 import type { BookingDeleteResult } from "@/features/booking/api/bookingRepository";
 import type { Customer } from "@/features/customer/types";
 import type { ExpenseCategory } from "@/features/expense-category/types";
@@ -216,6 +216,19 @@ function categoryRepository<T extends ServiceCategory | ExpenseCategory>(table: 
 export const cloudServiceCategoryRepository = categoryRepository<ServiceCategory>("service_categories");
 export const cloudExpenseCategoryRepository = categoryRepository<ExpenseCategory>("expense_categories");
 
+export const cloudAdditionalChargeCategoryRepository = {
+  getAll: () => getAll("additional_charge_categories", (row) => ({
+    id: valueAsString(row, "id"),
+    name: valueAsString(row, "name"),
+    createdAt: timestamp(row.created_at),
+  })),
+  create: (category: { id: string; name: string; createdAt: number }) => insert("additional_charge_categories", {
+    id: category.id,
+    name: category.name.trim(),
+    created_at: isoTimestamp(category.createdAt),
+  }),
+};
+
 function serviceFromRow(row: DbRow): Service {
   return {
     id: valueAsString(row, "id"),
@@ -224,6 +237,7 @@ function serviceFromRow(row: DbRow): Service {
     price: valueAsNumber(row, "price"),
     duration: valueAsNumber(row, "duration_minutes"),
     defaultSessionCount: valueAsNumber(row, "default_session_count") || 1,
+    locationPolicy: (valueAsString(row, "location_policy") || "Client can choose") as Service["locationPolicy"],
     description: valueAsString(row, "description"),
     active: valueAsBoolean(row, "active"),
   };
@@ -237,6 +251,7 @@ function serviceToRow(service: Service): DbRow {
     price: service.price,
     duration_minutes: service.duration,
     default_session_count: service.defaultSessionCount,
+    location_policy: service.locationPolicy ?? "Client can choose",
     description: service.description,
     active: service.active,
   };
@@ -265,12 +280,27 @@ function bookingSessionFromRow(row: DbRow): BookingSession {
   };
 }
 
-function bookingFromRow(row: DbRow, sessions: BookingSession[]): Booking {
+function bookingAdditionalChargeFromRow(row: DbRow): BookingAdditionalCharge {
+  return {
+    id: valueAsString(row, "id"),
+    bookingId: valueAsString(row, "booking_id"),
+    sessionId: typeof row.session_id === "string" ? row.session_id : null,
+    categoryId: valueAsString(row, "category_id"),
+    categoryName: valueAsString(row, "category_name_snapshot"),
+    description: valueAsString(row, "description"),
+    amount: valueAsNumber(row, "amount"),
+    createdAt: timestamp(row.created_at),
+    updatedAt: timestamp(row.updated_at),
+  };
+}
+
+function bookingFromRow(row: DbRow, sessions: BookingSession[], additionalCharges: BookingAdditionalCharge[]): Booking {
   return {
     id: valueAsString(row, "id"),
     customerId: valueAsString(row, "customer_id"),
     serviceId: valueAsString(row, "service_id"),
     sessions,
+    additionalCharges,
     servicePrice: valueAsNumber(row, "service_price"),
     bookingStatus: valueAsString(row, "booking_status") as Booking["bookingStatus"],
     fullPaymentDueDate: valueAsString(row, "full_payment_due_date"),
@@ -302,6 +332,16 @@ function bookingToPayload(booking: Booking): DbRow {
       created_at: isoTimestamp(session.createdAt),
       updated_at: isoTimestamp(session.updatedAt),
     })),
+    additional_charges: (booking.additionalCharges ?? []).map((charge) => ({
+      id: charge.id,
+      session_id: charge.sessionId,
+      category_id: charge.categoryId,
+      category_name: charge.categoryName,
+      description: charge.description,
+      amount: charge.amount,
+      created_at: isoTimestamp(charge.createdAt),
+      updated_at: isoTimestamp(charge.updatedAt),
+    })),
   };
 }
 
@@ -309,12 +349,14 @@ export const cloudBookingRepository = {
   async getAll(): Promise<Booking[]> {
     const { businessId } = await getActiveBusinessContext();
     const supabase = createClient();
-    const [bookingResult, sessionResult] = await Promise.all([
+    const [bookingResult, sessionResult, chargeResult] = await Promise.all([
       supabase.from("bookings").select("*").eq("business_id", businessId).order("created_at"),
       supabase.from("booking_sessions").select("*").eq("business_id", businessId).order("start_at"),
+      supabase.from("booking_additional_charges").select("*").eq("business_id", businessId).order("created_at"),
     ]);
     throwOnError(bookingResult.error);
     throwOnError(sessionResult.error);
+    throwOnError(chargeResult.error);
     const sessionsByBooking = new Map<string, BookingSession[]>();
     for (const row of rows(sessionResult.data)) {
       const session = bookingSessionFromRow(row);
@@ -322,8 +364,18 @@ export const cloudBookingRepository = {
       grouped.push(session);
       sessionsByBooking.set(session.bookingId, grouped);
     }
+    const chargesByBooking = new Map<string, BookingAdditionalCharge[]>();
+    for (const row of rows(chargeResult.data)) {
+      const charge = bookingAdditionalChargeFromRow(row);
+      const grouped = chargesByBooking.get(charge.bookingId) ?? [];
+      grouped.push(charge);
+      chargesByBooking.set(charge.bookingId, grouped);
+    }
     return rows(bookingResult.data)
-      .map((row) => bookingFromRow(row, sessionsByBooking.get(valueAsString(row, "id")) ?? []))
+      .map((row) => {
+        const bookingId = valueAsString(row, "id");
+        return bookingFromRow(row, sessionsByBooking.get(bookingId) ?? [], chargesByBooking.get(bookingId) ?? []);
+      })
       .filter((booking) => booking.sessions.length > 0)
       .sort((left, right) => left.sessions[0].startAt.localeCompare(right.sessions[0].startAt));
   },

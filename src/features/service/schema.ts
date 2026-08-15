@@ -22,6 +22,8 @@ export const serviceSchema = z.object({
     .min(1, "Add at least one usual schedule.")
     .max(50, "Usual number of schedules cannot exceed 50."),
 
+  locationPolicy: z.enum(["Business/studio only", "Client location only", "Client can choose", "Online"]),
+
   description: z.string().trim(),
 
   active: z.boolean(),
@@ -37,6 +39,7 @@ export const serviceRecordSchema = z
     price: z.number().finite().positive(),
     duration: z.number().finite().positive(),
     defaultSessionCount: z.number().int().min(1).max(50),
+    locationPolicy: z.enum(["Business/studio only", "Client location only", "Client can choose", "Online"]).default("Client can choose"),
     description: z.string(),
     active: z.boolean(),
   })

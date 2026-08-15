@@ -8,27 +8,32 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: "/dashboard",
     scope: "/",
     display: "standalone",
-    background_color: "#F5F7F6",
-    theme_color: "#0D5C5A",
-    orientation: "portrait-primary",
+    background_color: "#F2F4F8",
+    theme_color: "#4F6BFF",
     icons: [
       {
-        src: "/icons/qai-icon-192.png",
+        src: "/icons/qai-icon-192.png?v=20260814",
         sizes: "192x192",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/icons/qai-icon-512.png",
+        src: "/icons/qai-icon-512.png?v=20260814",
         sizes: "512x512",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/icons/qai-maskable-512.png",
+        src: "/icons/qai-maskable-512.png?v=20260814",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",
+      },
+      {
+        src: "/icons/qai-icon-1024.png?v=20260814",
+        sizes: "1024x1024",
+        type: "image/png",
+        purpose: "any",
       },
     ],
   };

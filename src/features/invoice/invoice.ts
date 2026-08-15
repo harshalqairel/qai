@@ -16,6 +16,8 @@ export const LOCAL_INVOICE_BUSINESS_ID = "local-business";
 export type InvoiceLifecycle = "Draft" | "Revision Draft" | "Issued";
 export type InvoiceStyle = "Creative" | "Neutral" | "Professional";
 export type InvoiceDiscountMode = "none" | "fixed" | "percentage";
+export type InvoiceTaxMode = "percentage" | "fixed";
+export type InvoiceTaxTreatment = "added" | "deducted";
 export type InvoicePaymentStatus = "Unpaid" | "Part paid" | "Paid";
 
 export type InvoiceLineItem = {
@@ -53,6 +55,11 @@ export type InvoiceSnapshot = {
   discountMode: InvoiceDiscountMode;
   discountValue: number;
   taxPercent: number;
+  taxEnabled?: boolean;
+  taxName?: string;
+  taxMode?: InvoiceTaxMode;
+  taxValue?: number;
+  taxTreatment?: InvoiceTaxTreatment;
   subtotal: number;
   total: number;
   paymentInstructions: string;
@@ -88,6 +95,11 @@ export type Invoice = {
   discountMode: InvoiceDiscountMode;
   discountValue: number;
   taxPercent: number;
+  taxEnabled?: boolean;
+  taxName?: string;
+  taxMode?: InvoiceTaxMode;
+  taxValue?: number;
+  taxTreatment?: InvoiceTaxTreatment;
   invoiceStyle: InvoiceStyle;
   paymentInstructions: string;
   notes: string;
@@ -151,7 +163,7 @@ const snapshotSchema = z.object({
   invoiceNumber: z.string().min(1), businessName: z.string().max(160), legalName: z.string().max(160), businessLogo: z.string().max(3_000_000),
   address: z.string().max(1000), phone: z.string().max(80), email: z.string().max(160), clientName: z.string().max(160),
   clientPhone: z.string().max(80), clientEmail: z.string().max(160), serviceName: z.string().max(160), invoiceDate: z.string(), dueDate: z.string(),
-  lineItems: z.array(lineItemSchema).min(1).max(200), discount: z.number().nonnegative(), tax: z.number().nonnegative(), discountMode: z.enum(["none", "fixed", "percentage"]).default("none"), discountValue: z.number().nonnegative().default(0), taxPercent: z.number().min(0).max(100).default(0), subtotal: z.number().nonnegative(),
+  lineItems: z.array(lineItemSchema).min(1).max(200), discount: z.number().nonnegative(), tax: z.number().nonnegative(), discountMode: z.enum(["none", "fixed", "percentage"]).default("none"), discountValue: z.number().nonnegative().default(0), taxPercent: z.number().min(0).max(100).default(0), taxEnabled: z.boolean().optional(), taxName: z.string().trim().max(40).optional(), taxMode: z.enum(["percentage", "fixed"]).optional(), taxValue: z.number().nonnegative().optional(), taxTreatment: z.enum(["added", "deducted"]).optional(), subtotal: z.number().nonnegative(),
   total: z.number().nonnegative(), paymentInstructions: z.string().max(4000), notes: z.string().max(5000), schedules: z.array(scheduleSchema).max(100), showSchedules: z.boolean(), invoiceStyle: z.enum(["Creative", "Neutral", "Professional"]).default("Neutral"), signatureImage: z.string().max(3_000_000).default(""), stampImage: z.string().max(3_000_000).default(""), legalDisclaimer: z.string().max(1000).default(""), version: z.number().int().positive().default(1),
 });
 export const invoiceSchema = z.object({
@@ -159,7 +171,7 @@ export const invoiceSchema = z.object({
   lifecycle: z.enum(["Draft", "Revision Draft", "Issued"]), rootInvoiceId: z.string().min(1).optional(), previousVersionId: z.string().nullable().default(null), version: z.number().int().positive().default(1), invoiceNumber: z.string().nullable(), clientName: z.string().trim().min(1).max(160),
   clientPhone: z.string().max(80), clientEmail: z.string().max(160), serviceName: z.string().max(160), invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), lineItems: z.array(lineItemSchema).min(1).max(200), discount: z.number().finite().nonnegative(),
-  tax: z.number().finite().nonnegative(), discountMode: z.enum(["none", "fixed", "percentage"]).default("none"), discountValue: z.number().finite().nonnegative().default(0), taxPercent: z.number().finite().min(0).max(100).default(0), invoiceStyle: z.enum(["Creative", "Neutral", "Professional"]).default("Neutral"), paymentInstructions: z.string().max(4000), notes: z.string().max(5000), schedules: z.array(scheduleSchema).max(100),
+  tax: z.number().finite().nonnegative(), discountMode: z.enum(["none", "fixed", "percentage"]).default("none"), discountValue: z.number().finite().nonnegative().default(0), taxPercent: z.number().finite().min(0).max(100).default(0), taxEnabled: z.boolean().optional(), taxName: z.string().trim().max(40).optional(), taxMode: z.enum(["percentage", "fixed"]).optional(), taxValue: z.number().finite().nonnegative().optional(), taxTreatment: z.enum(["added", "deducted"]).optional(), invoiceStyle: z.enum(["Creative", "Neutral", "Professional"]).default("Neutral"), paymentInstructions: z.string().max(4000), notes: z.string().max(5000), schedules: z.array(scheduleSchema).max(100),
   showSchedules: z.boolean(), snapshot: snapshotSchema.nullable(), createdAt: z.number().int().nonnegative(), updatedAt: z.number().int().nonnegative(), issuedAt: z.number().int().nonnegative().nullable(),
 }).transform((value) => ({ ...value, rootInvoiceId: value.rootInvoiceId ?? value.id }));
 const settingsSchema = z.object({
@@ -183,7 +195,7 @@ export const DEFAULT_INVOICE_SETTINGS: InvoiceSettings = {
   invoiceStyle: "Neutral",
   signatureImage: "",
   stampImage: "",
-  legalDisclaimer: "Uploaded signature and stamp images are visual business marks, not certified electronic signatures.",
+  legalDisclaimer: "",
   paymentInstructions: "",
   defaultNotes: "",
   defaultPaymentTerms: "",
@@ -242,15 +254,28 @@ export function insertInvoiceTemplateVariable(value: string, token: string, star
   return `${value.slice(0, safeStart)}${token}${value.slice(safeEnd)}`;
 }
 
-export function invoiceTotals(invoice: Pick<Invoice, "lineItems" | "discount" | "tax"> & Partial<Pick<Invoice, "discountMode" | "discountValue" | "taxPercent">>) {
+type InvoiceTotalsInput = Pick<Invoice, "lineItems" | "discount" | "tax"> & Partial<Pick<Invoice, "discountMode" | "discountValue" | "taxPercent" | "taxEnabled" | "taxName" | "taxMode" | "taxValue" | "taxTreatment">>;
+
+export function invoiceTaxLabel(invoice: InvoiceTotalsInput): string {
+  const name = invoice.taxName?.trim() || "Tax";
+  const mode = invoice.taxMode ?? "percentage";
+  const value = invoice.taxValue ?? invoice.taxPercent ?? 0;
+  return mode === "percentage" && value > 0 ? `${name} (${value}%)` : name;
+}
+
+export function invoiceTotals(invoice: InvoiceTotalsInput) {
   const subtotal = invoice.lineItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
   const legacyDiscount = Math.max(invoice.discount ?? 0, 0);
   const discountMode = invoice.discountMode ?? (legacyDiscount > 0 ? "fixed" : "none");
   const discountValue = invoice.discountValue ?? legacyDiscount;
   const discount = discountMode === "percentage" ? Math.min(subtotal, subtotal * Math.min(discountValue, 100) / 100) : discountMode === "fixed" ? Math.min(subtotal, discountValue) : 0;
   const taxable = Math.max(subtotal - discount, 0);
-  const tax = invoice.taxPercent !== undefined ? taxable * Math.min(Math.max(invoice.taxPercent, 0), 100) / 100 : Math.max(invoice.tax ?? 0, 0);
-  const total = Math.max(taxable + tax, 0);
+  const legacyTaxEnabled = invoice.taxPercent !== undefined ? invoice.taxPercent > 0 : (invoice.tax ?? 0) > 0;
+  const taxEnabled = invoice.taxEnabled ?? legacyTaxEnabled;
+  const taxMode = invoice.taxMode ?? ((invoice.taxPercent ?? 0) > 0 ? "percentage" : "fixed");
+  const taxValue = invoice.taxValue ?? (taxMode === "percentage" ? invoice.taxPercent ?? 0 : invoice.tax ?? 0);
+  const tax = taxEnabled ? taxMode === "percentage" ? taxable * Math.min(Math.max(taxValue, 0), 100) / 100 : Math.max(taxValue, 0) : 0;
+  const total = Math.max(taxable + (invoice.taxTreatment === "deducted" ? -tax : tax), 0);
   return { subtotal, discount, tax, total };
 }
 
@@ -286,8 +311,11 @@ export function createBookingInvoiceDraft(args: { booking: Booking; customer: Cu
     id, businessId: args.settings.businessId, bookingId: args.booking.id, clientId: args.customer.id,
     lifecycle: "Draft", rootInvoiceId: id, previousVersionId: null, version: 1, invoiceNumber: null, clientName: args.customer.name, clientPhone: args.customer.phone, clientEmail: args.customer.email,
     serviceName: args.service.name, invoiceDate, dueDate: args.booking.fullPaymentDueDate || invoiceDate,
-    lineItems: [{ id: crypto.randomUUID(), item: args.service.name, description: args.service.description, quantity: 1, unitPrice: args.booking.servicePrice }],
-    discount: 0, tax: 0, discountMode: "none", discountValue: 0, taxPercent: 0, invoiceStyle: args.settings.invoiceStyle, paymentInstructions: args.settings.paymentInstructions, notes: args.settings.defaultNotes || args.settings.defaultPaymentTerms,
+    lineItems: [
+      { id: crypto.randomUUID(), item: args.service.name, description: args.service.description, quantity: 1, unitPrice: args.booking.servicePrice },
+      ...(args.booking.additionalCharges ?? []).map((charge) => ({ id: crypto.randomUUID(), item: charge.categoryName, description: charge.description, quantity: 1, unitPrice: charge.amount })),
+    ],
+    discount: 0, tax: 0, discountMode: "none", discountValue: 0, taxPercent: 0, taxEnabled: false, taxName: "Tax", taxMode: "percentage", taxValue: 0, taxTreatment: "added", invoiceStyle: args.settings.invoiceStyle, paymentInstructions: args.settings.paymentInstructions, notes: args.settings.defaultNotes || args.settings.defaultPaymentTerms,
     schedules: args.booking.sessions.map(scheduleFromBooking), showSchedules: args.settings.showSchedules, snapshot: null, createdAt: now, updatedAt: now, issuedAt: null,
   });
 }
@@ -310,7 +338,7 @@ export function issueInvoice(invoice: Invoice, settings: InvoiceSettings, allInv
     invoiceNumber, businessName: settings.businessName, legalName: settings.legalName, businessLogo: settings.businessLogo,
     address: settings.address, phone: settings.phone, email: settings.email, clientName: parsed.clientName, clientPhone: parsed.clientPhone,
     clientEmail: parsed.clientEmail, serviceName: parsed.serviceName, invoiceDate: parsed.invoiceDate, dueDate: parsed.dueDate,
-    lineItems: structuredClone(parsed.lineItems), ...totals, discountMode: parsed.discountMode, discountValue: parsed.discountValue, taxPercent: parsed.taxPercent,
+    lineItems: structuredClone(parsed.lineItems), ...totals, discountMode: parsed.discountMode, discountValue: parsed.discountValue, taxPercent: parsed.taxPercent, taxEnabled: parsed.taxEnabled, taxName: parsed.taxName, taxMode: parsed.taxMode, taxValue: parsed.taxValue, taxTreatment: parsed.taxTreatment,
     paymentInstructions: parsed.paymentInstructions, notes: parsed.notes, schedules: structuredClone(parsed.schedules), showSchedules: parsed.showSchedules,
     invoiceStyle: parsed.invoiceStyle, signatureImage: settings.signatureImage, stampImage: settings.stampImage, legalDisclaimer: settings.legalDisclaimer, version: parsed.version,
   });
@@ -325,7 +353,7 @@ export function createInvoiceRevision(invoice: Invoice, now = Date.now(), versio
     ...invoice, id, rootInvoiceId: invoice.rootInvoiceId || invoice.id, previousVersionId: invoice.id, version,
     lifecycle: "Revision Draft", invoiceNumber: null, clientName: source.clientName, clientPhone: source.clientPhone, clientEmail: source.clientEmail,
     serviceName: source.serviceName, invoiceDate: source.invoiceDate, dueDate: source.dueDate, lineItems: structuredClone(source.lineItems),
-    discount: source.discount, tax: source.tax, discountMode: source.discountMode, discountValue: source.discountValue, taxPercent: source.taxPercent,
+    discount: source.discount, tax: source.tax, discountMode: source.discountMode, discountValue: source.discountValue, taxPercent: source.taxPercent, taxEnabled: source.taxEnabled, taxName: source.taxName, taxMode: source.taxMode, taxValue: source.taxValue, taxTreatment: source.taxTreatment,
     invoiceStyle: source.invoiceStyle, paymentInstructions: source.paymentInstructions, notes: source.notes, schedules: structuredClone(source.schedules),
     showSchedules: source.showSchedules, snapshot: null, createdAt: now, updatedAt: now, issuedAt: null,
   });
@@ -427,7 +455,10 @@ export async function generateInvoicePdf(invoice: Invoice, settings: InvoiceSett
   const paid = invoicePaidAmount(invoice, payments);
   const remaining = Math.max(total - paid, 0);
   const [logoImage, signatureImage, stampImage] = await Promise.all([pdfImageSource(source.businessLogo), pdfImageSource(source.signatureImage), pdfImageSource(source.stampImage)]);
-  const accent: [number, number, number] = source.invoiceStyle === "Creative" ? [154, 83, 120] : source.invoiceStyle === "Professional" ? [31, 56, 86] : [53, 111, 107];
+  const brandHex = typeof window === "undefined" ? "" : getComputedStyle(document.documentElement).getPropertyValue("--brand").trim();
+  const accent: [number, number, number] = /^#[0-9a-f]{6}$/i.test(brandHex)
+    ? [Number.parseInt(brandHex.slice(1, 3), 16), Number.parseInt(brandHex.slice(3, 5), 16), Number.parseInt(brandHex.slice(5, 7), 16)]
+    : [79, 107, 255];
   const pageWidth = 210; const pageHeight = 297; const margin = 18; const contentWidth = pageWidth - margin * 2;
   let y = 18;
   const ensure = (height: number) => { if (y + height <= pageHeight - 19) return; doc.addPage(); y = 18; };
@@ -436,7 +467,8 @@ export async function generateInvoicePdf(invoice: Invoice, settings: InvoiceSett
     const lines = width ? doc.splitTextToSize(value || "", width) : [value || ""];
     ensure(lines.length * (size * 0.42) + 2); doc.text(lines, x, y); y += lines.length * (size * 0.42) + 2;
   };
-  if (source.invoiceStyle === "Creative") { doc.setFillColor(249, 241, 246); doc.rect(0, 0, pageWidth, 42, "F"); }
+  if (source.invoiceStyle === "Creative") { doc.setFillColor(242, 244, 255); doc.rect(0, 0, pageWidth, 42, "F"); }
+  if (source.invoiceStyle === "Professional") { doc.setFillColor(...accent); doc.rect(0, 0, 7, pageHeight, "F"); }
   if (logoImage) {
     try { doc.addImage(logoImage, "AUTO", margin, y, 24, 24, undefined, "FAST"); } catch { /* Keep the PDF usable when a browser cannot decode a saved image. */ }
   }
@@ -460,11 +492,11 @@ export async function generateInvoicePdf(invoice: Invoice, settings: InvoiceSett
   }
   y += 4; const totalsX = 132; const valueX = pageWidth - margin;
   const totalRow = (label: string, value: number, strong = false) => { ensure(8); doc.setFont("helvetica", strong ? "bold" : "normal"); doc.setFontSize(strong ? 11 : 9); doc.setTextColor(23, 39, 42); doc.text(label, totalsX, y); doc.text(formatRupiah(value), valueX, y, { align: "right" }); y += strong ? 8 : 6; };
-  totalRow("Subtotal", totals.subtotal); if (totals.discount > 0) totalRow(source.discountMode === "percentage" ? `Discount (${source.discountValue}%)` : "Discount", -totals.discount); if (totals.tax > 0) totalRow(source.taxPercent ? `Tax (${source.taxPercent}%)` : "Tax", totals.tax); totalRow("Total", total, true); totalRow("Paid", paid); totalRow("Remaining", remaining, true); if (paid > total) totalRow("Overpaid", paid - total); y += 4;
+  totalRow("Subtotal", totals.subtotal); if (totals.discount > 0) totalRow(source.discountMode === "percentage" ? `Discount (${source.discountValue}%)` : "Discount", -totals.discount); if (totals.tax > 0) totalRow(invoiceTaxLabel(source), source.taxTreatment === "deducted" ? -totals.tax : totals.tax); totalRow("Total", total, true); totalRow("Paid", paid); totalRow("Remaining", remaining, true); if (paid > total) totalRow("Overpaid", paid - total); y += 4;
   if (source.showSchedules && source.schedules.length) { text("SCHEDULE", margin, 9, "bold"); for (const schedule of source.schedules) { const start = new Date(schedule.startAt); const end = new Date(schedule.endAt); const date = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Jakarta" }).format(start); const times = `${start.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Jakarta" })}-${end.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Jakarta" })}`; text(`${date} | ${times}${schedule.label ? ` | ${schedule.label}` : ""}${schedule.location ? ` | ${schedule.location}` : ""}`, margin, 8, "normal", contentWidth); } y += 3; }
   if (source.paymentInstructions) { text("PAYMENT INSTRUCTIONS", margin, 9, "bold"); text(source.paymentInstructions, margin, 9, "normal", contentWidth); y += 3; }
   if (source.notes) { text("NOTES", margin, 9, "bold"); text(source.notes, margin, 9, "normal", contentWidth); }
-  if (signatureImage || stampImage) { ensure(34); y += 3; if (signatureImage) { text("AUTHORIZED SIGNATURE", margin, 8, "bold"); try { doc.addImage(signatureImage, "AUTO", margin, y, 42, 20, undefined, "FAST"); } catch { /* visual mark is optional */ } } if (stampImage) { try { doc.addImage(stampImage, "AUTO", margin + 54, y - 5, 24, 24, undefined, "FAST"); } catch { /* visual mark is optional */ } } y += 25; }
+  if (signatureImage || stampImage) { ensure(38); y += 3; text("AUTHORIZED SIGNATURE", margin, 8, "bold"); if (signatureImage) { try { doc.addImage(signatureImage, "AUTO", margin, y, 42, 20, undefined, "FAST"); } catch { /* visual mark is optional */ } } if (stampImage) { try { doc.addImage(stampImage, "AUTO", margin + 28, y - 4, 25, 25, undefined, "FAST"); } catch { /* visual mark is optional */ } } y += 28; }
   if (source.legalDisclaimer) text(source.legalDisclaimer, margin, 7, "normal", contentWidth);
   const pageCount = doc.getNumberOfPages();
   for (let page = 1; page <= pageCount; page += 1) { doc.setPage(page); doc.setDrawColor(221, 227, 221); doc.line(margin, pageHeight - 15, pageWidth - margin, pageHeight - 15); doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(130, 140, 138); if (settings.showQaiAttribution) doc.text("Created with Qai", margin, pageHeight - 9); doc.text(`${page} / ${pageCount}`, pageWidth - margin, pageHeight - 9, { align: "right" }); }

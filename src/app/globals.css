@@ -52,17 +52,17 @@
 :root {
   --font-sans-system: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-mono-system: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  --app-background: #f7f8f5;
+  --app-background: #f2f4f8;
   --surface: #ffffff;
-  --surface-subtle: #eef1ec;
-  --line: #dde3dd;
-  --ink: #17272a;
-  --text-muted: #66726f;
-  --brand: #356f6b;
-  --brand-hover: #2b5c59;
-  --brand-active: #244b49;
-  --support-blue: #4c6370;
-  --focus: #78a7a0;
+  --surface-subtle: #f2f4f8;
+  --line: #dfe3ec;
+  --ink: #0f1b33;
+  --text-muted: #647087;
+  --brand: #4f6bff;
+  --brand-hover: #405bf0;
+  --brand-active: #344bd1;
+  --support-blue: #52658f;
+  --focus: #7d8fff;
   --status-success: #22c55e;
   --status-warning: #f59e0b;
   --status-error: #ef4444;
@@ -92,7 +92,7 @@
   --secondary-foreground: var(--ink);
   --muted: var(--surface-subtle);
   --muted-foreground: var(--text-muted);
-  --accent: #e3eeeb;
+  --accent: #edf0ff;
   --accent-foreground: var(--brand-active);
   --destructive: var(--status-error);
   --border: var(--line);
@@ -109,7 +109,7 @@
   --sidebar-foreground: var(--ink);
   --sidebar-primary: var(--brand);
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e3eeeb;
+  --sidebar-accent: #edf0ff;
   --sidebar-accent-foreground: var(--brand-active);
   --sidebar-border: var(--line);
   --sidebar-ring: var(--focus);
@@ -152,19 +152,19 @@
 }
 
 [data-qai-theme="serein"] {
-  --app-background: #f7f8f5;
+  --app-background: #f2f4f8;
   --surface: #ffffff;
-  --surface-subtle: #eef1ec;
-  --line: #dde3dd;
-  --ink: #17272a;
-  --text-muted: #66726f;
-  --brand: #356f6b;
-  --brand-hover: #2b5c59;
-  --brand-active: #244b49;
-  --support-blue: #4c6370;
-  --focus: #78a7a0;
-  --accent: #e3eeeb;
-  --accent-foreground: #244b49;
+  --surface-subtle: #f2f4f8;
+  --line: #dfe3ec;
+  --ink: #0f1b33;
+  --text-muted: #647087;
+  --brand: #4f6bff;
+  --brand-hover: #405bf0;
+  --brand-active: #344bd1;
+  --support-blue: #52658f;
+  --focus: #7d8fff;
+  --accent: #edf0ff;
+  --accent-foreground: #344bd1;
 }
 
 [data-qai-theme="bloom"] {

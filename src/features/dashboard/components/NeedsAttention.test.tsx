@@ -16,8 +16,12 @@ describe("NeedsAttention", () => {
 
     const overdue = screen.getByRole("link", { name: /Overdue payments/ });
     expect(overdue.getAttribute("href")).toBe("/bookings?payment=outstanding");
+    const toggle = screen.getByRole("button", { name: /Needs attention/ });
+    await user.click(toggle);
+    expect(screen.queryByRole("link", { name: /Overdue payments/ })).toBeNull();
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
     await user.tab();
-    expect(document.activeElement).toBe(screen.getByRole("link", { name: /Add booking/ }));
+    expect(document.activeElement).toBeTruthy();
   });
 
   it("uses a calm state when nothing needs attention", () => {

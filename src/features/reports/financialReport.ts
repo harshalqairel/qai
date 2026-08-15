@@ -4,7 +4,7 @@ import type { Customer } from "@/features/customer/types";
 import type { ExpenseCategory } from "@/features/expense-category/types";
 import type { Expense } from "@/features/expense/types";
 import type { Payment } from "@/features/payment/types";
-import { sumPaymentsForBooking } from "@/features/payment/utils/paymentCalculations";
+import { calculateBookingFinancials } from "@/features/booking/domain/bookingFinancials";
 import type { Service } from "@/features/service/types";
 import type { Invoice } from "@/features/invoice/invoice";
 import { invoicePaidAmount, invoiceRemainingAmount, invoiceTotals, latestReportableInvoiceVersions } from "@/features/invoice/invoice";
@@ -222,22 +222,18 @@ export function buildFinancialReport(input: FinancialReportInput): FinancialRepo
     .map((booking): BookingReportRow | null => {
       const firstSessionDate = instantParts(firstBookingSession(booking).startAt, input.timezone).date;
       if (!dateIsInReportPeriod(firstSessionDate, period)) return null;
-      const totalPaid = sumPaymentsForBooking(booking.id, validPayments);
-      const directExpenses = validExpenses
-        .filter((expense) => expense.bookingId === booking.id)
-        .reduce((sum, expense) => sum + expense.amount, 0);
-      const cancelled = booking.bookingStatus === "Cancelled";
+      const financials = calculateBookingFinancials(booking, validPayments, validExpenses);
       return {
         bookingId: booking.id,
         firstSessionDate,
         ...nameForBooking(booking),
         status: booking.bookingStatus,
         sessionCount: booking.sessions.length,
-        bookingValue: booking.servicePrice,
-        totalPaid,
-        outstanding: cancelled ? null : Math.max(booking.servicePrice - totalPaid, 0),
-        directExpenses,
-        estimatedJobProfit: cancelled ? null : booking.servicePrice - directExpenses,
+        bookingValue: financials.clientTotal,
+        totalPaid: financials.totalPaid,
+        outstanding: financials.outstanding,
+        directExpenses: financials.directExpenses,
+        estimatedJobProfit: financials.estimatedJobProfit,
         paymentDueDate: booking.fullPaymentDueDate,
         notes: booking.notes,
       };

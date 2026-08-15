@@ -49,12 +49,12 @@ export default function CalendarHeader({
       <div className="surface-card p-3 md:hidden">
         <div className="mb-2 flex items-center justify-between gap-3 px-1">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Calendar</p>
-          <Button variant="ghost" size="sm" onClick={onToday}>Today</Button>
+          <Button variant="ghost" size="sm" className="h-9" onClick={onToday}>Today</Button>
         </div>
-        <div className="grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-2">
-          <Button variant="outline" size="icon" className="size-11" onClick={onPreviousMonth} aria-label="Previous month"><ChevronLeftIcon aria-hidden="true" /></Button>
+        <div className="grid grid-cols-[40px_minmax(0,1fr)_40px] items-center overflow-hidden rounded-xl border border-border bg-background">
+          <Button variant="ghost" size="icon" className="size-10 rounded-none border-r border-border" onClick={onPreviousMonth} aria-label="Previous month"><ChevronLeftIcon aria-hidden="true" /></Button>
           <h1 className="truncate text-center text-xl font-bold tracking-tight">{new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(activeDate)}</h1>
-          <Button variant="outline" size="icon" className="size-11" onClick={onNextMonth} aria-label="Next month"><ChevronRightIcon aria-hidden="true" /></Button>
+          <Button variant="ghost" size="icon" className="size-10 rounded-none border-l border-border" onClick={onNextMonth} aria-label="Next month"><ChevronRightIcon aria-hidden="true" /></Button>
         </div>
       </div>
 
@@ -63,27 +63,27 @@ export default function CalendarHeader({
           <div className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">Calendar</div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground lg:text-3xl">{headerLabel}</h1>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3">
         {/* Prev / Today / Next — hidden on phones (agenda is always all bookings) */}
-        <div className="hidden gap-2 md:flex">
+        <div className="hidden overflow-hidden rounded-xl border border-border bg-background md:flex" role="group" aria-label="Calendar navigation">
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            className="h-10 w-10 p-0"
+            className="h-10 w-10 rounded-none border-r border-border p-0"
             onClick={onPrevious}
-            aria-label="Previous month"
-            title="Previous month"
+            aria-label="Previous period"
+            title="Previous period"
           >
             <ChevronLeftIcon className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="sm" onClick={onToday}>Today</Button>
+          <Button variant="ghost" size="sm" className="h-10 rounded-none px-4" onClick={onToday}>Today</Button>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            className="h-10 w-10 p-0"
+            className="h-10 w-10 rounded-none border-l border-border p-0"
             onClick={onNext}
-            aria-label="Next month"
-            title="Next month"
+            aria-label="Next period"
+            title="Next period"
           >
             <ChevronRightIcon className="h-4 w-4" />
           </Button>
@@ -91,18 +91,18 @@ export default function CalendarHeader({
 
         {/* View switcher */}
         {/* Desktop (lg+): Month / Week / Day */}
-        <div className="hidden gap-2 lg:flex">
+        <div className="hidden overflow-hidden rounded-xl border border-border bg-background lg:flex" role="group" aria-label="Calendar view">
           {(["month", "week", "day"] as const).map((v) => (
-            <Button key={v} variant={view === v ? "default" : "outline"} size="sm" onClick={() => onViewChange(v)}>
+            <Button key={v} variant={view === v ? "default" : "ghost"} size="sm" className="h-10 rounded-none border-r border-border px-4 last:border-r-0" onClick={() => onViewChange(v)} aria-pressed={view === v}>
               {v.charAt(0).toUpperCase() + v.slice(1)}
             </Button>
           ))}
         </div>
 
         {/* Tablet (md–lg): Month / Week only */}
-        <div className="hidden gap-2 md:flex lg:hidden">
+        <div className="hidden overflow-hidden rounded-xl border border-border bg-background md:flex lg:hidden" role="group" aria-label="Calendar view">
           {(["month", "week"] as const).map((v) => (
-            <Button key={v} variant={view === v ? "default" : "outline"} size="sm" onClick={() => onViewChange(v)}>
+            <Button key={v} variant={view === v ? "default" : "ghost"} size="sm" className="h-10 rounded-none border-r border-border px-4 last:border-r-0" onClick={() => onViewChange(v)} aria-pressed={view === v}>
               {v.charAt(0).toUpperCase() + v.slice(1)}
             </Button>
           ))}

@@ -24,6 +24,7 @@ export default function CalendarPage() {
     serviceCategories,
     createCustomerAndReturn,
     createServiceAndReturn,
+    createServiceCategoryAndReturn,
     selectedBooking,
     initialBookingValues,
     dialogOpen,
@@ -133,6 +134,7 @@ export default function CalendarPage() {
         onDeletePayment={(id) => deletePayment(id)}
         onQuickCreateCustomer={createCustomerAndReturn}
         onQuickCreateService={createServiceAndReturn}
+        onQuickCreateServiceCategory={createServiceCategoryAndReturn}
       />
 
       <PaymentDialog

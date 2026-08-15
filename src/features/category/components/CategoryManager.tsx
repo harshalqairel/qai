@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { LoaderCircle } from "lucide-react";
+import { LoaderCircle, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -228,11 +228,13 @@ export default function CategoryManager<T extends BaseCategory>({
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 sm:justify-end">
-                  <Button variant="outline" size="sm" disabled={rowPending} onClick={() => openEdit(category)}>Edit</Button>
+                  <Button variant="outline" size="icon-sm" disabled={rowPending} onClick={() => openEdit(category)} aria-label={`Edit ${category.name}`} title={`Edit ${category.name}`}><Pencil className="size-4" aria-hidden="true" /></Button>
                   <Button
                     variant="outline"
-                    size="sm"
+                    size="icon-sm"
                     disabled={rowPending}
+                    aria-label={`Delete ${category.name}`}
+                    title={`Delete ${category.name}`}
                     onClick={() => toggleCategory(category)}
                   >
                     {rowPending && pendingAction?.kind === "hiding" ? "Hiding…" : rowPending && pendingAction?.kind === "showing" ? "Showing…" : category.active ? "Hide" : "Show again"}
@@ -247,7 +249,7 @@ export default function CategoryManager<T extends BaseCategory>({
                       setActionError("");
                     }}
                   >
-                    Delete
+                    <Trash2 className="size-4" aria-hidden="true" />
                   </Button>
                 </div>
               </article>

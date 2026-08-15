@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { cn } from "@/lib/utils";
 
 type LogoVariant = "full" | "symbol" | "wordmark";
@@ -18,22 +19,31 @@ const SIZES: Record<LogoSize, { mark: string; wordmark: string; gap: string }> =
   lg: { mark: "size-12", wordmark: "text-4xl", gap: "gap-3" },
 };
 
-function QaiSymbol({ className }: { className?: string }) {
+function QaiSymbol({ className, monochrome = false }: { className?: string; monochrome?: boolean }) {
+  const gradientId = useId();
+  const paint = monochrome ? "currentColor" : `url(#${gradientId})`;
   return (
     <svg
-      viewBox="0 0 72 72"
+      viewBox="0 0 128 128"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
       aria-hidden="true"
       focusable="false"
     >
-      <circle cx="35" cy="34" r="23" stroke="currentColor" strokeWidth="7" />
+      {!monochrome && (
+        <defs>
+          <linearGradient id={gradientId} x1="18" y1="15" x2="111" y2="112" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#3157F6" />
+            <stop offset="0.55" stopColor="#526CFF" />
+            <stop offset="1" stopColor="#9AA8FF" />
+          </linearGradient>
+        </defs>
+      )}
+      <circle cx="56" cy="55" r="38" stroke={paint} strokeWidth="17" />
       <path
-        d="M43 43 59 59"
-        stroke="currentColor"
-        strokeWidth="7"
-        strokeLinecap="round"
+        d="M49 64H69L113 108H88L49 69Z"
+        fill={paint}
       />
     </svg>
   );
@@ -53,7 +63,7 @@ export function QaiMark({
       aria-label={decorative ? undefined : "Qai"}
       aria-hidden={decorative || undefined}
     >
-      <QaiSymbol className={SIZES[size].mark} />
+      <QaiSymbol className={SIZES[size].mark} monochrome={tone !== "default"} />
     </span>
   );
 }

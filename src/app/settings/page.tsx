@@ -12,6 +12,7 @@ import HowToUseQai from "@/features/settings/components/HowToUseQai";
 import PaymentReminderSettings from "@/features/reminder/components/PaymentReminderSettings";
 import AppearanceSettings from "@/features/appearance/AppearanceSettings";
 import InvoiceSharingSettings from "@/features/invoice/InvoiceSharingSettings";
+import NotificationSettings from "@/features/notifications/NotificationSettings";
 import {
   ArrowLeft,
   CircleHelp,
@@ -25,6 +26,7 @@ import {
   CalendarDays,
   FileCheck2,
   Waypoints,
+  Bell,
 } from "lucide-react";
 import PageSkeleton from "@/components/system/PageSkeleton";
 import { QaiLogo } from "@/components/brand/QaiLogo";
@@ -36,6 +38,7 @@ const SECTIONS = [
   { id: "expense-categories", label: "Expense categories", description: "Manage how expenses are grouped", Icon: ReceiptText },
   { id: "payment-reminders", label: "Payment reminders", description: "Customize WhatsApp and email wording", Icon: MessagesSquare },
   { id: "invoice-sharing", label: "Invoice sharing", description: "Customize invoice WhatsApp and email wording", Icon: MessagesSquare },
+  { id: "notifications", label: "Notifications", description: "Choose optional browser alerts", Icon: Bell },
   { id: "appearance", label: "Appearance", description: "Choose your Qai visual mood", Icon: Palette },
   { id: "about", label: "About Qai", description: "Product information", Icon: Info },
 ] as const;
@@ -44,7 +47,7 @@ type SectionId = (typeof SECTIONS)[number]["id"];
 
 const MOBILE_GROUPS: Array<{ label: string; sections: SectionId[] }> = [
   { label: "Management", sections: ["service-categories", "expense-categories"] },
-  { label: "Communication", sections: ["payment-reminders", "invoice-sharing"] },
+  { label: "Communication", sections: ["payment-reminders", "invoice-sharing", "notifications"] },
   { label: "Preferences", sections: ["appearance"] },
   { label: "Data", sections: ["data-backup"] },
   { label: "Product", sections: ["about"] },
@@ -202,6 +205,7 @@ export default function SettingsPage() {
             )}
             {activeSection === "payment-reminders" && <PaymentReminderSettings />}
             {activeSection === "invoice-sharing" && <InvoiceSharingSettings />}
+            {activeSection === "notifications" && <NotificationSettings />}
             {activeSection === "appearance" && <AppearanceSettings />}
             {activeSection === "about" && (
               <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">

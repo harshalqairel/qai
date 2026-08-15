@@ -82,6 +82,37 @@ describe("invoice lifecycle", () => {
     expect(issued.snapshot?.version).toBe(1);
   });
 
+  it("supports named added and deducted percentage or fixed taxes", () => {
+    const base = sampleInvoice({
+      discountMode: "none",
+      discountValue: 0,
+      taxEnabled: true,
+      taxName: "PPN",
+      taxMode: "percentage",
+      taxValue: 11,
+      taxTreatment: "added",
+    });
+    expect(invoiceTotals(base)).toEqual({ subtotal: 5_700_000, discount: 0, tax: 627_000, total: 6_327_000 });
+    expect(invoiceTotals({ ...base, taxName: "PPh", taxValue: 2, taxTreatment: "deducted" })).toEqual({ subtotal: 5_700_000, discount: 0, tax: 114_000, total: 5_586_000 });
+    expect(invoiceTotals({ ...base, taxMode: "fixed", taxValue: 50_000 })).toEqual({ subtotal: 5_700_000, discount: 0, tax: 50_000, total: 5_750_000 });
+  });
+
+  it("calculates the validation discount and PPN example deterministically", () => {
+    const result = invoiceTotals({
+      lineItems: [{ id: "line", item: "Package", description: "", quantity: 1, unitPrice: 1_700_000 }],
+      discount: 0,
+      tax: 0,
+      discountMode: "percentage",
+      discountValue: 10,
+      taxEnabled: true,
+      taxName: "PPN",
+      taxMode: "percentage",
+      taxValue: 11,
+      taxTreatment: "added",
+    });
+    expect(result).toEqual({ subtotal: 1_700_000, discount: 170_000, tax: 168_300, total: 1_698_300 });
+  });
+
   it("keeps the latest issued version reportable while a newer revision is still a draft", () => {
     const issued = issueInvoice(sampleInvoice(), settings, [], Date.UTC(2026, 7, 11));
     const revisionDraft = createInvoiceRevision(issued, 99);

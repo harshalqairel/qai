@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { queueWorkspaceDocumentWrite } from "@/lib/validation/workspaceSync";
+import {
+  discardPendingWorkspaceDocumentWrites,
+  flushWorkspaceDocuments,
+  queueWorkspaceDocumentWrite,
+} from "@/lib/validation/workspaceSync";
 
 export const CURRENT_STORAGE_VERSION = 1;
 
@@ -72,6 +76,20 @@ export type VersionedCollectionTransactionWrite = {
   records: readonly unknown[];
   version?: number;
 };
+
+export type BulkPersistenceStage = "local-write" | "remote-confirmation" | "rollback";
+
+export class BulkPersistenceError extends Error {
+  readonly stage: BulkPersistenceStage;
+  readonly storageKey: string;
+
+  constructor(stage: BulkPersistenceStage, storageKey: string) {
+    super(`Bulk persistence failed during ${stage} for ${storageKey}.`);
+    this.name = "BulkPersistenceError";
+    this.stage = stage;
+    this.storageKey = storageKey;
+  }
+}
 
 export type CollectionSnapshot = {
   exists: boolean;
@@ -314,6 +332,47 @@ export function writeVersionedCollectionsAtomically(
       throw new PersistenceError("WRITE_FAILURE", prepared[0].storageKey);
     }
     throw error;
+  }
+}
+
+/**
+ * Commits a validated collection batch locally and waits for validation-mode
+ * remote persistence before resolving. A failed remote confirmation restores
+ * every local key to its exact pre-operation value and removes the failed
+ * batch from the background write queue.
+ */
+export async function writeVersionedCollectionsAndConfirm(
+  writes: readonly VersionedCollectionTransactionWrite[],
+): Promise<void> {
+  if (writes.length === 0) return;
+  const storageKeys = writes.map((write) => write.storageKey);
+  const storage = getStorage(storageKeys[0]);
+  const snapshots = new Map<string, string | null>();
+
+  try {
+    for (const storageKey of storageKeys) snapshots.set(storageKey, storage.getItem(storageKey));
+  } catch {
+    throw new BulkPersistenceError("local-write", storageKeys[0]);
+  }
+
+  let stage: BulkPersistenceStage = "local-write";
+  try {
+    writeVersionedCollectionsAtomically(writes);
+    stage = "remote-confirmation";
+    await flushWorkspaceDocuments(storageKeys);
+  } catch (error) {
+    discardPendingWorkspaceDocumentWrites(storageKeys);
+    try {
+      for (const storageKey of storageKeys) {
+        const snapshot = snapshots.get(storageKey) ?? null;
+        if (snapshot === null) storage.removeItem(storageKey);
+        else storage.setItem(storageKey, snapshot);
+      }
+    } catch {
+      throw new BulkPersistenceError("rollback", storageKeys[0]);
+    }
+    const failedKey = error instanceof PersistenceError ? error.storageKey : storageKeys[0];
+    throw new BulkPersistenceError(stage, failedKey);
   }
 }
 

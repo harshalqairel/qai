@@ -53,6 +53,7 @@ const defaultValues: ServiceFormValues = {
   price: 0,
   duration: 0,
   defaultSessionCount: 1,
+  locationPolicy: "Client can choose",
   description: "",
   active: true,
 };
@@ -117,6 +118,7 @@ export default function ServiceDialog({
         price: service.price,
         duration: service.duration,
         defaultSessionCount: service.defaultSessionCount,
+        locationPolicy: service.locationPolicy ?? "Client can choose",
         description: service.description,
         active: service.active,
       });
@@ -183,6 +185,7 @@ export default function ServiceDialog({
       price: values.price,
       duration: values.duration,
       defaultSessionCount: values.defaultSessionCount,
+      locationPolicy: values.locationPolicy,
       description: values.description.trim(),
       active: service?.active ?? true,
     };
@@ -439,6 +442,26 @@ export default function ServiceDialog({
             {errors.defaultSessionCount && (
               <p className="mt-2 text-sm text-destructive">{errors.defaultSessionCount.message}</p>
             )}
+          </div>
+
+          <div>
+            <Label className="mb-2 block font-semibold">Service location</Label>
+            <Controller
+              control={control}
+              name="locationPolicy"
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Choose where this service happens" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Business/studio only">Business/studio only</SelectItem>
+                    <SelectItem value="Client location only">Client location only</SelectItem>
+                    <SelectItem value="Client can choose">Client can choose</SelectItem>
+                    <SelectItem value="Online">Online</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            <p className="mt-2 text-sm text-muted-foreground">This controls which location choices clients see on your Qai Page.</p>
           </div>
 
           <div>

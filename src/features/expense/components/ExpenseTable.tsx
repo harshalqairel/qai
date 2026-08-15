@@ -1,4 +1,4 @@
-import { Pencil } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -101,17 +101,20 @@ export default function ExpenseTable({
                 <TableCell className="text-right font-bold tabular-nums">{formatRupiah(expense.amount)}</TableCell>
                 <TableCell className="pr-4">
                   <div className="flex justify-end gap-2" onClick={(event) => event.stopPropagation()}>
-                    <Button type="button" variant="outline" size="sm" onClick={() => onEdit(expense)}>
-                      <Pencil className="size-4" aria-hidden="true" /> Edit
+                    <Button type="button" variant="ghost" size="icon-sm" onClick={() => onEdit(expense)} aria-label="Edit expense" title="Edit expense">
+                      <Pencil className="size-4" aria-hidden="true" />
                     </Button>
                     <DeleteAction
                       itemName="this expense"
                       onConfirm={() => onDelete(expense)}
                       successMessage="Expense deleted."
                       errorMessage="Could not delete the expense. Try again."
-                      triggerClassName="h-9 px-3"
+                      triggerClassName="size-8 p-0"
                       confirmLabel="Delete expense"
-                    />
+                    >
+                      <Trash2 className="size-4" aria-hidden="true" />
+                      <span className="sr-only">Delete expense</span>
+                    </DeleteAction>
                   </div>
                 </TableCell>
               </TableRow>

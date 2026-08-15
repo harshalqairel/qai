@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 330 128" fill="none">
+  <circle cx="56" cy="55" r="38" stroke="#0F1B33" stroke-width="17"/>
+  <path d="M49 64h20l44 44H88L49 69Z" fill="#0F1B33"/>
+  <text x="132" y="88" fill="#0F1B33" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="82" font-weight="600" letter-spacing="-5">Qai</text>
+</svg>

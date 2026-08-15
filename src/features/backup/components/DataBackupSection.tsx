@@ -118,14 +118,14 @@ export default function DataBackupSection() {
     resetSelectedFile();
   }
 
-  function handleRestoreConfirmed() {
+  async function handleRestoreConfirmed() {
     if (!preview) return;
 
     setValidationMessage("");
     setIsRestoring(true);
     try {
-      const restored = restoreBackup(preview.backup);
-      if (!restored) {
+      const restored = await restoreBackup(preview.backup);
+      if (!restored.ok) {
         notify.error("Could not restore the backup. Your current data was not changed.");
         setPreview(null);
         resetSelectedFile();
@@ -244,7 +244,7 @@ export default function DataBackupSection() {
             <AlertDialogCancel disabled={isRestoring}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
-              onClick={handleRestoreConfirmed}
+              onClick={() => void handleRestoreConfirmed()}
               disabled={isRestoring}
               aria-busy={isRestoring}
             >

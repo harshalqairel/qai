@@ -1,3 +1,5 @@
+export type ServiceLocationPolicy = "Business/studio only" | "Client location only" | "Client can choose" | "Online";
+
 export type Service = {
   id: string;
   name: string;
@@ -5,6 +7,7 @@ export type Service = {
   price: number;
   duration: number;
   defaultSessionCount: number;
+  locationPolicy?: ServiceLocationPolicy;
   description: string;
   active: boolean;
 };
@@ -15,5 +18,6 @@ export type CreateServiceInput = {
   price: number;
   duration: number;
   defaultSessionCount: number;
+  locationPolicy?: ServiceLocationPolicy;
   description: string;
 };

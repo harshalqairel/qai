@@ -1,22 +1,174 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CalendarCheck2, ExternalLink, LoaderCircle, RefreshCw, Unplug } from "lucide-react";
+import { CalendarCheck2, ExternalLink, LoaderCircle, MoreHorizontal, RefreshCw, Unplug } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { isValidationModeEnabled } from "@/lib/supabase/config";
 import { notify } from "@/lib/notifications";
 
-type Status = { configured: boolean; status: "unavailable" | "disconnected" | "connected" | "reconnect_required"; google_account_email?: string | null; target_calendar_id?: string | null; last_sync_at?: string | null; last_error?: string | null; calendars: Array<{ id: string; name: string; primary: boolean }> };
+type Status = {
+  configured: boolean;
+  status: "unavailable" | "disconnected" | "connected" | "reconnect_required";
+  google_account_email?: string | null;
+  target_calendar_id?: string | null;
+  last_sync_at?: string | null;
+  last_error?: string | null;
+  calendars: Array<{ id: string; name: string; primary: boolean }>;
+};
 
 export default function GoogleCalendarSyncCard() {
-  const [status, setStatus] = useState<Status | null>(null); const [busy, setBusy] = useState<"load" | "sync" | "select" | "disconnect" | null>("load");
-  const load = useCallback(async () => { if (!isValidationModeEnabled()) return; try { const response = await fetch("/api/integrations/google-calendar", { cache: "no-store" }); const result = await response.json() as { data?: Status }; if (response.ok && result.data) setStatus(result.data); } finally { setBusy(null); } }, []);
-  useEffect(() => { void load(); const query = new URLSearchParams(window.location.search).get("calendar"); if (query === "connected") notify.success("Google Calendar connected."); else if (query === "cancelled") notify.info("Google Calendar connection was cancelled."); else if (query === "error" || query === "not-configured") notify.error("Google Calendar could not be connected."); }, [load]);
+  const [status, setStatus] = useState<Status | null>(null);
+  const [busy, setBusy] = useState<"load" | "sync" | "select" | "disconnect" | null>("load");
+
+  const load = useCallback(async () => {
+    if (!isValidationModeEnabled()) return;
+    try {
+      const response = await fetch("/api/integrations/google-calendar", { cache: "no-store" });
+      const result = await response.json() as { data?: Status };
+      if (response.ok && result.data) setStatus(result.data);
+    } finally {
+      setBusy(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+    const query = new URLSearchParams(window.location.search).get("calendar");
+    if (query === "connected") notify.success("Google Calendar connected.");
+    else if (query === "cancelled") notify.info("Google Calendar connection was cancelled.");
+    else if (query === "error" || query === "not-configured") notify.error("Google Calendar could not be connected.");
+  }, [load]);
+
   if (!isValidationModeEnabled()) return null;
-  async function select(calendarId: string) { setBusy("select"); try { const response = await fetch("/api/integrations/google-calendar", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ calendarId }) }); if (!response.ok) throw new Error(); await load(); notify.success("Target calendar updated."); } catch { notify.error("Could not select that calendar."); } finally { setBusy(null); } }
-  async function sync() { setBusy("sync"); try { const response = await fetch("/api/integrations/google-calendar/sync", { method: "POST" }); const result = await response.json() as { data?: Record<string, number>; error?: string }; if (!response.ok || !result.data) throw new Error(result.error); await load(); const changed = (result.data.created ?? 0) + (result.data.updated ?? 0) + (result.data.cancelled ?? 0); notify.success(changed ? `Google Calendar synced · ${changed} changes.` : "Google Calendar is already up to date."); if (result.data.failed) notify.error(`${result.data.failed} events could not be synced. Qai data was not changed.`); } catch (error) { notify.error(error instanceof Error ? error.message : "Calendar sync failed. Qai data was not changed."); } finally { setBusy(null); } }
-  async function disconnect() { if (!window.confirm("Disconnect Google Calendar? Existing Qai-created events will remain in Google Calendar.")) return; setBusy("disconnect"); try { await fetch("/api/integrations/google-calendar", { method: "DELETE" }); await load(); notify.success("Google Calendar disconnected."); } catch { notify.error("Could not disconnect Google Calendar."); } finally { setBusy(null); } }
-  return <section className="surface-card p-4 sm:p-5"><div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div className="flex min-w-0 items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent text-[var(--brand)]"><CalendarCheck2 className="size-5" /></span><div><h2 className="font-semibold">Google Calendar schedule sync</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">Qai stays the source of truth. Each Qai schedule creates one mapped Google event; edits update that event.</p>{status?.last_sync_at && <p className="mt-1 text-xs text-muted-foreground">Last synced {new Date(status.last_sync_at).toLocaleString()}</p>}</div></div>{busy === "load" || !status ? <LoaderCircle className="size-5 animate-spin text-muted-foreground" /> : !status.configured ? <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">Google OAuth credentials are not configured for this deployment.</p> : status.status !== "connected" ? <Button render={<a href="/api/integrations/google-calendar/connect" />}><ExternalLink className="size-4" />{status.status === "reconnect_required" ? "Reconnect Google Calendar" : "Connect Google Calendar"}</Button> : <div className="flex flex-col gap-2 sm:flex-row"><Button variant="outline" disabled={busy !== null} onClick={() => void sync()}>{busy === "sync" ? <LoaderCircle className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}Sync now</Button><Button variant="ghost" disabled={busy !== null} onClick={() => void disconnect()}><Unplug className="size-4" />Disconnect</Button></div>}</div>{status?.status === "connected" && <div className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-2 sm:items-end"><div><Label htmlFor="target-google-calendar">Send schedules to</Label><select id="target-google-calendar" className="native-control mt-2" value={status.target_calendar_id ?? ""} disabled={busy !== null} onChange={(event) => void select(event.target.value)}>{status.calendars.map((calendar) => <option key={calendar.id} value={calendar.id}>{calendar.name}{calendar.primary ? " (Primary)" : ""}</option>)}</select></div><p className="text-xs leading-5 text-muted-foreground">Connected as {status.google_account_email || "Google Calendar user"}. Qai does not import personal events or provide two-way sync.</p></div>}</section>;
+
+  async function select(calendarId: string) {
+    setBusy("select");
+    try {
+      const response = await fetch("/api/integrations/google-calendar", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ calendarId }),
+      });
+      if (!response.ok) throw new Error();
+      await load();
+      notify.success("Target calendar updated.");
+    } catch {
+      notify.error("Could not select that calendar.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function sync() {
+    setBusy("sync");
+    try {
+      const response = await fetch("/api/integrations/google-calendar/sync", { method: "POST" });
+      const result = await response.json() as { data?: Record<string, number>; error?: string };
+      if (!response.ok || !result.data) throw new Error(result.error);
+      await load();
+      const changed = (result.data.created ?? 0) + (result.data.updated ?? 0) + (result.data.cancelled ?? 0);
+      notify.success(changed ? `Google Calendar synced · ${changed} changes.` : "Google Calendar is already up to date.");
+      if (result.data.failed) notify.error(`${result.data.failed} events could not be synced. Qai data was not changed.`);
+    } catch (error) {
+      notify.error(error instanceof Error ? error.message : "Calendar sync failed. Qai data was not changed.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function disconnect() {
+    if (!window.confirm("Disconnect Google Calendar? Existing Qai-created events will remain in Google Calendar.")) return;
+    setBusy("disconnect");
+    try {
+      await fetch("/api/integrations/google-calendar", { method: "DELETE" });
+      await load();
+      notify.success("Google Calendar disconnected.");
+    } catch {
+      notify.error("Could not disconnect Google Calendar.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const connected = status?.status === "connected";
+
+  return (
+    <section className="surface-card overflow-hidden" aria-labelledby="google-calendar-heading">
+      <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <CalendarCheck2 className="size-5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 id="google-calendar-heading" className="font-semibold">Google Calendar</h2>
+              {connected && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">Connected</span>}
+            </div>
+            <p className="mt-1 truncate text-sm text-muted-foreground">
+              {connected ? status.google_account_email || "Connected Google account" : "One Google event for each Qai schedule."}
+            </p>
+          </div>
+        </div>
+
+        {busy === "load" || !status ? (
+          <LoaderCircle className="size-5 animate-spin self-center text-muted-foreground" aria-label="Loading Calendar connection" />
+        ) : !status.configured ? (
+          <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">Not configured for this deployment</p>
+        ) : !connected ? (
+          <Button render={<a href="/api/integrations/google-calendar/connect" />}>
+            <ExternalLink className="size-4" aria-hidden="true" />
+            {status.status === "reconnect_required" ? "Reconnect" : "Connect"}
+          </Button>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Button variant="outline" disabled={busy !== null} onClick={() => void sync()}>
+              {busy === "sync" ? <LoaderCircle className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+              Sync now
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Google Calendar options" />}>
+                <MoreHorizontal className="size-5" aria-hidden="true" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem variant="destructive" disabled={busy !== null} onClick={() => void disconnect()}>
+                  <Unplug className="size-4" aria-hidden="true" /> Disconnect
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
+      </div>
+
+      {connected && (
+        <div className="grid gap-3 border-t border-border bg-slate-50/70 px-4 py-4 sm:grid-cols-[minmax(0,20rem)_1fr] sm:items-end sm:px-5">
+          <div>
+            <Label htmlFor="target-google-calendar">Send schedules to</Label>
+            <select
+              id="target-google-calendar"
+              className="native-control mt-2"
+              value={status.target_calendar_id ?? ""}
+              disabled={busy !== null}
+              onChange={(event) => void select(event.target.value)}
+            >
+              {status.calendars.map((calendar) => (
+                <option key={calendar.id} value={calendar.id}>{calendar.name}{calendar.primary ? " (Primary)" : ""}</option>
+              ))}
+            </select>
+          </div>
+          <p className="text-xs leading-5 text-muted-foreground sm:text-right">
+            {status.last_sync_at ? `Last synced ${new Date(status.last_sync_at).toLocaleString()}. ` : ""}
+            Qai remains the source of truth.
+          </p>
+        </div>
+      )}
+    </section>
+  );
 }

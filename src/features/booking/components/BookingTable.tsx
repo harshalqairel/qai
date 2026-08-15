@@ -1,11 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import {
   MoreHorizontalIcon,
   PencilIcon,
   Trash2Icon,
   CalendarDaysIcon,
+  FileTextIcon,
 } from "lucide-react";
 
 import DeleteAction from "@/components/system/DeleteAction";
@@ -38,6 +40,7 @@ import {
 } from "@/components/ui/table";
 import type { BookingStatus } from "@/features/booking/types";
 import type { DerivedPaymentStatus } from "@/features/payment/types";
+import { latestInvoiceVersions, type Invoice } from "@/features/invoice/invoice";
 import {
   formatRupiah,
 } from "@/features/payment/utils/paymentCalculations";
@@ -58,6 +61,7 @@ type BookingTableProps = {
   onDelete: (booking: BookingWithNames) => boolean | "blocked" | Promise<boolean | "blocked">;
   onStatusChange: (booking: BookingWithNames, status: BookingStatus) => boolean | Promise<boolean>;
   onFinancialDetailsClick: (booking: BookingWithNames) => void;
+  invoices: Invoice[];
   timezone: string;
 };
 
@@ -240,6 +244,49 @@ function BookingActions({
   );
 }
 
+function InvoiceSummary({ booking, invoices }: { booking: BookingWithNames; invoices: Invoice[] }) {
+  const related = latestInvoiceVersions(invoices.filter((invoice) => invoice.bookingId === booking.id))
+    .sort((left, right) => right.updatedAt - left.updatedAt);
+  const latest = related[0];
+
+  if (!latest) {
+    return (
+      <div className="flex flex-col items-start gap-1">
+        <span className="text-sm text-muted-foreground">No invoice</span>
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <Button type="button" variant="link" size="sm" className="h-auto px-0 py-0" render={<Link href={`/invoices?booking=${booking.id}&action=create`} />}>Create draft</Button>
+          <Link href={`/invoices?booking=${booking.id}&action=issue`} className="text-xs font-medium text-primary hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Issue invoice</Link>
+        </span>
+      </div>
+    );
+  }
+
+  const isIssued = latest.lifecycle === "Issued";
+  const stateLabel = isIssued ? latest.invoiceNumber ?? "Issued" : "Draft";
+  const summary = related.length > 1
+    ? `${related.length} invoices · Latest ${stateLabel}`
+    : stateLabel;
+
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <Link
+        href={`/invoices?invoice=${latest.id}`}
+        className="max-w-44 text-sm font-semibold text-foreground hover:text-primary hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {summary}
+      </Link>
+      {isIssued ? (
+        <Link href={`/invoices?invoice=${latest.id}&action=download`} className="text-xs font-medium text-primary hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Download PDF</Link>
+      ) : (
+        <span className="flex items-center gap-2 text-xs font-medium">
+          <Link href={`/invoices?invoice=${latest.id}&action=edit`} className="text-primary hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Edit</Link>
+          <Link href={`/invoices?invoice=${latest.id}&action=issue`} className="text-primary hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Issue</Link>
+        </span>
+      )}
+    </div>
+  );
+}
+
 function ScheduleSummary({ booking, timezone }: { booking: BookingWithNames; timezone: string }) {
   const [open, setOpen] = useState(false);
   const sessions = sortBookingSessions(booking.sessions);
@@ -310,6 +357,7 @@ export default function BookingTable({
   onDelete,
   onStatusChange,
   onFinancialDetailsClick,
+  invoices,
   timezone,
 }: BookingTableProps) {
   if (bookings.length === 0) {
@@ -326,14 +374,15 @@ export default function BookingTable({
 
   return (
     <section aria-label="Bookings">
-      <div className="hidden overflow-hidden rounded-xl border border-border bg-card sm:block">
+      <div className="hidden overflow-hidden rounded-xl border border-border bg-card lg:block">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="px-4">Client & service</TableHead>
               <TableHead>Schedule</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>Booking</TableHead>
               <TableHead>Payment</TableHead>
+              <TableHead>Invoice</TableHead>
               <TableHead className="text-right">Est. Profit</TableHead>
               <TableHead className="w-16 px-4 text-right">Actions</TableHead>
             </TableRow>
@@ -361,6 +410,9 @@ export default function BookingTable({
                       : `${formatRupiah(booking.remainingAmount)} remaining`}
                   </span>
                 </TableCell>
+                <TableCell className="py-3 whitespace-normal">
+                  <InvoiceSummary booking={booking} invoices={invoices} />
+                </TableCell>
                 <TableCell className="py-3 text-right">
                   <Button
                     type="button"
@@ -372,11 +424,11 @@ export default function BookingTable({
                   >
                     {formatFinancialValue(booking.estimatedProfit)}
                   </Button>
-                  <span className="mt-1 block text-sm text-muted-foreground">
-                    {booking.estimatedProfit === null
-                      ? "Cancelled"
-                      : `Expenses: ${formatRupiah(booking.directExpenses)}`}
-                  </span>
+                  {booking.estimatedProfit === null ? (
+                    <span className="mt-1 block text-sm text-muted-foreground">Cancelled</span>
+                  ) : booking.directExpenses > 0 ? (
+                    <span className="mt-1 block text-sm text-muted-foreground">Expenses: {formatRupiah(booking.directExpenses)}</span>
+                  ) : null}
                 </TableCell>
                 <TableCell className="px-4 py-2 text-right">
                   <BookingActions booking={booking} onEdit={onEdit} onDelete={onDelete} />
@@ -387,7 +439,7 @@ export default function BookingTable({
         </Table>
       </div>
 
-      <div className="space-y-2 sm:hidden">
+      <div className="space-y-2 lg:hidden">
         {bookings.map((booking) => (
           <article
             key={booking.id}
@@ -406,6 +458,10 @@ export default function BookingTable({
             <div className="mt-3 flex flex-wrap gap-2">
               <BookingStatusControl booking={booking} onStatusChange={onStatusChange} />
               <PaymentStatusControl booking={booking} onClick={onFinancialDetailsClick} />
+            </div>
+            <div className="mt-3 flex items-center gap-3 rounded-lg bg-muted/55 px-3 py-2">
+              <FileTextIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <InvoiceSummary booking={booking} invoices={invoices} />
             </div>
             <dl className="mt-3 grid grid-cols-3 gap-2 border-t border-border pt-3 text-sm">
               <div>
