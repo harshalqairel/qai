@@ -110,6 +110,28 @@ describe("booking creation with optional initial payment", () => {
     )).toThrow(/cancelled/i);
   });
 
+  it("persists booking-level and schedule-level charges and validates payment against the client total", () => {
+    const base = command(7_800_000);
+    const charged = prepareBookingCreation({
+      ...base,
+      booking: {
+        ...base.booking,
+        sessions: base.booking.sessions.map((session, index) => ({ ...session, id: `draft-session-${index + 1}` })),
+      },
+      additionalCharges: [
+        { sessionId: null, categoryId: "transport", categoryName: "Transportation", description: "Client location", amount: 200_000 },
+        { sessionId: "draft-session-2", categoryId: "parking", categoryName: "Parking", description: "Reception venue", amount: 100_000 },
+      ],
+    }, "Asia/Jakarta", { bookingId: "booking-1", paymentId: "payment-1" }, 1_786_000_000_000);
+
+    expect(charged.booking.additionalCharges).toEqual([
+      expect.objectContaining({ bookingId: "booking-1", sessionId: null, categoryName: "Transportation", amount: 200_000 }),
+      expect.objectContaining({ bookingId: "booking-1", sessionId: "draft-session-2", categoryName: "Parking", amount: 100_000 }),
+    ]);
+    expect(charged.initialPayment?.amount).toBe(7_800_000);
+    expect(() => prepareBookingCreation({ ...base, additionalCharges: [{ sessionId: "missing", categoryId: "parking", categoryName: "Parking", description: "", amount: 100_000 }] }, "Asia/Jakarta", { bookingId: "booking-1", paymentId: "payment-1" })).toThrow(/schedule was not found/i);
+  });
+
   it("uses Payment Date for Income while sessions remain in their own calendar month", () => {
     const result = prepared();
     const common = {

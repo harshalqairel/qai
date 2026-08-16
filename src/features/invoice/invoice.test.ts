@@ -168,6 +168,7 @@ describe("invoice PDF", () => {
       { style: "Creative", businessLogo: businessMark, signatureImage: businessMark, stampImage: "" },
       { style: "Neutral", businessLogo: "", signatureImage: "", stampImage: businessMark },
       { style: "Professional", businessLogo: businessMark, signatureImage: businessMark, stampImage: businessMark },
+      { style: "Modern Classic", businessLogo: businessMark, signatureImage: businessMark, stampImage: businessMark },
     ];
 
     for (const variant of variants) {

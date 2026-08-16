@@ -14,7 +14,7 @@ export const INVOICE_TEMPLATE_STORAGE_KEY = "qai:invoice-share-templates";
 export const LOCAL_INVOICE_BUSINESS_ID = "local-business";
 
 export type InvoiceLifecycle = "Draft" | "Revision Draft" | "Issued";
-export type InvoiceStyle = "Creative" | "Neutral" | "Professional";
+export type InvoiceStyle = "Creative" | "Neutral" | "Professional" | "Modern Classic";
 export type InvoiceDiscountMode = "none" | "fixed" | "percentage";
 export type InvoiceTaxMode = "percentage" | "fixed";
 export type InvoiceTaxTreatment = "added" | "deducted";
@@ -164,19 +164,19 @@ const snapshotSchema = z.object({
   address: z.string().max(1000), phone: z.string().max(80), email: z.string().max(160), clientName: z.string().max(160),
   clientPhone: z.string().max(80), clientEmail: z.string().max(160), serviceName: z.string().max(160), invoiceDate: z.string(), dueDate: z.string(),
   lineItems: z.array(lineItemSchema).min(1).max(200), discount: z.number().nonnegative(), tax: z.number().nonnegative(), discountMode: z.enum(["none", "fixed", "percentage"]).default("none"), discountValue: z.number().nonnegative().default(0), taxPercent: z.number().min(0).max(100).default(0), taxEnabled: z.boolean().optional(), taxName: z.string().trim().max(40).optional(), taxMode: z.enum(["percentage", "fixed"]).optional(), taxValue: z.number().nonnegative().optional(), taxTreatment: z.enum(["added", "deducted"]).optional(), subtotal: z.number().nonnegative(),
-  total: z.number().nonnegative(), paymentInstructions: z.string().max(4000), notes: z.string().max(5000), schedules: z.array(scheduleSchema).max(100), showSchedules: z.boolean(), invoiceStyle: z.enum(["Creative", "Neutral", "Professional"]).default("Neutral"), signatureImage: z.string().max(3_000_000).default(""), stampImage: z.string().max(3_000_000).default(""), legalDisclaimer: z.string().max(1000).default(""), version: z.number().int().positive().default(1),
+  total: z.number().nonnegative(), paymentInstructions: z.string().max(4000), notes: z.string().max(5000), schedules: z.array(scheduleSchema).max(100), showSchedules: z.boolean(), invoiceStyle: z.enum(["Creative", "Neutral", "Professional", "Modern Classic"]).default("Neutral"), signatureImage: z.string().max(3_000_000).default(""), stampImage: z.string().max(3_000_000).default(""), legalDisclaimer: z.string().max(1000).default(""), version: z.number().int().positive().default(1),
 });
 export const invoiceSchema = z.object({
   id: z.string().min(1), businessId: z.string().min(1), bookingId: z.string().nullable(), clientId: z.string().nullable(),
   lifecycle: z.enum(["Draft", "Revision Draft", "Issued"]), rootInvoiceId: z.string().min(1).optional(), previousVersionId: z.string().nullable().default(null), version: z.number().int().positive().default(1), invoiceNumber: z.string().nullable(), clientName: z.string().trim().min(1).max(160),
   clientPhone: z.string().max(80), clientEmail: z.string().max(160), serviceName: z.string().max(160), invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), lineItems: z.array(lineItemSchema).min(1).max(200), discount: z.number().finite().nonnegative(),
-  tax: z.number().finite().nonnegative(), discountMode: z.enum(["none", "fixed", "percentage"]).default("none"), discountValue: z.number().finite().nonnegative().default(0), taxPercent: z.number().finite().min(0).max(100).default(0), taxEnabled: z.boolean().optional(), taxName: z.string().trim().max(40).optional(), taxMode: z.enum(["percentage", "fixed"]).optional(), taxValue: z.number().finite().nonnegative().optional(), taxTreatment: z.enum(["added", "deducted"]).optional(), invoiceStyle: z.enum(["Creative", "Neutral", "Professional"]).default("Neutral"), paymentInstructions: z.string().max(4000), notes: z.string().max(5000), schedules: z.array(scheduleSchema).max(100),
+  tax: z.number().finite().nonnegative(), discountMode: z.enum(["none", "fixed", "percentage"]).default("none"), discountValue: z.number().finite().nonnegative().default(0), taxPercent: z.number().finite().min(0).max(100).default(0), taxEnabled: z.boolean().optional(), taxName: z.string().trim().max(40).optional(), taxMode: z.enum(["percentage", "fixed"]).optional(), taxValue: z.number().finite().nonnegative().optional(), taxTreatment: z.enum(["added", "deducted"]).optional(), invoiceStyle: z.enum(["Creative", "Neutral", "Professional", "Modern Classic"]).default("Neutral"), paymentInstructions: z.string().max(4000), notes: z.string().max(5000), schedules: z.array(scheduleSchema).max(100),
   showSchedules: z.boolean(), snapshot: snapshotSchema.nullable(), createdAt: z.number().int().nonnegative(), updatedAt: z.number().int().nonnegative(), issuedAt: z.number().int().nonnegative().nullable(),
 }).transform((value) => ({ ...value, rootInvoiceId: value.rootInvoiceId ?? value.id }));
 const settingsSchema = z.object({
   businessId: z.string().min(1), businessLogo: z.string().max(3_000_000), businessName: z.string().trim().min(1).max(160), legalName: z.string().max(160),
-  address: z.string().max(1000), phone: z.string().max(80), email: z.string().max(160), invoicePrefix: z.string().trim().min(1).max(12).regex(/^[A-Za-z0-9-]+$/), nextInvoiceSequence: z.number().int().positive().default(1), invoiceNumberPadding: z.number().int().min(2).max(8).default(4), invoiceStyle: z.enum(["Creative", "Neutral", "Professional"]).default("Neutral"), signatureImage: z.string().max(3_000_000).default(""), stampImage: z.string().max(3_000_000).default(""), legalDisclaimer: z.string().max(1000).default(""),
+  address: z.string().max(1000), phone: z.string().max(80), email: z.string().max(160), invoicePrefix: z.string().trim().min(1).max(12).regex(/^[A-Za-z0-9-]+$/), nextInvoiceSequence: z.number().int().positive().default(1), invoiceNumberPadding: z.number().int().min(2).max(8).default(4), invoiceStyle: z.enum(["Creative", "Neutral", "Professional", "Modern Classic"]).default("Neutral"), signatureImage: z.string().max(3_000_000).default(""), stampImage: z.string().max(3_000_000).default(""), legalDisclaimer: z.string().max(1000).default(""),
   paymentInstructions: z.string().max(4000), defaultNotes: z.string().max(5000), defaultPaymentTerms: z.string().max(2000), showSchedules: z.boolean(), showQaiAttribution: z.boolean(),
 });
 const templatesSchema = z.object({ businessId: z.string().min(1), whatsapp: z.string().max(4000), emailSubject: z.string().max(200), emailBody: z.string().max(4000) });
@@ -460,27 +460,29 @@ export async function generateInvoicePdf(invoice: Invoice, settings: InvoiceSett
     ? [Number.parseInt(brandHex.slice(1, 3), 16), Number.parseInt(brandHex.slice(3, 5), 16), Number.parseInt(brandHex.slice(5, 7), 16)]
     : [79, 107, 255];
   const pageWidth = 210; const pageHeight = 297; const margin = 18; const contentWidth = pageWidth - margin * 2;
+  const modernClassic = source.invoiceStyle === "Modern Classic";
   let y = 18;
   const ensure = (height: number) => { if (y + height <= pageHeight - 19) return; doc.addPage(); y = 18; };
   const text = (value: string, x: number, size = 9, style: "normal" | "bold" = "normal", width?: number) => {
-    doc.setFont("helvetica", style); doc.setFontSize(size); doc.setTextColor(style === "bold" ? 23 : 80, style === "bold" ? 39 : 91, style === "bold" ? 42 : 96);
+    doc.setFont("helvetica", style); doc.setFontSize(size); doc.setTextColor(style === "bold" ? 18 : 45, style === "bold" ? 24 : 45, style === "bold" ? 29 : 45);
     const lines = width ? doc.splitTextToSize(value || "", width) : [value || ""];
     ensure(lines.length * (size * 0.42) + 2); doc.text(lines, x, y); y += lines.length * (size * 0.42) + 2;
   };
   if (source.invoiceStyle === "Creative") { doc.setFillColor(242, 244, 255); doc.rect(0, 0, pageWidth, 42, "F"); }
   if (source.invoiceStyle === "Professional") { doc.setFillColor(...accent); doc.rect(0, 0, 7, pageHeight, "F"); }
+  if (modernClassic) { doc.setDrawColor(20, 20, 20); doc.setLineWidth(0.7); doc.line(margin, 12, pageWidth - margin, 12); }
   if (logoImage) {
-    try { doc.addImage(logoImage, "AUTO", margin, y, 24, 24, undefined, "FAST"); } catch { /* Keep the PDF usable when a browser cannot decode a saved image. */ }
+    try { doc.addImage(logoImage, "AUTO", margin, y, 28, 28, undefined, "FAST"); } catch { /* Keep the PDF usable when a browser cannot decode a saved image. */ }
   }
-  const headerX = source.businessLogo ? margin + 30 : margin;
+  const headerX = source.businessLogo ? margin + 34 : margin;
   doc.setFont("helvetica", "bold"); doc.setFontSize(18); doc.setTextColor(23, 39, 42); doc.text(source.businessName, headerX, y + 6);
   if (source.legalName) { doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(102, 114, 111); doc.text(source.legalName, headerX, y + 12); }
-  doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.setTextColor(...accent); doc.text("INVOICE", pageWidth - margin, y + 6, { align: "right" });
+  doc.setFont("helvetica", "bold"); doc.setFontSize(22); if (modernClassic) doc.setTextColor(18, 18, 18); else doc.setTextColor(...accent); doc.text("INVOICE", pageWidth - margin, y + 6, { align: "right" });
   doc.setFontSize(9); doc.setTextColor(80, 91, 96); doc.text(source.invoiceNumber, pageWidth - margin, y + 13, { align: "right" });
   y += 31; doc.setDrawColor(221, 227, 221); doc.line(margin, y, pageWidth - margin, y); y += 9;
   const leftY = y; text("BILL TO", margin, 8, "bold"); text(source.clientName, margin, 12, "bold", 82); if (source.clientPhone) text(source.clientPhone, margin, 8); if (source.clientEmail) text(source.clientEmail, margin, 8);
   const afterClient = y; y = leftY; const metaX = 126; text("INVOICE DATE", metaX, 8, "bold"); text(formatInvoiceDate(source.invoiceDate), metaX, 9); text("DUE DATE", metaX, 8, "bold"); text(formatInvoiceDate(source.dueDate), metaX, 9); y = Math.max(afterClient, y) + 7;
-  doc.setFillColor(238, 241, 236); doc.roundedRect(margin, y, contentWidth, 9, 1.5, 1.5, "F"); doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(80, 91, 96);
+  if (modernClassic) { doc.setFillColor(20, 20, 20); doc.rect(margin, y, contentWidth, 9, "F"); } else { doc.setFillColor(238, 241, 236); doc.roundedRect(margin, y, contentWidth, 9, 1.5, 1.5, "F"); } doc.setFont("helvetica", "bold"); doc.setFontSize(8); if (modernClassic) doc.setTextColor(255, 255, 255); else doc.setTextColor(45, 45, 45);
   doc.text("ITEM", margin + 3, y + 6); doc.text("QTY", 133, y + 6, { align: "right" }); doc.text("UNIT PRICE", 163, y + 6, { align: "right" }); doc.text("AMOUNT", pageWidth - margin - 3, y + 6, { align: "right" }); y += 13;
   for (const item of source.lineItems) {
     const itemLines: string[] = doc.splitTextToSize(item.item, 80); const descLines: string[] = item.description ? doc.splitTextToSize(item.description, 80) : [];
@@ -491,13 +493,12 @@ export async function generateInvoicePdf(invoice: Invoice, settings: InvoiceSett
     y += height; doc.setDrawColor(235, 238, 235); doc.line(margin, y - 2, pageWidth - margin, y - 2);
   }
   y += 4; const totalsX = 132; const valueX = pageWidth - margin;
-  const totalRow = (label: string, value: number, strong = false) => { ensure(8); doc.setFont("helvetica", strong ? "bold" : "normal"); doc.setFontSize(strong ? 11 : 9); doc.setTextColor(23, 39, 42); doc.text(label, totalsX, y); doc.text(formatRupiah(value), valueX, y, { align: "right" }); y += strong ? 8 : 6; };
-  totalRow("Subtotal", totals.subtotal); if (totals.discount > 0) totalRow(source.discountMode === "percentage" ? `Discount (${source.discountValue}%)` : "Discount", -totals.discount); if (totals.tax > 0) totalRow(invoiceTaxLabel(source), source.taxTreatment === "deducted" ? -totals.tax : totals.tax); totalRow("Total", total, true); totalRow("Paid", paid); totalRow("Remaining", remaining, true); if (paid > total) totalRow("Overpaid", paid - total); y += 4;
+  const totalRow = (label: string, value: number, strong = false, emphasize = false) => { ensure(8); doc.setFont("helvetica", strong ? "bold" : "normal"); doc.setFontSize(strong ? 11 : 9); if (emphasize) doc.setTextColor(177, 55, 69); else doc.setTextColor(20, 20, 20); doc.text(label, totalsX, y); doc.text(formatRupiah(value), valueX, y, { align: "right" }); y += strong ? 8 : 6; };
+  totalRow("Subtotal", totals.subtotal); if (totals.discount > 0) totalRow(source.discountMode === "percentage" ? `Discount (${source.discountValue}%)` : "Discount", -totals.discount); if (totals.tax > 0) totalRow(invoiceTaxLabel(source), source.taxTreatment === "deducted" ? -totals.tax : totals.tax); totalRow("Total", total, true); totalRow(modernClassic ? "Down payment" : "Paid", paid, false, modernClassic); totalRow("Remaining", remaining, true); if (paid > total) totalRow("Overpaid", paid - total); y += 4;
   if (source.showSchedules && source.schedules.length) { text("SCHEDULE", margin, 9, "bold"); for (const schedule of source.schedules) { const start = new Date(schedule.startAt); const end = new Date(schedule.endAt); const date = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Jakarta" }).format(start); const times = `${start.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Jakarta" })}-${end.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Jakarta" })}`; text(`${date} | ${times}${schedule.label ? ` | ${schedule.label}` : ""}${schedule.location ? ` | ${schedule.location}` : ""}`, margin, 8, "normal", contentWidth); } y += 3; }
   if (source.paymentInstructions) { text("PAYMENT INSTRUCTIONS", margin, 9, "bold"); text(source.paymentInstructions, margin, 9, "normal", contentWidth); y += 3; }
   if (source.notes) { text("NOTES", margin, 9, "bold"); text(source.notes, margin, 9, "normal", contentWidth); }
-  if (signatureImage || stampImage) { ensure(38); y += 3; text("AUTHORIZED SIGNATURE", margin, 8, "bold"); if (signatureImage) { try { doc.addImage(signatureImage, "AUTO", margin, y, 42, 20, undefined, "FAST"); } catch { /* visual mark is optional */ } } if (stampImage) { try { doc.addImage(stampImage, "AUTO", margin + 28, y - 4, 25, 25, undefined, "FAST"); } catch { /* visual mark is optional */ } } y += 28; }
-  if (source.legalDisclaimer) text(source.legalDisclaimer, margin, 7, "normal", contentWidth);
+  if (signatureImage || stampImage) { ensure(42); y += 3; text("AUTHORIZED SIGNATURE", margin, 8, "bold"); if (signatureImage) { try { doc.addImage(signatureImage, "AUTO", margin, y + 3, 46, 21, undefined, "FAST"); } catch { /* visual mark is optional */ } } if (stampImage) { try { doc.addImage(stampImage, "AUTO", margin + 16, y - 3, 31, 31, undefined, "FAST"); } catch { /* visual mark is optional */ } } y += 33; }
   const pageCount = doc.getNumberOfPages();
   for (let page = 1; page <= pageCount; page += 1) { doc.setPage(page); doc.setDrawColor(221, 227, 221); doc.line(margin, pageHeight - 15, pageWidth - margin, pageHeight - 15); doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(130, 140, 138); if (settings.showQaiAttribution) doc.text("Created with Qai", margin, pageHeight - 9); doc.text(`${page} / ${pageCount}`, pageWidth - margin, pageHeight - 9, { align: "right" }); }
   const filename = `${invoice.invoiceNumber ?? "Draft-invoice"}-${safeFilePart(source.clientName)}.pdf`;

@@ -22,7 +22,7 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Sidebar />
-      <div className="app-canvas min-w-0 flex-1 pt-14 lg:pt-0">
+      <div className="app-canvas min-w-0 flex-1 pb-[calc(4.75rem+env(safe-area-inset-bottom))] pt-14 lg:pb-0 lg:pt-0">
         <AppStartup>{children}</AppStartup>
       </div>
     </>

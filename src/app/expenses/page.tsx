@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ExpenseHeader from "@/features/expense/components/ExpenseHeader";
 import ExpenseToolbar from "@/features/expense/components/ExpenseToolbar";
 import ExpenseList from "@/features/expense/components/ExpenseList";
@@ -47,6 +47,19 @@ export default function ExpensesPage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
   const [expenseType, setExpenseType] = useState("");
+  const handledQuickCreate = useRef(false);
+
+  useEffect(() => {
+    if (handledQuickCreate.current || expenseData.isLoading) return;
+    handledQuickCreate.current = true;
+    if (new URLSearchParams(window.location.search).get("new") === "1") {
+      const timer = window.setTimeout(() => {
+        setSelectedExpense(null);
+        setDialogOpen(true);
+      }, 0);
+      return () => window.clearTimeout(timer);
+    }
+  }, [expenseData.isLoading]);
   const [sort, setSort] = useState("newest");
 
   const bookingOptions = useMemo<BookingOption[]>(() => {

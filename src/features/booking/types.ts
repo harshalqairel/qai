@@ -35,6 +35,15 @@ export type BookingAdditionalCharge = {
   updatedAt: number;
 };
 
+export type BookingAdditionalChargeInput = {
+  id?: string;
+  sessionId: string | null;
+  categoryId: string;
+  categoryName: string;
+  description: string;
+  amount: number;
+};
+
 export type Booking = {
   id: string;
   customerId: string;
@@ -63,10 +72,12 @@ export type CreateBookingCommand = {
   requestId: string;
   booking: CreateBookingInput;
   initialPayment: import("@/features/payment/types").InitialPaymentInput | null;
+  additionalCharges?: BookingAdditionalChargeInput[];
 };
 
 export type UpdateBookingInput = CreateBookingInput & {
   id: string;
+  additionalCharges?: BookingAdditionalChargeInput[];
 };
 
 export type BookingFormValues = CreateBookingInput;

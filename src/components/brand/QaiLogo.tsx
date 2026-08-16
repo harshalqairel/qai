@@ -1,4 +1,3 @@
-import { useId } from "react";
 import { cn } from "@/lib/utils";
 
 type LogoVariant = "full" | "symbol" | "wordmark";
@@ -20,8 +19,6 @@ const SIZES: Record<LogoSize, { mark: string; wordmark: string; gap: string }> =
 };
 
 function QaiSymbol({ className, monochrome = false }: { className?: string; monochrome?: boolean }) {
-  const gradientId = useId();
-  const paint = monochrome ? "currentColor" : `url(#${gradientId})`;
   return (
     <svg
       viewBox="0 0 128 128"
@@ -31,20 +28,24 @@ function QaiSymbol({ className, monochrome = false }: { className?: string; mono
       aria-hidden="true"
       focusable="false"
     >
-      {!monochrome && (
-        <defs>
-          <linearGradient id={gradientId} x1="18" y1="15" x2="111" y2="112" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#3157F6" />
-            <stop offset="0.55" stopColor="#526CFF" />
-            <stop offset="1" stopColor="#9AA8FF" />
-          </linearGradient>
-        </defs>
+      {monochrome ? (
+        <g transform="translate(-6 0)">
+          <path fill="currentColor" fillRule="evenodd" d="M64 9 103 31v43L84 86l30 4-22 29-28-44-20-11v-20L64 33V9Zm0 24L46 44v20l18 11 19-12V43L64 33Z" clipRule="evenodd" />
+          <path d="m55 58 13-8 46 40-22 29Z" fill="currentColor" />
+        </g>
+      ) : (
+        <g transform="translate(-6 0)">
+          <path d="M64 9 102 31 83 43 64 33Z" fill="#8A4B67" />
+          <path d="m102 31 1 43-20-11V43Z" fill="#75435F" />
+          <path d="m103 74-19 12-20-11 19-12Z" fill="#63486F" />
+          <path d="M64 75 84 86 64 98 26 76l20-12Z" fill="#536B9E" />
+          <path d="M26 32 46 44v20L26 76Z" fill="#4E73A9" />
+          <path d="M64 9v24L46 44 26 32Z" fill="#6B557D" />
+          <path d="m55 58 13-8 46 40-22 29-13-24 12-10Z" fill="#82445F" />
+          <path d="m55 58 36 27-12 10Z" fill="#70496D" />
+          <path d="m79 95 13 24 22-29-23-5Z" fill="#4E6D9F" />
+        </g>
       )}
-      <circle cx="56" cy="55" r="38" stroke={paint} strokeWidth="17" />
-      <path
-        d="M49 64H69L113 108H88L49 69Z"
-        fill={paint}
-      />
     </svg>
   );
 }
@@ -77,7 +78,7 @@ export function QaiWordmark({
   const toneClass = tone === "light" ? "text-white" : tone === "monochrome" ? "text-current" : "text-[var(--ink)]";
   return (
     <span
-      className={cn("font-semibold leading-none tracking-[-0.04em]", SIZES[size].wordmark, toneClass, className)}
+      className={cn("font-bold leading-none tracking-[-0.045em]", SIZES[size].wordmark, toneClass, className)}
       role={decorative ? undefined : "img"}
       aria-label={decorative ? undefined : "Qai"}
       aria-hidden={decorative || undefined}

@@ -58,11 +58,11 @@
   --line: #dfe3ec;
   --ink: #0f1b33;
   --text-muted: #647087;
-  --brand: #4f6bff;
-  --brand-hover: #405bf0;
-  --brand-active: #344bd1;
+  --brand: #7a3f64;
+  --brand-hover: #693554;
+  --brand-active: #572b46;
   --support-blue: #52658f;
-  --focus: #7d8fff;
+  --focus: #9a6484;
   --status-success: #22c55e;
   --status-warning: #f59e0b;
   --status-error: #ef4444;
@@ -92,7 +92,7 @@
   --secondary-foreground: var(--ink);
   --muted: var(--surface-subtle);
   --muted-foreground: var(--text-muted);
-  --accent: #edf0ff;
+  --accent: #f3eaf0;
   --accent-foreground: var(--brand-active);
   --destructive: var(--status-error);
   --border: var(--line);
@@ -158,13 +158,13 @@
   --line: #dfe3ec;
   --ink: #0f1b33;
   --text-muted: #647087;
-  --brand: #4f6bff;
-  --brand-hover: #405bf0;
-  --brand-active: #344bd1;
+  --brand: #7a3f64;
+  --brand-hover: #693554;
+  --brand-active: #572b46;
   --support-blue: #52658f;
-  --focus: #7d8fff;
-  --accent: #edf0ff;
-  --accent-foreground: #344bd1;
+  --focus: #9a6484;
+  --accent: #f3eaf0;
+  --accent-foreground: #572b46;
 }
 
 [data-qai-theme="bloom"] {

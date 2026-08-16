@@ -4,13 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { z } from "zod";
-import { Booking, CreateBookingCommand, UpdateBookingInput } from "@/features/booking/types";
+import { Booking, BookingAdditionalChargeInput, CreateBookingCommand, UpdateBookingInput } from "@/features/booking/types";
 import { bookingSchema, BookingFormValues } from "@/features/booking/schema";
 import { doesBookingEndNextDay } from "@/features/booking/utils/bookingDateRange";
 import { instantParts, sessionToFormValues } from "@/features/booking/utils/bookingSessions";
 import { Service } from "@/features/service/types";
 import type { CreateServiceInput } from "@/features/service/types";
 import type { CreateCustomerInput, Customer } from "@/features/customer/types";
+import { customerSchema } from "@/features/customer/schema";
 import type { ServiceCategory } from "@/features/service-category/types";
 import { InitialPaymentInput, Payment } from "@/features/payment/types";
 import { PAYMENT_METHODS } from "@/features/payment/constants";
@@ -29,14 +30,20 @@ import ActionButton from "@/components/system/ActionButton";
 import DeleteAction from "@/components/system/DeleteAction";
 import { useActionGuard } from "@/hooks/useActionGuard";
 import { notify } from "@/lib/notifications";
-import { bookingAdditionalChargesTotal } from "@/features/booking/domain/bookingFinancials";
-import { Copy, Info, Plus, Trash2, XIcon } from "lucide-react";
+import { ArrowLeft, Copy, Info, Plus, Trash2, XIcon } from "lucide-react";
+import BookingCreationStart from "@/features/booking/components/BookingCreationStart";
+import {
+  createAdditionalChargeCategoryPersistent,
+  getAdditionalChargeCategories,
+  loadAdditionalChargeCategories,
+  type AdditionalChargeCategory,
+} from "@/features/booking/domain/additionalChargeCategories";
 
 type BookingDialogProps = {
   open: boolean;
   booking: Booking | null;
   initialValues?: Partial<BookingFormValues>;
-  customers: { id: string; name: string }[];
+  customers: Customer[];
   services: Service[];
   serviceCategories?: ServiceCategory[];
   payments: Payment[];
@@ -62,6 +69,21 @@ const defaultValues: BookingFormValues = {
   fullPaymentDueDate: "",
   notes: "",
 };
+
+function withSessionIds(values: BookingFormValues): BookingFormValues {
+  return {
+    ...values,
+    sessions: values.sessions.map((session) => ({ ...session, id: session.id?.trim() || crypto.randomUUID() })),
+  };
+}
+
+function suggestedEndTime(startTime: string, duration: number): string {
+  if (!startTime) return "";
+  const [hours, minutes] = startTime.split(":").map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return "";
+  const total = (hours * 60 + minutes + Math.max(1, duration)) % (24 * 60);
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
 
 function defaultInitialPayment(timezone: string): InitialPaymentInput {
   return {
@@ -114,7 +136,7 @@ export default function BookingDialog({
   const [quickServiceOpen, setQuickServiceOpen] = useState(false);
   const [quickPending, setQuickPending] = useState(false);
   const [quickError, setQuickError] = useState("");
-  const [quickCustomer, setQuickCustomer] = useState({ name: "", phone: "" });
+  const [quickCustomer, setQuickCustomer] = useState({ name: "", phone: "", instagram: "", email: "" });
   const [quickService, setQuickService] = useState({
     name: "",
     categoryId: "",
@@ -126,14 +148,32 @@ export default function BookingDialog({
   const [initialPaymentOpen, setInitialPaymentOpen] = useState(false);
   const [initialPayment, setInitialPayment] = useState<InitialPaymentInput>(() => defaultInitialPayment(timezone));
   const [initialPaymentErrors, setInitialPaymentErrors] = useState<Partial<Record<keyof InitialPaymentInput, string>>>({});
+  const [startMode, setStartMode] = useState<"choose" | "manual" | "paste" | "template">("choose");
+  const [parsedReviewNotice, setParsedReviewNotice] = useState("");
+  const [chargeCategories, setChargeCategories] = useState<AdditionalChargeCategory[]>(getAdditionalChargeCategories);
+  const [additionalCharges, setAdditionalCharges] = useState<BookingAdditionalChargeInput[]>([]);
+  const [addingCharge, setAddingCharge] = useState(false);
+  const [chargeDraft, setChargeDraft] = useState({ categoryId: "", sessionId: "", amount: 0, description: "" });
+  const [newChargeCategoryOpen, setNewChargeCategoryOpen] = useState(false);
+  const [newChargeCategoryName, setNewChargeCategoryName] = useState("");
 
   useEffect(() => {
     if (!open) return;
 
     if (booking) {
+      setStartMode("manual");
+      setParsedReviewNotice("");
+      setAdditionalCharges((booking.additionalCharges ?? []).map((charge) => ({
+        id: charge.id,
+        sessionId: charge.sessionId,
+        categoryId: charge.categoryId,
+        categoryName: charge.categoryName,
+        description: charge.description,
+        amount: charge.amount,
+      })));
       setInitialPaymentOpen(false);
       setInitialPaymentErrors({});
-      reset({
+      reset(withSessionIds({
         customerId: booking.customerId,
         serviceId: booking.serviceId,
         sessions: booking.sessions.map((session) => sessionToFormValues(session, timezone)),
@@ -141,20 +181,38 @@ export default function BookingDialog({
         bookingStatus: booking.bookingStatus,
         fullPaymentDueDate: booking.fullPaymentDueDate,
         notes: booking.notes,
-      });
+      }));
       return;
     }
 
     lastDefaultedServiceId.current = null;
     creationRequestId.current = crypto.randomUUID();
+    setStartMode(initialValues ? "manual" : "choose");
+    setParsedReviewNotice("");
+    setAdditionalCharges([]);
+    setAddingCharge(false);
+    setQuickCustomerOpen(false);
+    setQuickCustomer({ name: "", phone: "", instagram: "", email: "" });
     setInitialPaymentOpen(false);
     setInitialPayment(defaultInitialPayment(timezone));
     setInitialPaymentErrors({});
-    reset({
+    reset(withSessionIds({
       ...defaultValues,
       ...(initialValues ?? {}),
-    });
+      sessions: initialValues?.sessions ?? defaultValues.sessions,
+    }));
   }, [open, booking, initialValues, reset, timezone]);
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    void loadAdditionalChargeCategories().then((loaded) => {
+      if (!active) return;
+      setChargeCategories(loaded);
+      setChargeDraft((current) => ({ ...current, categoryId: loaded.some((category) => category.id === current.categoryId) ? current.categoryId : loaded[0]?.id ?? "" }));
+    }).catch(() => notify.error("Could not load additional charge categories."));
+    return () => { active = false; };
+  }, [open]);
 
   const selectedServiceId = watch("serviceId");
   const servicePriceValue = watch("servicePrice");
@@ -165,7 +223,8 @@ export default function BookingDialog({
   const totalPaid = bookingPayments.reduce((sum, p) => sum + p.amount, 0);
   const bookingExpensesTotal = booking ? getBookingExpenses(booking.id, expenses) : 0;
   const effectivePrice = Number(servicePriceValue) || 0;
-  const clientTotal = effectivePrice + (booking ? bookingAdditionalChargesTotal(booking) : 0);
+  const additionalChargesTotal = additionalCharges.reduce((sum, charge) => sum + charge.amount, 0);
+  const clientTotal = effectivePrice + additionalChargesTotal;
   const isCancelled = booking?.bookingStatus === "Cancelled";
   const outstanding = isCancelled ? 0 : Math.max(clientTotal - totalPaid, 0);
   const canAddPayment = !isCancelled && outstanding > 0;
@@ -185,6 +244,7 @@ export default function BookingDialog({
     );
     if (!untouched) return;
     replace(Array.from({ length: selectedService.defaultSessionCount }, () => ({
+      id: crypto.randomUUID(),
       label: "",
       date: "",
       startTime: "",
@@ -210,6 +270,7 @@ export default function BookingDialog({
     const source = watchedSessions?.[index];
     if (!source || scheduleFields.length >= 50) return;
     append({
+      id: crypto.randomUUID(),
       label: "",
       date: "",
       startTime: source.startTime ?? "",
@@ -217,6 +278,14 @@ export default function BookingDialog({
       location: source.location ?? "",
       notes: source.notes ?? "",
     });
+  }
+
+  function removeSession(index: number) {
+    const sessionId = watchedSessions?.[index]?.id;
+    remove(index);
+    if (sessionId) {
+      setAdditionalCharges((current) => current.map((charge) => charge.sessionId === sessionId ? { ...charge, sessionId: null } : charge));
+    }
   }
 
   function applyLocationToAll(index: number) {
@@ -229,26 +298,22 @@ export default function BookingDialog({
   }
 
   async function createCustomerInline() {
-    if (!onQuickCreateCustomer || !quickCustomer.name.trim() || !quickCustomer.phone.trim()) {
-      setQuickError("Client name and phone are required.");
+    if (!onQuickCreateCustomer) return;
+    const input = customerSchema.safeParse({ ...quickCustomer, notes: "" });
+    if (!input.success) {
+      setQuickError(input.error.issues[0]?.message ?? "Check the client details.");
       return;
     }
     setQuickPending(true);
     setQuickError("");
-    const created = await onQuickCreateCustomer({
-      name: quickCustomer.name.trim(),
-      phone: quickCustomer.phone.trim(),
-      instagram: "",
-      email: "",
-      notes: "",
-    });
+    const created = await onQuickCreateCustomer(input.data);
     setQuickPending(false);
     if (!created) {
       setQuickError("Could not add the customer.");
       return;
     }
     setValue("customerId", created.id, { shouldValidate: true });
-    setQuickCustomer({ name: "", phone: "" });
+    setQuickCustomer({ name: "", phone: "", instagram: "", email: "" });
     setQuickCustomerOpen(false);
     notify.success("Client added and selected.");
   }
@@ -303,10 +368,74 @@ export default function BookingDialog({
     }
   }
 
+  function reviewParsedBooking({ parsed, customerId, serviceId }: Parameters<React.ComponentProps<typeof BookingCreationStart>["onReview"]>[0]) {
+    const matchedService = services.find((service) => service.id === serviceId);
+    const sessionId = crypto.randomUUID();
+    reset(withSessionIds({
+      ...defaultValues,
+      customerId,
+      serviceId,
+      servicePrice: matchedService?.price ?? 0,
+      sessions: [{
+        id: sessionId,
+        label: "",
+        date: parsed.date,
+        startTime: parsed.startTime,
+        endTime: parsed.endTime || suggestedEndTime(parsed.startTime, matchedService?.duration ?? 60),
+        location: parsed.location,
+        notes: parsed.notes,
+      }],
+      fullPaymentDueDate: parsed.date,
+      notes: parsed.notes,
+    }));
+    if (!customerId && (parsed.name || parsed.phone || parsed.instagram || parsed.email)) {
+      setQuickCustomer({ name: parsed.name, phone: parsed.phone, instagram: parsed.instagram, email: parsed.email });
+      setQuickCustomerOpen(true);
+    }
+    setParsedReviewNotice("Parsed client details were added for review. Nothing has been saved yet.");
+    setStartMode("manual");
+  }
+
+  function addChargeDraft() {
+    const category = chargeCategories.find((item) => item.id === chargeDraft.categoryId);
+    if (!category || chargeDraft.amount <= 0) {
+      notify.error("Choose a category and enter an amount.");
+      return;
+    }
+    setAdditionalCharges((current) => [...current, {
+      id: crypto.randomUUID(),
+      sessionId: chargeDraft.sessionId || null,
+      categoryId: category.id,
+      categoryName: category.name,
+      description: chargeDraft.description.trim(),
+      amount: chargeDraft.amount,
+    }]);
+    setChargeDraft((current) => ({ ...current, sessionId: "", amount: 0, description: "" }));
+    setAddingCharge(false);
+  }
+
+  async function createChargeCategoryInline() {
+    if (!newChargeCategoryName.trim()) return notify.error("Enter a category name.");
+    try {
+      const created = await createAdditionalChargeCategoryPersistent(newChargeCategoryName);
+      const loaded = await loadAdditionalChargeCategories();
+      setChargeCategories(loaded);
+      setChargeDraft((current) => ({ ...current, categoryId: created.id }));
+      setNewChargeCategoryName("");
+      setNewChargeCategoryOpen(false);
+      notify.success("Charge category added and selected.");
+    } catch (error) {
+      notify.error(error instanceof Error && error.message === "DUPLICATE_CATEGORY" ? "A charge category with this name already exists." : "Could not add that category.");
+    }
+  }
+
   function handleClose() {
     reset(defaultValues);
     setInitialPaymentOpen(false);
     setInitialPaymentErrors({});
+    setStartMode("choose");
+    setParsedReviewNotice("");
+    setAdditionalCharges([]);
     onClose();
   }
 
@@ -315,7 +444,7 @@ export default function BookingDialog({
     if (!booking) {
       let parsedInitialPayment: InitialPaymentInput | null = null;
       if (initialPaymentOpen) {
-        const parsed = initialPaymentSchemaForBooking(values.servicePrice).safeParse(initialPayment);
+        const parsed = initialPaymentSchemaForBooking(values.servicePrice + additionalChargesTotal).safeParse(initialPayment);
         if (!parsed.success) {
           const nextErrors: Partial<Record<keyof InitialPaymentInput, string>> = {};
           for (const issue of parsed.error.issues) {
@@ -334,11 +463,12 @@ export default function BookingDialog({
         requestId: creationRequestId.current || crypto.randomUUID(),
         booking: values,
         initialPayment: parsedInitialPayment,
+        additionalCharges,
       };
     }
 
     const succeeded = await action.run(() => booking
-      ? onUpdate({ id: booking.id, ...values })
+      ? onUpdate({ id: booking.id, ...values, additionalCharges })
       : onCreate(createCommand!));
     if (!succeeded) {
       notify.error("Could not save the booking. Try again.");
@@ -351,13 +481,13 @@ export default function BookingDialog({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm" role="presentation" onClick={() => !action.pending && handleClose()}>
-      <div className="h-dvh w-full max-w-xl overflow-y-auto border-l border-border bg-white p-5 shadow-xl sm:p-8" role="dialog" aria-modal="true" aria-labelledby="booking-dialog-title" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center sm:p-4" role="presentation" onClick={() => !action.pending && handleClose()}>
+      <div className="max-h-dvh w-full overflow-y-auto rounded-t-[1.5rem] border border-border bg-white p-5 shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:max-w-6xl sm:rounded-2xl sm:p-8" role="dialog" aria-modal="true" aria-labelledby="booking-dialog-title" onClick={(e) => e.stopPropagation()}>
         <div className="sticky top-0 z-10 -mx-5 -mt-5 mb-6 flex items-center justify-between border-b border-border bg-white/95 px-5 py-4 backdrop-blur sm:-mx-8 sm:-mt-8 sm:mb-8 sm:px-8 sm:py-5">
           <div>
-            <h2 id="booking-dialog-title" className="dialog-title">{booking ? "Edit Booking" : "Add Booking"}</h2>
+            <h2 id="booking-dialog-title" className="dialog-title">{booking ? "Edit booking" : "New booking"}</h2>
             <p className="mt-2 text-slate-500">
-              {booking ? "Update the booking details." : "Client, service, schedule, and price are all you need."}
+              {booking ? "Update the booking details." : startMode === "manual" ? "Review the client, service, schedule, and price before saving." : "Choose the quickest way to start."}
             </p>
           </div>
           <Button type="button" variant="ghost" size="icon" disabled={action.pending} onClick={handleClose} aria-label="Close booking form">
@@ -365,11 +495,14 @@ export default function BookingDialog({
           </Button>
         </div>
 
-        <form
+        {!booking && startMode !== "manual" ? (
+          <BookingCreationStart mode={startMode} customers={customers} services={services} onModeChange={setStartMode} onReview={reviewParsedBooking} />
+        ) : <form
           onSubmit={handleSubmit(onSubmit)}
-          className="space-y-6"
+          className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-start"
         >
-          <div>
+          {!booking && <div className="lg:col-span-12"><Button type="button" variant="ghost" size="sm" onClick={() => setStartMode("choose")}><ArrowLeft className="size-4" /> Booking options</Button>{parsedReviewNotice && <p className="mt-3 rounded-xl border border-primary/15 bg-primary/5 p-3 text-sm text-primary">{parsedReviewNotice}</p>}</div>}
+          <div className="lg:col-span-6">
             <Label className="mb-2 block font-semibold">Client</Label>
             <Controller
               control={control}
@@ -401,6 +534,10 @@ export default function BookingDialog({
                   <div className="mt-3 space-y-3 rounded-xl border border-border bg-muted/30 p-4">
                     <div><Label className="mb-2 block">Client name</Label><Input value={quickCustomer.name} onChange={(event) => setQuickCustomer((value) => ({ ...value, name: event.target.value }))} /></div>
                     <div><Label className="mb-2 block">Phone</Label><Input inputMode="tel" value={quickCustomer.phone} onChange={(event) => setQuickCustomer((value) => ({ ...value, phone: event.target.value }))} /></div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div><Label className="mb-2 block">Instagram</Label><Input value={quickCustomer.instagram} onChange={(event) => setQuickCustomer((value) => ({ ...value, instagram: event.target.value }))} placeholder="@username" /></div>
+                      <div><Label className="mb-2 block">Email</Label><Input type="email" value={quickCustomer.email} onChange={(event) => setQuickCustomer((value) => ({ ...value, email: event.target.value }))} /></div>
+                    </div>
                     {quickError && <p className="text-sm text-destructive">{quickError}</p>}
                     <div className="flex gap-2"><Button type="button" size="sm" disabled={quickPending} onClick={createCustomerInline}>{quickPending ? "Adding…" : "Add and select"}</Button><Button type="button" size="sm" variant="ghost" onClick={() => setQuickCustomerOpen(false)}>Cancel</Button></div>
                   </div>
@@ -409,7 +546,7 @@ export default function BookingDialog({
             )}
           </div>
 
-          <div>
+          <div className="lg:col-span-6">
             <Label className="mb-2 block font-semibold">Service</Label>
             <Controller
               control={control}
@@ -479,7 +616,7 @@ export default function BookingDialog({
             )}
           </div>
 
-          <section className="space-y-4" aria-labelledby="booking-schedule-heading">
+          <section className="space-y-4 lg:col-span-8" aria-labelledby="booking-schedule-heading">
             <div>
               <h3 id="booking-schedule-heading" className="font-semibold text-foreground">Schedule</h3>
               <p className="mt-1 text-sm text-muted-foreground">Add every date included in this booking.</p>
@@ -503,7 +640,7 @@ export default function BookingDialog({
                           variant="ghost"
                           size="sm"
                           className="text-destructive"
-                          onClick={() => remove(index)}
+                          onClick={() => removeSession(index)}
                           aria-label={`Remove schedule ${index + 1}`}
                         >
                           <Trash2 className="size-4" aria-hidden="true" /> Remove
@@ -577,13 +714,13 @@ export default function BookingDialog({
               variant="outline"
               className="w-full"
               disabled={scheduleFields.length >= 50}
-              onClick={() => append({ label: "", date: "", startTime: "", endTime: "", location: "", notes: "" })}
+              onClick={() => append({ id: crypto.randomUUID(), label: "", date: "", startTime: "", endTime: "", location: "", notes: "" })}
             >
               <Plus className="size-4" aria-hidden="true" /> Add another schedule
             </Button>
           </section>
 
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 rounded-2xl border border-border bg-muted/20 p-4 sm:grid-cols-2 lg:col-span-4">
             <div>
               <Label className="mb-2 block font-semibold">Price</Label>
               <Controller
@@ -610,8 +747,21 @@ export default function BookingDialog({
             </div>
           </div>
 
+          <section className="rounded-2xl border border-border bg-card p-4 lg:col-span-4" aria-labelledby="booking-charges-heading">
+            <div className="flex items-start justify-between gap-3"><div><h3 id="booking-charges-heading" className="font-semibold">Additional charges</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">Client-facing revenue. Business costs remain separate Expenses.</p></div><Button type="button" size="sm" variant="outline" onClick={() => setAddingCharge((value) => !value)}><Plus className="size-4" /> Add charge</Button></div>
+            {additionalCharges.length > 0 && <div className="mt-4 space-y-2">{additionalCharges.map((charge) => { const scheduleIndex = (watchedSessions ?? []).findIndex((session) => session.id === charge.sessionId); return <article key={charge.id} className="flex min-w-0 items-start gap-2 rounded-xl bg-muted/55 p-3"><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{charge.categoryName}</p><p className="mt-1 truncate text-xs text-muted-foreground">{scheduleIndex >= 0 ? `Schedule ${scheduleIndex + 1}` : "Overall booking"}{charge.description ? ` · ${charge.description}` : ""}</p></div><p className="shrink-0 text-sm font-bold">{formatRupiah(charge.amount)}</p><Button type="button" size="icon-sm" variant="ghost" className="shrink-0 text-destructive" aria-label={`Remove ${charge.categoryName} charge`} onClick={() => setAdditionalCharges((current) => current.filter((item) => item.id !== charge.id))}><Trash2 className="size-4" /></Button></article>; })}</div>}
+            {addingCharge && <div className="mt-4 space-y-3 rounded-xl border border-border bg-muted/25 p-3">
+              <div><Label className="mb-2 block">Category</Label><select className="native-control" value={chargeDraft.categoryId} onChange={(event) => setChargeDraft((current) => ({ ...current, categoryId: event.target.value }))}>{chargeCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select><Button type="button" variant="ghost" size="sm" className="mt-1" onClick={() => setNewChargeCategoryOpen((value) => !value)}>+ New category</Button>{newChargeCategoryOpen && <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]"><Input value={newChargeCategoryName} onChange={(event) => setNewChargeCategoryName(event.target.value)} placeholder="Category name" /><Button type="button" size="sm" onClick={() => void createChargeCategoryInline()}>Add</Button></div>}</div>
+              <div><Label className="mb-2 block">Apply to</Label><select className="native-control" value={chargeDraft.sessionId} onChange={(event) => setChargeDraft((current) => ({ ...current, sessionId: event.target.value }))}><option value="">Overall booking</option>{(watchedSessions ?? []).map((session, index) => session.id && <option key={session.id} value={session.id}>Schedule {index + 1}{session.label ? ` · ${session.label}` : ""}</option>)}</select></div>
+              <div><Label className="mb-2 block">Amount</Label><MoneyInput value={chargeDraft.amount} onChange={(amount) => setChargeDraft((current) => ({ ...current, amount }))} placeholder="0" /></div>
+              <div><Label className="mb-2 block">Note</Label><Input value={chargeDraft.description} onChange={(event) => setChargeDraft((current) => ({ ...current, description: event.target.value }))} placeholder="Optional detail" /></div>
+              <div className="flex gap-2"><Button type="button" size="sm" onClick={addChargeDraft}>Add charge</Button><Button type="button" size="sm" variant="ghost" onClick={() => setAddingCharge(false)}>Cancel</Button></div>
+            </div>}
+            <dl className="mt-4 space-y-2 border-t border-border pt-4 text-sm"><div className="flex justify-between gap-3"><dt className="text-muted-foreground">Service</dt><dd>{formatRupiah(effectivePrice)}</dd></div><div className="flex justify-between gap-3"><dt className="text-muted-foreground">Additional charges</dt><dd>{formatRupiah(additionalChargesTotal)}</dd></div><div className="flex justify-between gap-3 border-t border-border pt-3 text-base font-bold"><dt>Client total</dt><dd>{formatRupiah(clientTotal)}</dd></div></dl>
+          </section>
+
           {!booking && (
-            <section className="rounded-2xl border border-border bg-muted/20 p-4" aria-labelledby="initial-payment-heading">
+            <section className="rounded-2xl border border-border bg-muted/20 p-4 lg:col-span-4" aria-labelledby="initial-payment-heading">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h3 id="initial-payment-heading" className="font-semibold text-foreground">
@@ -711,7 +861,7 @@ export default function BookingDialog({
             </section>
           )}
 
-          <div>
+          <div className="lg:col-span-4">
             <Label className="mb-2 block font-semibold">Booking status</Label>
             <Controller
               control={control}
@@ -732,13 +882,13 @@ export default function BookingDialog({
             {errors.bookingStatus && <p className="mt-2 text-sm text-destructive">{errors.bookingStatus.message}</p>}
           </div>
 
-          <div>
+          <div className="lg:col-span-8">
             <Label className="mb-2 block font-semibold">Notes</Label>
             <Textarea rows={4} {...register("notes")} />
           </div>
 
           {booking && (
-          <div className="rounded-2xl border border-zinc-200 p-4">
+          <div className="rounded-2xl border border-zinc-200 p-4 lg:col-span-12">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="font-semibold text-slate-900">Payment History</h3>
               <Button
@@ -800,12 +950,12 @@ export default function BookingDialog({
 
           {/* Booking Profit — only shown when editing */}
           {booking && (
-            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 lg:col-span-12">
               <h3 className="mb-3 font-semibold text-slate-900">Booking Profit</h3>
               <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
                 <div>
-                  <p className="text-zinc-500">Booking Value</p>
-                  <p className="font-semibold text-slate-900">{formatRupiah(effectivePrice)}</p>
+                  <p className="text-zinc-500">Client total</p>
+                  <p className="font-semibold text-slate-900">{formatRupiah(clientTotal)}</p>
                 </div>
                 <div>
                   <p className="text-zinc-500">Paid</p>
@@ -836,7 +986,7 @@ export default function BookingDialog({
             </div>
           )}
 
-          <div className="sticky bottom-0 z-10 -mx-5 -mb-5 mt-8 flex gap-3 border-t border-border bg-white/95 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 backdrop-blur sm:-mx-8 sm:-mb-8 sm:justify-end sm:px-8 sm:pb-8">
+          <div className="sticky bottom-0 z-10 -mx-5 -mb-5 mt-2 flex gap-3 border-t border-border bg-white/95 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 backdrop-blur sm:-mx-8 sm:-mb-8 sm:justify-end sm:px-8 sm:pb-8 lg:col-span-12">
             <Button type="button" variant="outline" className="flex-1 sm:flex-none" disabled={action.pending} onClick={handleClose}>
               Cancel
             </Button>
@@ -844,7 +994,7 @@ export default function BookingDialog({
               {booking ? "Save changes" : "Add booking"}
             </ActionButton>
           </div>
-        </form>
+        </form>}
       </div>
     </div>
   );

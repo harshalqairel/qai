@@ -7,22 +7,27 @@ import { AppearanceThemeProvider } from "@/features/appearance/AppearanceThemePr
 
 export const metadata: Metadata = {
   title: "Qai",
-  description: "Manage bookings, clients, income, expenses, and reminders in one place.",
+  description: "Run your business, delight your clients, and grow with one connected workspace.",
   applicationName: "Qai",
-  manifest: "/manifest.webmanifest?v=20260814",
+  manifest: "/manifest.webmanifest?v=20260816",
+  openGraph: {
+    title: "Qai — Run. Delight. Grow.",
+    description: "Bookings, schedules, clients, invoices, payments, expenses, and reports in one clear workspace.",
+    type: "website",
+  },
   icons: {
     icon: [
-      { url: "/icon.svg?v=20260814", type: "image/svg+xml" },
-      { url: "/icons/qai-favicon-32.png?v=20260814", sizes: "32x32", type: "image/png" },
-      { url: "/icons/qai-icon-192.png?v=20260814", sizes: "192x192", type: "image/png" },
+      { url: "/icon.svg?v=20260816", type: "image/svg+xml" },
+      { url: "/icons/qai-favicon-32.png?v=20260816", sizes: "32x32", type: "image/png" },
+      { url: "/icons/qai-icon-192.png?v=20260816", sizes: "192x192", type: "image/png" },
     ],
-    shortcut: [{ url: "/icon.svg?v=20260814", type: "image/svg+xml" }],
-    apple: [{ url: "/icons/qai-apple-touch-180.png?v=20260814", sizes: "180x180", type: "image/png" }],
+    shortcut: [{ url: "/icon.svg?v=20260816", type: "image/svg+xml" }],
+    apple: [{ url: "/icons/qai-apple-touch-180.png?v=20260816", sizes: "180x180", type: "image/png" }],
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#4F6BFF",
+  themeColor: "#7A3F64",
 };
 
 export default function RootLayout({

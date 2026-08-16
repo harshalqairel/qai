@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import CustomerHeader from "@/features/customer/components/CustomerHeader";
 import CustomerToolbar from "@/features/customer/components/CustomerToolbar";
 import CustomerTable from "@/features/customer/components/CustomerTable";
@@ -42,6 +42,19 @@ export default function CustomersPage() {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("newest");
   const [profileCustomer, setProfileCustomer] = useState<CustomerWithFinancials | null>(null);
+  const handledQuickCreate = useRef(false);
+
+  useEffect(() => {
+    if (handledQuickCreate.current || customerData.isLoading) return;
+    handledQuickCreate.current = true;
+    if (new URLSearchParams(window.location.search).get("new") === "1") {
+      const timer = window.setTimeout(() => {
+        setSelectedCustomer(null);
+        setDialogOpen(true);
+      }, 0);
+      return () => window.clearTimeout(timer);
+    }
+  }, [customerData.isLoading]);
   const [loadedAt] = useState(Date.now);
 
   const keyword = search.trim().toLowerCase();

@@ -63,10 +63,11 @@ export default function DashboardPage() {
           todayCount={dashboard.todaysSchedule.length}
         />
 
-        <div className="grid min-w-0 gap-5 lg:grid-cols-2 lg:gap-6">
-          {preferences.filter((item) => item.visible).map((item) => (
-            <DashboardSection key={item.id} id={item.id} fullWidth={item.id === "setup"}>
-              {item.id === "setup" && dashboard.showSetupGuide && <GettingStartedGuide {...dashboard.setupGuideProgress} />}
+        {preferences.some((item) => item.id === "setup" && item.visible) && dashboard.showSetupGuide && <GettingStartedGuide {...dashboard.setupGuideProgress} />}
+
+        <div className="min-w-0 columns-1 lg:columns-2 lg:[column-gap:1.5rem]">
+          {preferences.filter((item) => item.visible && item.id !== "setup").map((item) => (
+            <DashboardSection key={item.id} id={item.id}>
               {item.id === "income" && <FinancialAnalyticsCard title="Income" total={dashboard.financialReport.summary.moneyReceived} period={dashboard.financialReport.period.label} categories={dashboard.incomeByCategory.map((entry) => ({ id: entry.categoryId, name: entry.categoryName, amount: entry.revenue, color: entry.categoryColor }))} href={`/reports?${periodQuery}#income`} emptyMessage="No income recorded in this period." tone="income" />}
               {item.id === "expenses" && <FinancialAnalyticsCard title="Expenses" total={dashboard.financialReport.summary.expenses} period={dashboard.financialReport.period.label} categories={dashboard.expenseByCategory.map((entry) => ({ id: entry.categoryId, name: entry.category, amount: entry.amount, color: entry.categoryColor }))} href={`/reports?${periodQuery}#expenses`} emptyMessage="No expenses recorded in this period." tone="expenses" />}
               {item.id === "profit" && <KPICard metric={dashboard.metrics.find((entry) => entry.label === "Profit")!} periodQuery={periodQuery} />}
@@ -90,7 +91,7 @@ export default function DashboardPage() {
 
 function DashboardSection({ id, fullWidth, children }: { id: DashboardSectionId; fullWidth?: boolean; children: React.ReactNode }) {
   if (!children || (id === "setup" && Array.isArray(children) && children.every((item) => !item))) return null;
-  return <div className={`min-w-0 ${fullWidth ? "lg:col-span-2" : ""}`}>{children}</div>;
+  return <div className={`mb-5 min-w-0 break-inside-avoid lg:mb-6 ${fullWidth ? "lg:col-span-2" : ""}`}>{children}</div>;
 }
 
 function NewRequestsCard({ requests }: { requests: PublicRequest[] }) {

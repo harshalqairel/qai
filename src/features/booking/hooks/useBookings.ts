@@ -15,6 +15,7 @@ import {
   getDeviceTimezone,
 } from "@/features/booking/utils/bookingSessions";
 import { prepareBookingCreation } from "@/features/booking/domain/bookingCreation";
+import { prepareBookingAdditionalCharges } from "@/features/booking/domain/bookingAdditionalCharges";
 import { calendarRelevantSessionIds, synchronizeAffectedCalendarSessions } from "@/features/calendar/calendarIncrementalSync";
 
 export function useBookings() {
@@ -89,11 +90,15 @@ export function useBookings() {
     const current = bookings.find((booking) => booking.id === input.id);
     if (!current) return false;
     const now = Date.now();
+    const sessions = buildBookingSessions(current.id, input.sessions, timezone, current.sessions, now);
     const updated: Booking = {
       ...current,
       customerId: input.customerId,
       serviceId: input.serviceId,
-      sessions: buildBookingSessions(current.id, input.sessions, timezone, current.sessions, now),
+      sessions,
+      additionalCharges: input.additionalCharges
+        ? prepareBookingAdditionalCharges(current.id, input.additionalCharges, sessions, current.additionalCharges ?? [], now)
+        : current.additionalCharges ?? [],
       servicePrice: input.servicePrice,
       bookingStatus: input.bookingStatus,
       fullPaymentDueDate: input.fullPaymentDueDate,

@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, AtSign, CheckCircle2, Clock3, Mail, MapPin, MessageCircle, Plus, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { QaiMark } from "@/components/brand/QaiLogo";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,6 +20,7 @@ import {
   publicPriceLabel,
   requiresClientServiceLocation,
   resolvePublicServiceLocation,
+  QAI_ATTRIBUTION_HREF,
   validationClient,
   type PublicRequest,
   type PublicSchedule,
@@ -31,6 +33,10 @@ type FormState = {
 };
 
 const Instagram = AtSign;
+
+function PoweredByQai({ className = "" }: { className?: string }) {
+  return <a href={QAI_ATTRIBUTION_HREF} aria-label="Powered by Qai" className={`inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full px-3 text-xs text-[#7d8790] hover:bg-black/5 hover:text-[#7a3f64] ${className}`}><QaiMark size="sm" tone="monochrome" decorative /> Powered by Qai</a>;
+}
 
 function newSchedule(service?: PublicService): PublicSchedule { const startTime = "09:00"; return { id: crypto.randomUUID(), label: "", date: "", startTime, endTime: derivePublicEndTime(startTime, service?.durationMinutes ?? 60), location: "" }; }
 function initialForm(service: Pick<PublicService, "actionMode" | "defaultSessionCount" | "durationMinutes" | "locationPolicy">): FormState { const count = service.actionMode === "Booking request" ? service.defaultSessionCount : 0; return { clientName: "", whatsapp: "", email: "", need: "", schedules: Array.from({ length: count }, () => newSchedule(service as PublicService)), locationChoice: service.locationPolicy === "Client location only" ? "Client location" : "Business/studio", location: "", budget: "", notes: "", instantSlotId: null }; }
@@ -70,7 +76,7 @@ export default function PublicQaiPage() {
   if (error || !page) return <main className="flex min-h-screen items-center justify-center bg-[#f7f8f5] p-6"><div className="max-w-sm text-center"><h1 className="text-2xl font-bold text-[#17272a]">Page unavailable</h1><p className="mt-3 text-sm leading-6 text-[#66726f]">{error || "This Qai Page is not available."}</p></div></main>;
   if (confirmation) {
     const schedule = confirmation.schedules[0];
-    return <main className="flex min-h-screen items-center justify-center bg-[#f7f8f5] p-4 text-[#17272a]"><article className="w-full max-w-md rounded-2xl border border-[#dde3dd] bg-white p-6 text-center shadow-sm sm:p-8"><CheckCircle2 className="mx-auto size-11 text-[#356f6b]" aria-hidden="true" /><h1 className="mt-5 text-2xl font-bold">{confirmation.type === "Instant booking" ? "Booking confirmed." : confirmation.type === "Inquiry" ? "Inquiry sent." : "Request sent."}</h1>{confirmation.type === "Instant booking" && schedule ? <div className="mt-5 rounded-xl bg-[#eef1ec] p-4"><p className="font-semibold">{confirmation.serviceName}</p><p className="mt-1 text-sm text-[#66726f]">{new Date(`${schedule.date}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} · {schedule.startTime}</p>{canShowBookedThroughQai(confirmation) && <p className="mt-4 text-xs text-[#66726f]">Booked through Qai</p>}</div> : <p className="mt-3 text-sm leading-6 text-[#66726f]">{page.businessName} will {confirmation.type === "Inquiry" ? "get back to you" : "review your request"}.</p>}<Button className="mt-6 w-full" variant="outline" onClick={() => { setConfirmation(null); setSelected(null); }}>Back to services</Button><p className="mt-8 text-xs text-[#8a9692]">Powered by Qai</p></article></main>;
+    return <main className="flex min-h-screen items-center justify-center bg-[#f7f8f5] p-4 text-[#17272a]"><article className="w-full max-w-md rounded-2xl border border-[#dde3dd] bg-white p-6 text-center shadow-sm sm:p-8"><CheckCircle2 className="mx-auto size-11 text-[#356f6b]" aria-hidden="true" /><h1 className="mt-5 text-2xl font-bold">{confirmation.type === "Instant booking" ? "Booking confirmed." : confirmation.type === "Inquiry" ? "Inquiry sent." : "Request sent."}</h1>{confirmation.type === "Instant booking" && schedule ? <div className="mt-5 rounded-xl bg-[#eef1ec] p-4"><p className="font-semibold">{confirmation.serviceName}</p><p className="mt-1 text-sm text-[#66726f]">{new Date(`${schedule.date}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} · {schedule.startTime}</p>{canShowBookedThroughQai(confirmation) && <p className="mt-4 text-xs text-[#66726f]">Booked through Qai</p>}</div> : <p className="mt-3 text-sm leading-6 text-[#66726f]">{page.businessName} will {confirmation.type === "Inquiry" ? "get back to you" : "review your request"}.</p>}<Button className="mt-6 w-full" variant="outline" onClick={() => { setConfirmation(null); setSelected(null); }}>Back to services</Button><PoweredByQai className="mt-8" /></article></main>;
   }
 
   return <main className="min-h-screen overflow-x-hidden bg-[#f7f8f5] text-[#17272a]">
@@ -88,7 +94,7 @@ export default function PublicQaiPage() {
           <Field label="Notes (optional)"><Textarea rows={4} maxLength={2000} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></Field>
           <p className="rounded-xl bg-[#eef1ec] p-4 text-xs leading-5 text-[#66726f]">Your details will be shared with {page.businessName} to handle this request.</p>{formError && <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">{formError}</p>}<Button className="w-full" size="lg" disabled={submitting || (selected.actionMode === "Instant booking" && availableSlots.length === 0)} onClick={() => void submit()}>{submitting ? "Sending…" : selected.actionMode === "Instant booking" ? "Confirm booking" : selected.actionMode === "Inquiry" ? "Send inquiry" : "Send request"}</Button>
         </div>
-      </section><footer className="py-8 text-center text-xs text-[#8a9692]">Powered by Qai</footer>
+      </section><footer className="py-8 text-center"><PoweredByQai /></footer>
     </div>}
   </main>;
 }
@@ -216,7 +222,7 @@ export function LegacyPublicLanding({
         )}
       </section>
 
-      <footer className="pt-14 text-center text-xs text-[#8a9692] sm:pt-16">Powered by Qai</footer>
+      <footer className="pt-14 text-center sm:pt-16"><PoweredByQai /></footer>
     </div>
   );
 }

@@ -3,6 +3,8 @@ import type { Booking, CreateBookingCommand } from "@/features/booking/types";
 import { buildBookingSessions } from "@/features/booking/utils/bookingSessions";
 import { initialPaymentSchemaForBooking, paymentRecordSchema } from "@/features/payment/schema";
 import type { Payment } from "@/features/payment/types";
+import { prepareBookingAdditionalCharges } from "@/features/booking/domain/bookingAdditionalCharges";
+import { bookingClientTotal } from "@/features/booking/domain/bookingFinancials";
 
 export type BookingCreationIds = {
   bookingId: string;
@@ -27,15 +29,16 @@ export function prepareBookingCreation(
     throw new Error("Initial payment cannot be added to a cancelled booking.");
   }
 
+  const sessions = buildBookingSessions(ids.bookingId, bookingInput.sessions, timezone, [], now);
   const booking: Booking = bookingRecordSchema.parse({
     id: ids.bookingId,
     createdAt: now,
     updatedAt: now,
     customerId: bookingInput.customerId,
     serviceId: bookingInput.serviceId,
-    sessions: buildBookingSessions(ids.bookingId, bookingInput.sessions, timezone, [], now),
+    sessions,
     servicePrice: bookingInput.servicePrice,
-    additionalCharges: [],
+    additionalCharges: prepareBookingAdditionalCharges(ids.bookingId, command.additionalCharges ?? [], sessions, [], now),
     bookingStatus: bookingInput.bookingStatus,
     fullPaymentDueDate: bookingInput.fullPaymentDueDate,
     notes: bookingInput.notes,
@@ -44,7 +47,7 @@ export function prepareBookingCreation(
   let initialPayment: Payment | null = null;
   if (command.initialPayment) {
     if (!ids.paymentId) throw new Error("Initial payment ID is required.");
-    const paymentInput = initialPaymentSchemaForBooking(booking.servicePrice).parse(command.initialPayment);
+    const paymentInput = initialPaymentSchemaForBooking(bookingClientTotal(booking)).parse(command.initialPayment);
     initialPayment = paymentRecordSchema.parse({
       id: ids.paymentId,
       bookingId: booking.id,
