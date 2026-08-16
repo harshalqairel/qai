@@ -106,6 +106,20 @@ function Hero({ page }: { page: QaiPageConfig }) {
       </header>
     );
   }
+  if (page.template === "Editorial") {
+    return (
+      <header className="mx-auto max-w-[90rem] bg-white px-4 py-6 sm:px-7 sm:py-8">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-y border-black/15 py-4">
+          <div className="flex min-w-0 items-center gap-3">{page.logo && <img src={page.logo} alt={`${page.businessName} logo`} className="size-12 shrink-0 rounded-full border border-black/10 object-cover" />}<p className="truncate text-sm font-bold uppercase tracking-[0.2em]">{page.businessName}</p></div>
+          <p className="text-xs uppercase tracking-[0.16em] opacity-55">Service journal / Selected work</p>
+        </div>
+        <div className="grid border-b border-black/15 lg:grid-cols-[1.35fr_.65fr]">
+          {page.coverImage ? <img src={page.coverImage} alt="" className="min-h-72 size-full object-cover lg:min-h-[39rem]" /> : <div className="min-h-72 bg-[linear-gradient(145deg,#251e27,var(--page-accent),#7182aa)] lg:min-h-[39rem]" />}
+          <div className="flex items-end px-5 py-9 sm:px-9 sm:py-12 lg:px-12 lg:py-14"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--page-accent)]">Profile / Services</p><h1 className="mt-5 break-words font-serif text-4xl font-bold leading-[.95] tracking-[-0.05em] sm:text-5xl lg:text-6xl">{page.businessName}</h1>{page.shortDescription && <p className="mt-6 whitespace-pre-wrap text-base leading-7 opacity-70">{page.shortDescription}</p>}{page.location && <p className="mt-5 flex items-center gap-2 text-sm opacity-60"><MapPin className="size-4 shrink-0" aria-hidden="true" /> {page.location}</p>}<ContactLinks page={page} /></div></div>
+        </div>
+      </header>
+    );
+  }
   return (
     <header className="mx-auto max-w-[90rem] px-4 py-5 sm:px-7 sm:py-8">
       <div className="relative isolate min-h-[32rem] overflow-hidden rounded-[2rem] bg-slate-900 sm:min-h-[38rem]">
@@ -125,6 +139,10 @@ function portfolioLayout(template: QaiPageConfig["template"], index: number): { 
   if (template === "Studio") return { figure: "md:col-span-4", image: index % 3 === 1 ? "aspect-[4/5]" : "aspect-[5/4]" };
   if (template === "Signature") return { figure: "md:col-span-6", image: index % 2 === 0 ? "aspect-[4/5]" : "aspect-[4/3]" };
   if (template === "Professional") return { figure: "md:col-span-3", image: "aspect-[4/3]" };
+  if (template === "Editorial") {
+    const wide = index % 4 === 0 || index % 4 === 3;
+    return { figure: wide ? "col-span-2 md:col-span-7" : "md:col-span-5", image: wide ? "aspect-[16/10]" : "aspect-[4/5]" };
+  }
   if (index === 0) return { figure: "col-span-2 md:col-span-7 md:row-span-2", image: "aspect-[4/3] md:h-full md:aspect-auto" };
   return { figure: "md:col-span-5", image: "aspect-[5/4]" };
 }
@@ -133,13 +151,13 @@ function PortfolioSection({ page, services, portfolio, onChoose }: RendererProps
   if (!page.style.showPortfolio || portfolio.length === 0) return null;
   return (
     <section aria-labelledby="public-portfolio-heading">
-      <div className={page.template === "Signature" ? "text-center" : ""}><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--page-accent)]">Portfolio</p><h2 id="public-portfolio-heading" className="mt-2 text-3xl font-bold tracking-tight">Selected work</h2></div>
+      <div className={page.template === "Signature" ? "text-center" : page.template === "Editorial" ? "grid gap-2 border-b border-black/15 pb-5 sm:grid-cols-[1fr_auto] sm:items-end" : ""}><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--page-accent)]">Portfolio</p><h2 id="public-portfolio-heading" className={`mt-2 text-3xl font-bold tracking-tight ${page.template === "Editorial" ? "font-serif sm:text-5xl" : ""}`}>Selected work</h2></div>{page.template === "Editorial" && <p className="max-w-xs text-sm leading-6 opacity-60">A magazine-style edit of recent projects and creative services.</p>}</div>
       <div className={`mt-7 grid grid-cols-2 gap-3 sm:gap-5 md:grid-cols-12 ${page.template === "Muse" || page.template === "Warm" ? "md:auto-rows-[15rem] lg:auto-rows-[18rem]" : "md:items-start"}`}>
         {portfolio.map((item, index) => {
           const related = services.find((service) => service.serviceId === item.serviceId);
           const layout = portfolioLayout(page.template, index);
           return (
-            <figure key={item.id} className={`group relative overflow-hidden border border-black/10 bg-white ${page.template === "Signature" ? "rounded-none" : page.template === "Professional" ? "rounded-lg" : "rounded-2xl"} ${layout.figure}`}>
+            <figure key={item.id} className={`group relative overflow-hidden border border-black/10 bg-white ${page.template === "Signature" || page.template === "Editorial" ? "rounded-none" : page.template === "Professional" ? "rounded-lg" : "rounded-2xl"} ${layout.figure}`}>
               <img src={item.imageUrl} alt={item.caption || `${page.businessName} selected work ${index + 1}`} className={`w-full object-cover transition duration-500 group-hover:scale-[1.015] ${layout.image}`} loading={index < 3 ? "eager" : "lazy"} />
               {(item.caption || related) && <figcaption className={`${page.template === "Muse" || page.template === "Warm" ? "absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent p-4 pt-14 text-white sm:p-6" : "p-4"}`}>{item.caption && <p className="text-sm leading-5">{item.caption}</p>}{related && onChoose && <button type="button" onClick={() => onChoose(related)} className={`mt-2 inline-flex min-h-10 items-center gap-1 text-left text-xs font-semibold hover:underline ${page.template === "Muse" || page.template === "Warm" ? "text-white" : "text-[var(--page-accent)]"}`}>View {related.title} <ArrowUpRight className="size-3.5" aria-hidden="true" /></button>}</figcaption>}
             </figure>
@@ -155,15 +173,15 @@ function ServicesSection({ page, services, onChoose }: RendererProps) {
   const gridClass = page.template === "Studio" ? "lg:grid-cols-3" : page.template === "Professional" ? "grid-cols-1" : "md:grid-cols-2";
   return (
     <section aria-labelledby="public-services-heading">
-      <div className={page.template === "Signature" ? "text-center" : ""}><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--page-accent)]">Work with {page.businessName}</p><h2 id="public-services-heading" className="mt-2 text-3xl font-bold tracking-tight">Services</h2></div>
+      <div className={page.template === "Signature" ? "text-center" : ""}><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--page-accent)]">Work with {page.businessName}</p><h2 id="public-services-heading" className={`mt-2 text-3xl font-bold tracking-tight ${page.template === "Editorial" ? "font-serif sm:text-5xl" : ""}`}>Services</h2></div>
       {services.length === 0 ? <div className="mt-6 max-w-xl rounded-xl border border-dashed border-black/15 bg-white/70 p-6 text-sm opacity-70">Public services are coming soon. Contact {page.businessName} directly for current availability.</div> : (
         <div className={`mt-7 grid gap-4 ${gridClass}`}>
           {services.map((service, index) => (
-            <article key={service.serviceId} className={`flex flex-col border border-black/10 bg-white p-5 sm:p-6 ${page.template === "Professional" ? "rounded-lg border-l-4 border-l-[var(--page-accent)] md:grid md:grid-cols-[3rem_1fr_auto_auto] md:items-center md:gap-6" : page.template === "Signature" ? "rounded-none border-x-0 px-0" : page.template === "Warm" ? "rounded-[1.75rem]" : "rounded-xl"}`}>
-              {page.template === "Professional" && <p className="hidden text-2xl font-light text-[var(--page-accent)] md:block">{String(index + 1).padStart(2, "0")}</p>}
+            <article key={service.serviceId} className={`flex flex-col border border-black/10 bg-white p-5 sm:p-6 ${page.template === "Professional" ? "rounded-lg border-l-4 border-l-[var(--page-accent)] md:grid md:grid-cols-[3rem_1fr_auto_auto] md:items-center md:gap-6" : page.template === "Editorial" ? "rounded-none border-x-0 px-0 md:grid md:grid-cols-[3rem_1fr] md:gap-x-5" : page.template === "Signature" ? "rounded-none border-x-0 px-0" : page.template === "Warm" ? "rounded-[1.75rem]" : "rounded-xl"}`}>
+              {(page.template === "Professional" || page.template === "Editorial") && <p className={`hidden text-2xl font-light text-[var(--page-accent)] md:block ${page.template === "Editorial" ? "row-span-3 font-serif text-3xl" : ""}`}>{String(index + 1).padStart(2, "0")}</p>}
               <div><h3 className="break-words text-xl font-bold">{service.title}</h3>{service.description && <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 opacity-65">{service.description}</p>}</div>
-              <div className={`${page.template === "Professional" ? "mt-4 md:mt-0 md:min-w-36 md:text-right" : "mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-black/8 pt-5"}`}><p className="font-bold text-[var(--page-accent)]">{publicPriceLabel(service)}</p><p className="mt-1 inline-flex items-center gap-1.5 text-sm opacity-60"><Clock3 className="size-4" aria-hidden="true" />{formatDuration(service.durationMinutes)}</p></div>
-              {onChoose && <Button type="button" className={`${page.template === "Professional" ? "mt-4 md:mt-0" : "mt-5 w-full sm:w-auto sm:self-start"}`} style={{ backgroundColor: "var(--page-accent)" }} onClick={() => onChoose(service)}>{publicActionLabel(service.actionMode)}</Button>}
+              <div className={`${page.template === "Professional" ? "mt-4 md:mt-0 md:min-w-36 md:text-right" : `mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-black/8 pt-5 ${page.template === "Editorial" ? "md:col-start-2" : ""}`}`}><p className="font-bold text-[var(--page-accent)]">{publicPriceLabel(service)}</p><p className="mt-1 inline-flex items-center gap-1.5 text-sm opacity-60"><Clock3 className="size-4" aria-hidden="true" />{formatDuration(service.durationMinutes)}</p></div>
+              {onChoose && <Button type="button" className={`${page.template === "Professional" ? "mt-4 md:mt-0" : `mt-5 w-full sm:w-auto sm:self-start ${page.template === "Editorial" ? "md:col-start-2" : ""}`}`} style={{ backgroundColor: "var(--page-accent)" }} onClick={() => onChoose(service)}>{publicActionLabel(service.actionMode)}</Button>}
             </article>
           ))}
         </div>

@@ -182,6 +182,13 @@ describe("invoice PDF", () => {
       if (process.env.QAI_INVOICE_FIXTURE_DIR) {
         await mkdir(process.env.QAI_INVOICE_FIXTURE_DIR, { recursive: true });
         await writeFile(`${process.env.QAI_INVOICE_FIXTURE_DIR}/${variant.style.toLowerCase()}.pdf`, bytes);
+        const shortIssued = issueInvoice(sampleInvoice({ invoiceStyle: variant.style }), variantSettings, [], Date.UTC(2026, 7, 11));
+        const shortBlob = await generateInvoicePdf(shortIssued, variantSettings, [{
+          id: "fixture-payment", bookingId: "booking-1", amount: 2_000_000, date: "2026-08-11",
+          method: "Bank Transfer", notes: "Deposit", createdAt: Date.UTC(2026, 7, 11),
+        }], "blob");
+        const shortBytes = new Uint8Array(await shortBlob!.arrayBuffer());
+        await writeFile(`${process.env.QAI_INVOICE_FIXTURE_DIR}/${variant.style.toLowerCase()}-short.pdf`, shortBytes);
       }
     }
   }, 20_000);

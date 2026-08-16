@@ -29,7 +29,7 @@ describe("QaiPageRenderer", () => {
     const { container, unmount } = render(<QaiPageRenderer page={page} services={page.services} portfolio={[]} onChoose={onChoose} />);
 
     expect(container.querySelector(`[data-template="${template}"]`)).toBeTruthy();
-    expect(screen.getByText("Nuyi Studio")).toBeTruthy();
+    expect(screen.getAllByText("Nuyi Studio").length).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: "Powered by Qai" }).getAttribute("href")).toContain("utm_source=qai_page");
     await user.click(screen.getByRole("button", { name: "Request" }));
     expect(onChoose).toHaveBeenCalledWith(service);

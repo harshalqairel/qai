@@ -5,7 +5,7 @@ import type { Service } from "@/features/service/types";
 export type PublicPriceMode = "Fixed price" | "Starting from" | "Ask for price";
 export type PublicActionMode = "Booking request" | "Inquiry" | "Instant booking";
 export type PublicRequestStatus = "Pending" | "Accepted" | "Declined";
-export const QAI_PAGE_TEMPLATES = ["Muse", "Studio", "Signature", "Professional", "Warm"] as const;
+export const QAI_PAGE_TEMPLATES = ["Muse", "Studio", "Signature", "Professional", "Warm", "Editorial"] as const;
 export const QAI_PAGE_TYPOGRAPHY = ["Modern", "Editorial", "Classic"] as const;
 export const QAI_PAGE_DENSITIES = ["Spacious", "Compact"] as const;
 export const QAI_PAGE_SECTIONS = ["portfolio", "services"] as const;

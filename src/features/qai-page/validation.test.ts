@@ -55,6 +55,12 @@ describe("Qai Page domain", () => {
     expect(parsed.style).toMatchObject({ typography: "Modern", density: "Spacious", sectionOrder: ["portfolio", "services"] });
   });
 
+  it("accepts the sixth editorial presentation without changing page data", () => {
+    const parsed = qaiPageSchema.parse({ ...page(), template: "Editorial" });
+    expect(parsed.template).toBe("Editorial");
+    expect(parsed.services).toEqual(page().services);
+  });
+
   it("collects a client address only for service policies that require it", () => {
     expect(requiresClientServiceLocation({ locationPolicy: "Business/studio only" }, "Client location")).toBe(false);
     expect(requiresClientServiceLocation({ locationPolicy: "Client location only" }, "Business/studio")).toBe(true);
