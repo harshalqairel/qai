@@ -10,7 +10,10 @@ describe("validation access credentials", () => {
     vi.stubEnv("QAI_VALIDATION_SESSION_SECRET", "a-distinct-validation-session-secret-123456789");
     const valid = await signValidationPayload({ kind: "founder", expiresAt: Date.now() + 60_000 });
     expect(await verifyValidationPayload(valid)).toMatchObject({ kind: "founder" });
-    expect(await verifyValidationPayload(`${valid.slice(0, -1)}x`)).toBeNull();
+    const replacement = valid.endsWith("x") ? "y" : "x";
+    const tampered = `${valid.slice(0, -1)}${replacement}`;
+    expect(tampered).not.toBe(valid);
+    expect(await verifyValidationPayload(tampered)).toBeNull();
     const expired = await signValidationPayload({ kind: "founder", expiresAt: Date.now() - 1 });
     expect(await verifyValidationPayload(expired)).toBeNull();
   });

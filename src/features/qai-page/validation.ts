@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  bookingQuestionnaireDefinitionSchema,
+  bookingQuestionResponseSchema,
+  DEFAULT_BOOKING_QUESTIONNAIRE,
+} from "@/features/booking-questionnaire/questionnaire";
 import type { BookingFormValues } from "@/features/booking/types";
 import type { Service } from "@/features/service/types";
 
@@ -72,14 +77,16 @@ export const qaiPageSchema = z.object({
   whatsapp: z.string().trim().max(50), email: z.string().trim().email().or(z.literal("")), instagram: z.string().trim().max(200),
   logo: z.string().max(3_000_000), coverImage: z.string().max(3_000_000), portfolio: z.array(portfolioItemSchema).max(12).default([]), services: z.array(publicServiceSchema).max(100), slots: z.array(instantSlotSchema).max(500),
   timezone: z.string().trim().min(1).max(100).default("Asia/Jakarta"),
+  questionnaire: bookingQuestionnaireDefinitionSchema.default(DEFAULT_BOOKING_QUESTIONNAIRE),
   updatedAt: z.number().int().nonnegative(),
 });
 
 export const publicRequestSchema = z.object({
   id: z.string().min(1).max(100), pageId: z.string().min(1).max(100), slug: z.string().min(1).max(120), serviceId: z.string().min(1).max(100),
   serviceName: z.string().trim().min(1).max(160), type: z.enum(["Booking request", "Inquiry", "Instant booking"]),
-  clientName: z.string().trim().min(1).max(160), whatsapp: z.string().trim().min(6).max(50), email: z.string().trim().email().or(z.literal("")),
+  clientName: z.string().trim().min(1).max(160), whatsapp: z.string().trim().min(6).max(50), email: z.string().trim().email().or(z.literal("")), instagram: z.string().trim().max(200).default(""),
   need: z.string().trim().max(1000), schedules: z.array(publicScheduleSchema).max(12), location: z.string().trim().max(300), budget: z.string().trim().max(100),
+  questionnaireResponses: z.array(bookingQuestionResponseSchema).max(50).default([]),
   notes: z.string().trim().max(2000), status: z.enum(["Pending", "Accepted", "Declined"]), submittedAt: z.number().int().nonnegative(),
   updatedAt: z.number().int().nonnegative(), bookingId: z.string().nullable(), instantSlotId: z.string().nullable(),
 });
@@ -139,6 +146,7 @@ export function requestToBookingValues(request: PublicRequest, service: Service,
   const finalDate = [...sessions].sort((left, right) => right.date.localeCompare(left.date))[0]?.date ?? fallbackDate;
   return {
     customerId, serviceId: service.id, sessions, servicePrice: service.price, bookingStatus: "Scheduled", fullPaymentDueDate: finalDate,
+    questionnaireResponses: request.questionnaireResponses,
     notes: [request.need, request.notes, "Source: Qai Page"].filter(Boolean).join("\n\n"),
   };
 }
@@ -153,7 +161,7 @@ export function derivePublicEndTime(startTime: string, durationMinutes: number):
 export function defaultQaiPage(): QaiPageConfig {
   return {
     id: "local-page", businessId: "local-business", slug: "my-business", template: "Muse", style: structuredClone(defaultPageStyle), businessName: "My business", shortDescription: "", location: "",
-    whatsapp: "", email: "", instagram: "", logo: "", coverImage: "", portfolio: [], services: [], slots: [], timezone: "Asia/Jakarta", updatedAt: Date.now(),
+    whatsapp: "", email: "", instagram: "", logo: "", coverImage: "", portfolio: [], services: [], slots: [], timezone: "Asia/Jakarta", questionnaire: structuredClone(DEFAULT_BOOKING_QUESTIONNAIRE), updatedAt: Date.now(),
   };
 }
 
@@ -170,10 +178,17 @@ export const validationClient = {
   savePage(page: QaiPageConfig): Promise<QaiPageConfig> { return api("/api/validation", { method: "POST", body: JSON.stringify({ action: "save-page", page }) }); },
   submitRequest(request: Omit<PublicRequest, "id" | "status" | "submittedAt" | "updatedAt" | "bookingId">): Promise<PublicRequest> { return api("/api/validation", { method: "POST", body: JSON.stringify({ action: "submit-request", request }) }); },
   updateRequest(requestId: string, status: PublicRequestStatus, bookingId: string | null): Promise<PublicRequest> { return api("/api/validation", { method: "POST", body: JSON.stringify({ action: "update-request", requestId, status, bookingId }) }); },
-  async uploadMedia(file: File, kind: "page-logo" | "page-cover" | "portfolio" | "invoice-logo" | "invoice-signature" | "invoice-stamp"): Promise<{ id: string; url: string }> {
+  async uploadMedia(file: File, kind: "page-logo" | "page-cover" | "portfolio" | "invoice-logo" | "invoice-signature" | "invoice-stamp" | "invoice-watermark" | "booking-response"): Promise<{ id: string; url: string }> {
     const body = new FormData(); body.set("file", file); body.set("kind", kind);
     const response = await fetch("/api/validation/media", { method: "POST", body }); const result = await response.json() as { data?: { id: string; url: string }; error?: string };
     if (!response.ok || !result.data) throw new Error(result.error ?? "Could not upload that image."); return result.data;
+  },
+  async uploadPublicQuestionFile(file: File, slug: string, serviceId: string, questionId: string): Promise<{ id: string; url: string }> {
+    const body = new FormData(); body.set("file", file); body.set("slug", slug); body.set("serviceId", serviceId); body.set("questionId", questionId);
+    const response = await fetch("/api/validation/public-media", { method: "POST", body });
+    const result = await response.json() as { data?: { id: string; url: string }; error?: string };
+    if (!response.ok || !result.data) throw new Error(result.error ?? "Could not upload that file.");
+    return result.data;
   },
   async deleteMedia(url: string): Promise<void> { const id = url.split("/").pop(); if (!id) return; await api(`/api/validation/media/${encodeURIComponent(id)}`, { method: "DELETE" }); },
 };

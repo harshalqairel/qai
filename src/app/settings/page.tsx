@@ -13,6 +13,7 @@ import PaymentReminderSettings from "@/features/reminder/components/PaymentRemin
 import AppearanceSettings from "@/features/appearance/AppearanceSettings";
 import InvoiceSharingSettings from "@/features/invoice/InvoiceSharingSettings";
 import NotificationSettings from "@/features/notifications/NotificationSettings";
+import BookingQuestionnaireSettings from "@/features/booking-questionnaire/BookingQuestionnaireSettings";
 import {
   ArrowLeft,
   CircleHelp,
@@ -27,6 +28,7 @@ import {
   FileCheck2,
   Waypoints,
   Bell,
+  ListChecks,
 } from "lucide-react";
 import PageSkeleton from "@/components/system/PageSkeleton";
 import { QaiLogo } from "@/components/brand/QaiLogo";
@@ -36,6 +38,7 @@ const SECTIONS = [
   { id: "data-backup", label: "Data backup", description: "Download or restore your business data", Icon: Database },
   { id: "service-categories", label: "Service categories", description: "Organize the services you offer", Icon: Tags },
   { id: "expense-categories", label: "Expense categories", description: "Manage how expenses are grouped", Icon: ReceiptText },
+  { id: "booking-questions", label: "Booking questions", description: "Customize client questions and booking text", Icon: ListChecks },
   { id: "payment-reminders", label: "Payment reminders", description: "Customize WhatsApp and email wording", Icon: MessagesSquare },
   { id: "invoice-sharing", label: "Invoice sharing", description: "Customize invoice WhatsApp and email wording", Icon: MessagesSquare },
   { id: "notifications", label: "Notifications", description: "Choose optional browser alerts", Icon: Bell },
@@ -46,7 +49,7 @@ const SECTIONS = [
 type SectionId = (typeof SECTIONS)[number]["id"];
 
 const MOBILE_GROUPS: Array<{ label: string; sections: SectionId[] }> = [
-  { label: "Management", sections: ["service-categories", "expense-categories"] },
+  { label: "Management", sections: ["booking-questions", "service-categories", "expense-categories"] },
   { label: "Communication", sections: ["payment-reminders", "invoice-sharing", "notifications"] },
   { label: "Preferences", sections: ["appearance"] },
   { label: "Data", sections: ["data-backup"] },
@@ -214,6 +217,7 @@ export default function SettingsPage() {
                 <div className="p-6 sm:p-8"><h3 className="font-semibold">About this validation build</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">This temporary environment is for real-user product feedback. It is not the final commercial authentication or billing system. Please use copied or non-sensitive test data.</p><p className="mt-5 text-xs text-muted-foreground">Qai · Validation build · Built for independent creative businesses</p></div>
               </section>
             )}
+            {activeSection === "booking-questions" && <BookingQuestionnaireSettings />}
           </div>
         </div>
       </div>

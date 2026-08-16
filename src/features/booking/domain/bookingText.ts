@@ -1,19 +1,18 @@
 import type { Customer } from "@/features/customer/types";
 import type { Service } from "@/features/service/types";
+import {
+  BOOKING_CORE_FIELDS,
+  BOOKING_CORE_FIELD_LABELS,
+  DEFAULT_BOOKING_QUESTIONNAIRE,
+  normalizeQuestionLabel,
+  questionsForService,
+  responseForQuestion,
+  type BookingQuestion,
+  type BookingQuestionResponse,
+  type BookingQuestionnaireDefinition,
+} from "@/features/booking-questionnaire/questionnaire";
 
-export const BOOKING_TEMPLATE_FIELDS = [
-  "name",
-  "phone",
-  "instagram",
-  "email",
-  "service",
-  "date",
-  "startTime",
-  "endTime",
-  "location",
-  "notes",
-] as const;
-
+export const BOOKING_TEMPLATE_FIELDS = BOOKING_CORE_FIELDS;
 export type BookingTemplateField = (typeof BOOKING_TEMPLATE_FIELDS)[number];
 
 export type BookingTemplatePreferences = {
@@ -33,6 +32,7 @@ export type ParsedBookingText = {
   endTime: string;
   location: string;
   notes: string;
+  customResponses: BookingQuestionResponse[];
   warnings: string[];
 };
 
@@ -42,22 +42,9 @@ export type MatchResult<T> =
   | { kind: "ambiguous"; matches: T[] };
 
 export const DEFAULT_BOOKING_TEMPLATE_PREFERENCES: BookingTemplatePreferences = {
-  introduction: "Booking form — please complete the details below.",
-  closing: "Thank you. I will confirm the schedule and price after reviewing your details.",
+  introduction: DEFAULT_BOOKING_QUESTIONNAIRE.introduction,
+  closing: DEFAULT_BOOKING_QUESTIONNAIRE.closing,
   enabledFields: [...BOOKING_TEMPLATE_FIELDS],
-};
-
-const LABELS: Record<BookingTemplateField, string> = {
-  name: "Name",
-  phone: "Phone",
-  instagram: "Instagram",
-  email: "Email",
-  service: "Service",
-  date: "Date",
-  startTime: "Start time",
-  endTime: "End time",
-  location: "Location",
-  notes: "Notes",
 };
 
 const FIELD_ALIASES: Record<BookingTemplateField, string[]> = {
@@ -88,9 +75,7 @@ const INDONESIAN_MONTHS: Record<string, number> = {
   desember: 12, december: 12, dec: 12, des: 12,
 };
 
-function normalizeLabel(value: string): string {
-  return value.normalize("NFKC").toLowerCase().replace(/[._-]+/g, " ").replace(/\s+/g, " ").trim();
-}
+const normalizeLabel = normalizeQuestionLabel;
 
 function fieldForLabel(label: string): BookingTemplateField | null {
   const normalized = normalizeLabel(label);
@@ -144,28 +129,40 @@ export function normalizeBookingInstagram(value: string): string {
   return (url?.[1] ?? source.replace(/^@/, "")).toLowerCase().replace(/\/$/, "");
 }
 
-export function parseBookingText(value: string): ParsedBookingText {
-  const fields: Omit<ParsedBookingText, "warnings"> = { name: "", phone: "", instagram: "", email: "", service: "", date: "", startTime: "", endTime: "", location: "", notes: "" };
+export function parseBookingText(value: string, questions: readonly BookingQuestion[] = []): ParsedBookingText {
+  const fields: Omit<ParsedBookingText, "warnings"> = { name: "", phone: "", instagram: "", email: "", service: "", date: "", startTime: "", endTime: "", location: "", notes: "", customResponses: [] };
   const warnings: string[] = [];
+  const questionsByLabel = new Map(questions.filter((question) => question.active).map((question) => [normalizeLabel(question.label), question]));
   for (const rawLine of value.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line) continue;
     const divider = line.indexOf(":");
     if (divider < 0) continue;
-    const field = fieldForLabel(line.slice(0, divider));
-    if (!field) continue;
+    const label = line.slice(0, divider);
+    const field = fieldForLabel(label);
+    const question = field ? null : questionsByLabel.get(normalizeLabel(label));
+    if (!field && !question) continue;
     const raw = line.slice(divider + 1).trim();
-    if (field === "date") {
+    if (question) {
+      const parsed = parseCustomQuestionAnswer(question, raw);
+      if (parsed.answer !== null) {
+        const response = responseForQuestion(question, parsed.answer);
+        fields.customResponses = fields.customResponses.some((item) => item.questionId === question.id)
+          ? fields.customResponses.map((item) => item.questionId === question.id ? response : item)
+          : [...fields.customResponses, response];
+      }
+      if (parsed.warning) warnings.push(parsed.warning);
+    } else if (field === "date") {
       fields.date = parseBookingDate(raw);
-      if (raw && !fields.date) warnings.push("Review the date — Qai could not read it safely.");
+      if (raw && !fields.date) warnings.push("Review the date - Qai could not read it safely.");
     } else if (field === "startTime" || field === "endTime") {
       fields[field] = parseBookingTime(raw);
-      if (raw && !fields[field]) warnings.push(`Review the ${field === "startTime" ? "start" : "end"} time — Qai could not read it safely.`);
+      if (raw && !fields[field]) warnings.push(`Review the ${field === "startTime" ? "start" : "end"} time - Qai could not read it safely.`);
     } else if (field === "phone") {
       fields.phone = raw;
     } else if (field === "instagram") {
       fields.instagram = raw ? `@${normalizeBookingInstagram(raw)}` : "";
-    } else {
+    } else if (field) {
       fields[field] = raw;
     }
   }
@@ -173,6 +170,41 @@ export function parseBookingText(value: string): ParsedBookingText {
     if (!fields[field]) warnings.push(`Add or review the ${label}.`);
   }
   return { ...fields, warnings: [...new Set(warnings)] };
+}
+
+function parseCustomQuestionAnswer(question: BookingQuestion, raw: string): { answer: BookingQuestionResponse["answer"] | null; warning: string } {
+  if (!raw) return { answer: null, warning: question.required ? `Add or review ${question.label}.` : "" };
+  if (["Short text", "Long text", "Address / location"].includes(question.type)) return { answer: raw, warning: "" };
+  if (question.type === "Number") {
+    const answer = Number(raw.replace(/\s/g, "").replace(",", "."));
+    return Number.isFinite(answer) ? { answer, warning: "" } : { answer: null, warning: `Review ${question.label} - Qai could not read the number safely.` };
+  }
+  if (question.type === "Yes / No") {
+    const normalized = normalizeLabel(raw);
+    if (["yes", "y", "true", "ya", "iya"].includes(normalized)) return { answer: true, warning: "" };
+    if (["no", "n", "false", "tidak", "nggak", "tidak boleh"].includes(normalized)) return { answer: false, warning: "" };
+    return { answer: null, warning: `Review ${question.label} - choose Yes or No.` };
+  }
+  if (question.type === "Date") {
+    const answer = parseBookingDate(raw);
+    return answer ? { answer, warning: "" } : { answer: null, warning: `Review ${question.label} - Qai could not read the date safely.` };
+  }
+  if (question.type === "Time") {
+    const answer = parseBookingTime(raw);
+    return answer ? { answer, warning: "" } : { answer: null, warning: `Review ${question.label} - Qai could not read the time safely.` };
+  }
+  if (question.type === "Single choice") {
+    const answer = question.options.find((option) => normalizeLabel(option) === normalizeLabel(raw));
+    return answer ? { answer, warning: "" } : { answer: null, warning: `Review ${question.label} - the answer does not match an available choice.` };
+  }
+  if (question.type === "Multiple choice") {
+    const requested = raw.split(/[,;]/).map((item) => normalizeLabel(item)).filter(Boolean);
+    const selected = requested.map((item) => question.options.find((option) => normalizeLabel(option) === item)).filter((item): item is string => Boolean(item));
+    return requested.length > 0 && selected.length === requested.length
+      ? { answer: [...new Set(selected)], warning: "" }
+      : { answer: null, warning: `Review ${question.label} - one or more choices were not recognized.` };
+  }
+  return { answer: null, warning: `Review ${question.label} and attach the file in the Booking form.` };
 }
 
 export function matchExistingCustomer(parsed: Pick<ParsedBookingText, "phone" | "instagram">, customers: Customer[]): MatchResult<Customer> {
@@ -200,7 +232,13 @@ export function matchExistingService(serviceText: string, services: Service[]): 
   return { kind: "none", matches: [] };
 }
 
-export function formatBookingClientTemplate(businessName: string, preferences: BookingTemplatePreferences): string {
-  const rows = preferences.enabledFields.map((field) => `${LABELS[field]}:`);
-  return [preferences.introduction.trim() || `Booking form — ${businessName}`, ...rows, preferences.closing.trim()].filter(Boolean).join("\n\n");
+export function formatBookingClientTemplate(
+  businessName: string,
+  preferences: BookingTemplatePreferences | BookingQuestionnaireDefinition,
+  serviceId = "",
+): string {
+  const enabledFields = "enabledCoreFields" in preferences ? preferences.enabledCoreFields : preferences.enabledFields;
+  const rows = enabledFields.map((field) => `${BOOKING_CORE_FIELD_LABELS[field]}:`);
+  const questionRows = "questions" in preferences ? questionsForService(preferences, serviceId).map((question) => `${question.label}:`) : [];
+  return [preferences.introduction.trim() || `Booking form - ${businessName}`, ...rows, ...questionRows, preferences.closing.trim()].filter(Boolean).join("\n\n");
 }

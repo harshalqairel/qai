@@ -3,6 +3,7 @@ import path from "node:path";
 import { z } from "zod";
 
 import { qaiPageSchema } from "@/features/qai-page/validation";
+import { validateQuestionnaireResponses } from "@/features/booking-questionnaire/questionnaire";
 import { publicRequestSchema, defaultQaiPage, type PublicRequest, type QaiPageConfig } from "@/features/qai-page/validation";
 import { createValidationStoreRepository, ValidationStoreError, validationRequestInputSchema } from "@/features/qai-page/validationStore";
 import { isValidationModeEnabled } from "@/lib/supabase/config";
@@ -22,6 +23,7 @@ const MESSAGES: Record<string, string> = {
   SLUG_TAKEN: "This page address is already in use.", PAGE_NOT_FOUND: "This Qai Page is not available.", SERVICE_NOT_AVAILABLE: "This service is not available.",
   SCHEDULE_REQUIRED: "Add at least one preferred schedule.", SLOT_REQUIRED: "Choose an available time.", SLOT_TAKEN: "This time is no longer available. Choose another one.",
   REQUEST_NOT_FOUND: "This request could not be found.", REQUEST_DECLINED: "A declined request cannot be accepted.",
+  QUESTIONNAIRE_INVALID: "Complete the required questions and try again.",
 };
 function failure(message: string, status = 400) { return NextResponse.json({ error: message }, { status }); }
 
@@ -102,6 +104,18 @@ async function remotePost(input: z.infer<typeof actionSchema>) {
     const page = qaiPageSchema.parse(pageRow.payload);
     const service = page.services.find((item) => item.serviceId === input.request.serviceId && item.visible && item.actionMode === input.request.type);
     if (!service) throw new ValidationStoreError("SERVICE_NOT_AVAILABLE");
+    if (Object.keys(validateQuestionnaireResponses(page.questionnaire, service.serviceId, input.request.questionnaireResponses, true)).length > 0) throw new ValidationStoreError("QUESTIONNAIRE_INVALID");
+    const fileResponseIds = input.request.questionnaireResponses.flatMap((response) => {
+      if (typeof response.answer !== "object" || Array.isArray(response.answer)) return [];
+      const match = response.answer.url.match(/^\/api\/validation\/media\/([0-9a-f-]{36})$/i);
+      return match ? [match[1]] : [];
+    });
+    const fileResponseCount = input.request.questionnaireResponses.filter((response) => typeof response.answer === "object" && !Array.isArray(response.answer)).length;
+    if (fileResponseIds.length !== fileResponseCount) throw new ValidationStoreError("QUESTIONNAIRE_INVALID");
+    if (fileResponseIds.length > 0) {
+      const { data: assets } = await admin.from("validation_media_assets").select("id").eq("workspace_id", pageRow.workspace_id).eq("kind", "booking-response").in("id", fileResponseIds);
+      if ((assets ?? []).length !== new Set(fileResponseIds).size) throw new ValidationStoreError("QUESTIONNAIRE_INVALID");
+    }
     if (input.request.type === "Booking request" && input.request.schedules.length < service.defaultSessionCount) throw new ValidationStoreError("SCHEDULE_REQUIRED");
     const id = crypto.randomUUID();
     let schedules = input.request.schedules;

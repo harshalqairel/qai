@@ -7,7 +7,7 @@ import { VALIDATION_ADMIN_COOKIE, VALIDATION_SESSION_COOKIE, verifyValidationPay
 
 function isValidationPublicPath(pathname: string): boolean {
   return pathname === "/" || pathname.startsWith("/test/") || pathname.startsWith("/q/") || pathname === "/manifest.webmanifest"
-    || pathname === "/api/validation" || pathname.startsWith("/api/validation/media/") || pathname === "/api/validation/access" || pathname === "/api/validation/admin/login" || pathname === "/api/integrations/google-calendar/callback";
+    || pathname === "/api/validation" || pathname === "/api/validation/public-media" || pathname.startsWith("/api/validation/media/") || pathname === "/api/validation/access" || pathname === "/api/validation/admin/login" || pathname === "/api/integrations/google-calendar/callback";
 }
 
 export async function proxy(request: NextRequest) {

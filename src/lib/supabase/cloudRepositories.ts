@@ -301,6 +301,7 @@ function bookingFromRow(row: DbRow, sessions: BookingSession[], additionalCharge
     serviceId: valueAsString(row, "service_id"),
     sessions,
     additionalCharges,
+    questionnaireResponses: Array.isArray(row.questionnaire_responses) ? row.questionnaire_responses as Booking["questionnaireResponses"] : [],
     servicePrice: valueAsNumber(row, "service_price"),
     bookingStatus: valueAsString(row, "booking_status") as Booking["bookingStatus"],
     fullPaymentDueDate: valueAsString(row, "full_payment_due_date"),
@@ -319,6 +320,7 @@ function bookingToPayload(booking: Booking): DbRow {
     booking_status: booking.bookingStatus,
     full_payment_due_date: booking.fullPaymentDueDate,
     notes: booking.notes,
+    questionnaire_responses: booking.questionnaireResponses ?? [],
     created_at: isoTimestamp(booking.createdAt),
     updated_at: isoTimestamp(booking.updatedAt),
     sessions: booking.sessions.map((session) => ({
@@ -380,13 +382,13 @@ export const cloudBookingRepository = {
       .sort((left, right) => left.sessions[0].startAt.localeCompare(right.sessions[0].startAt));
   },
   async create(booking: Booking) {
-    const { error } = await createClient().rpc("save_booking", {
+    const { error } = await createClient().rpc("save_booking_with_questionnaire", {
       booking_payload: bookingToPayload(booking),
     });
     throwOnError(error);
   },
   async update(booking: Booking) {
-    const { error } = await createClient().rpc("save_booking", {
+    const { error } = await createClient().rpc("save_booking_with_questionnaire", {
       booking_payload: bookingToPayload(booking),
     });
     throwOnError(error);

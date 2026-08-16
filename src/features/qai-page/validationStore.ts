@@ -1,6 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
+import { validateQuestionnaireResponses } from "@/features/booking-questionnaire/questionnaire";
 
 import { publicRequestSchema, qaiPageSchema, type PublicRequest, type QaiPageConfig, type ValidationStore } from "./validation";
 
@@ -60,6 +61,7 @@ export function createValidationStoreRepository(directory: string) {
       return mutate((store) => {
         const page = store.pages.find((item) => item.id === input.pageId && item.slug === input.slug); if (!page) throw new ValidationStoreError("PAGE_NOT_FOUND");
         const service = page.services.find((item) => item.serviceId === input.serviceId && item.visible); if (!service || service.actionMode !== input.type) throw new ValidationStoreError("SERVICE_NOT_AVAILABLE");
+        if (Object.keys(validateQuestionnaireResponses(page.questionnaire, service.serviceId, input.questionnaireResponses, true)).length > 0) throw new ValidationStoreError("QUESTIONNAIRE_INVALID");
         if (input.type === "Booking request" && input.schedules.length < 1) throw new ValidationStoreError("SCHEDULE_REQUIRED");
         if (input.type === "Instant booking" && !input.instantSlotId) throw new ValidationStoreError("SLOT_REQUIRED");
         const duplicate = store.requests.find((item) => item.pageId === page.id && item.serviceId === service.serviceId && item.type === input.type && item.whatsapp.replace(/\D/g, "") === input.whatsapp.replace(/\D/g, "") && Date.now() - item.submittedAt < 3000);

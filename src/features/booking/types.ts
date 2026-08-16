@@ -1,3 +1,5 @@
+import type { BookingQuestionResponse } from "@/features/booking-questionnaire/questionnaire";
+
 export type BookingStatus = "Scheduled" | "Completed" | "Cancelled";
 
 export type BookingSession = {
@@ -51,6 +53,7 @@ export type Booking = {
   sessions: BookingSession[];
   servicePrice: number;
   additionalCharges?: BookingAdditionalCharge[];
+  questionnaireResponses?: BookingQuestionResponse[];
   bookingStatus: BookingStatus;
   fullPaymentDueDate: string;
   notes: string;
@@ -63,6 +66,7 @@ export type CreateBookingInput = {
   serviceId: string;
   sessions: BookingSessionInput[];
   servicePrice: number;
+  questionnaireResponses?: BookingQuestionResponse[];
   bookingStatus: BookingStatus;
   fullPaymentDueDate: string;
   notes: string;

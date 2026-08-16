@@ -14,6 +14,7 @@ import {
   invoiceRemainingAmount,
   invoiceShareContext,
   invoiceTotals,
+  invoiceWatermarkLayout,
   invoiceWhatsAppUrl,
   issueInvoice,
   latestReportableInvoiceVersions,
@@ -63,6 +64,14 @@ describe("invoice financial rules", () => {
 });
 
 describe("invoice lifecycle", () => {
+  it("keeps watermark state invoice-specific and clamps rendering controls", () => {
+    const draft = sampleInvoice({ watermarkEnabled: true, watermarkImage: "data:image/png;base64,AA==", watermarkOpacity: 0.12, watermarkRotation: -35, watermarkScale: 0.8 });
+    expect(invoiceWatermarkLayout({ ...draft, watermarkOpacity: 0.5, watermarkRotation: -90, watermarkScale: 1 })).toEqual({ enabled: true, image: draft.watermarkImage, opacity: 0.2, rotation: -45, scale: 0.9 });
+    const issued = issueInvoice(draft, settings, [], Date.UTC(2026, 7, 11));
+    expect(issued.snapshot).toMatchObject({ watermarkEnabled: true, watermarkImage: draft.watermarkImage, watermarkOpacity: 0.12, watermarkRotation: -35, watermarkScale: 0.8 });
+    expect(invoiceWatermarkLayout(sampleInvoice())).toMatchObject({ enabled: false });
+  });
+
   it("assigns stable sequential numbers and preserves an issued snapshot", () => {
     const first = issueInvoice(sampleInvoice(), settings, [], Date.UTC(2026, 7, 11));
     expect(first.invoiceNumber).toBe("INV-2026-0001");
@@ -173,7 +182,7 @@ describe("invoice PDF", () => {
 
     for (const variant of variants) {
       const variantSettings = { ...settings, ...variant, invoiceStyle: variant.style };
-      const issued = issueInvoice(sampleInvoice({ lineItems: items, notes: "Detailed notes ".repeat(80), invoiceStyle: variant.style }), variantSettings, [], Date.UTC(2026, 7, 11));
+      const issued = issueInvoice(sampleInvoice({ lineItems: items, notes: "Detailed notes ".repeat(80), invoiceStyle: variant.style, watermarkEnabled: variant.style === "Professional", watermarkImage: variant.style === "Professional" ? businessMark : "", watermarkOpacity: 0.08, watermarkRotation: -35, watermarkScale: 0.72 }), variantSettings, [], Date.UTC(2026, 7, 11));
       const blob = await generateInvoicePdf(issued, variantSettings, [], "blob");
       expect(blob).toBeInstanceOf(Blob);
       const bytes = new Uint8Array(await blob!.arrayBuffer());
@@ -182,7 +191,14 @@ describe("invoice PDF", () => {
       if (process.env.QAI_INVOICE_FIXTURE_DIR) {
         await mkdir(process.env.QAI_INVOICE_FIXTURE_DIR, { recursive: true });
         await writeFile(`${process.env.QAI_INVOICE_FIXTURE_DIR}/${variant.style.toLowerCase()}.pdf`, bytes);
-        const shortIssued = issueInvoice(sampleInvoice({ invoiceStyle: variant.style }), variantSettings, [], Date.UTC(2026, 7, 11));
+        const shortIssued = issueInvoice(sampleInvoice({
+          invoiceStyle: variant.style,
+          taxEnabled: true,
+          taxName: "PPN",
+          taxMode: "percentage",
+          taxValue: 11,
+          taxTreatment: "added",
+        }), variantSettings, [], Date.UTC(2026, 7, 11));
         const shortBlob = await generateInvoicePdf(shortIssued, variantSettings, [{
           id: "fixture-payment", bookingId: "booking-1", amount: 2_000_000, date: "2026-08-11",
           method: "Bank Transfer", notes: "Deposit", createdAt: Date.UTC(2026, 7, 11),

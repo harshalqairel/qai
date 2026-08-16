@@ -23,7 +23,7 @@ function page(): QaiPageConfig {
 function request(changes: Partial<ValidationRequestInput> = {}): ValidationRequestInput {
   return {
     pageId: "page-1", slug: "nuyi", serviceId: "request-service", serviceName: "Wedding Package", type: "Booking request", clientName: "Sarah",
-    whatsapp: "081234567890", email: "", need: "", schedules: [
+    whatsapp: "081234567890", email: "", instagram: "", need: "", questionnaireResponses: [], schedules: [
       { id: "schedule-1", label: "Akad", date: "2026-09-12", startTime: "09:00", endTime: "11:00", location: "Bandung" },
       { id: "schedule-2", label: "Reception", date: "2026-09-15", startTime: "17:00", endTime: "20:00", location: "Bandung" },
       { id: "schedule-3", label: "After party", date: "2026-09-20", startTime: "20:00", endTime: "22:00", location: "Jakarta" },
@@ -85,6 +85,17 @@ describe("Qai Page domain", () => {
 });
 
 describe("shared validation store", () => {
+  it("requires configured service questions and preserves the submitted snapshot", async () => {
+    const { repository: store } = await repository();
+    const configured = page();
+    configured.questionnaire.questions = [{ id: "look", label: "Desired look", helperText: "", type: "Single choice", required: true, options: ["Natural", "Glam"], active: true, order: 0, serviceIds: ["request-service"], createdAt: 1, updatedAt: 1 }];
+    await store.savePage(configured);
+    await expect(store.submitRequest(request())).rejects.toMatchObject({ code: "QUESTIONNAIRE_INVALID" });
+    const response = { questionId: "look", labelSnapshot: "Desired look", typeSnapshot: "Single choice" as const, answer: "Glam" };
+    const created = await store.submitRequest(request({ questionnaireResponses: [response] }));
+    expect(created.questionnaireResponses).toEqual([response]);
+  });
+
   it("persists a page and a multi-schedule pending request", async () => {
     const { directory, repository: store } = await repository(); await store.savePage(page());
     const created = await store.submitRequest(request());

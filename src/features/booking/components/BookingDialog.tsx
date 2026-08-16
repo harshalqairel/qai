@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { z } from "zod";
-import { Booking, BookingAdditionalChargeInput, CreateBookingCommand, UpdateBookingInput } from "@/features/booking/types";
+import { Booking, BookingAdditionalChargeInput, CreateBookingCommand } from "@/features/booking/types";
 import { bookingSchema, BookingFormValues } from "@/features/booking/schema";
 import { doesBookingEndNextDay } from "@/features/booking/utils/bookingDateRange";
 import { instantParts, sessionToFormValues } from "@/features/booking/utils/bookingSessions";
@@ -30,6 +30,7 @@ import ActionButton from "@/components/system/ActionButton";
 import DeleteAction from "@/components/system/DeleteAction";
 import { useActionGuard } from "@/hooks/useActionGuard";
 import { notify } from "@/lib/notifications";
+import { isValidationModeEnabled } from "@/lib/supabase/config";
 import { ArrowLeft, Copy, Info, Plus, Trash2, XIcon } from "lucide-react";
 import BookingCreationStart from "@/features/booking/components/BookingCreationStart";
 import {
@@ -38,6 +39,10 @@ import {
   loadAdditionalChargeCategories,
   type AdditionalChargeCategory,
 } from "@/features/booking/domain/additionalChargeCategories";
+import { QuestionnaireFields, HistoricalQuestionnaireResponses } from "@/features/booking-questionnaire/QuestionnaireFields";
+import { DEFAULT_BOOKING_QUESTIONNAIRE, questionsForService, validateQuestionnaireResponses, type BookingQuestion, type BookingQuestionFileAnswer, type BookingQuestionResponse, type BookingQuestionnaireDefinition } from "@/features/booking-questionnaire/questionnaire";
+import { loadBookingQuestionnaire } from "@/features/booking-questionnaire/questionnaireRepository";
+import { validationClient } from "@/features/qai-page/validation";
 
 type BookingDialogProps = {
   open: boolean;
@@ -54,7 +59,7 @@ type BookingDialogProps = {
   onQuickCreateServiceCategory?: (name: string) => Promise<ServiceCategory | null>;
   onClose: () => void;
   onCreate: (command: CreateBookingCommand) => boolean | Promise<boolean>;
-  onUpdate: (input: UpdateBookingInput) => boolean | Promise<boolean>;
+  onUpdate: (input: BookingFormValues & { id: string; additionalCharges?: BookingAdditionalChargeInput[] }) => boolean | Promise<boolean>;
   onAddPaymentClick: (bookingId: string, remainingAmount: number) => void;
   onEditPaymentClick: (payment: Payment) => void;
   onDeletePayment: (id: string) => boolean | Promise<boolean>;
@@ -65,6 +70,7 @@ const defaultValues: BookingFormValues = {
   serviceId: "",
   sessions: [{ label: "", date: "", startTime: "", endTime: "", location: "", notes: "" }],
   servicePrice: 0,
+  questionnaireResponses: [],
   bookingStatus: "Scheduled",
   fullPaymentDueDate: "",
   notes: "",
@@ -156,6 +162,9 @@ export default function BookingDialog({
   const [chargeDraft, setChargeDraft] = useState({ categoryId: "", sessionId: "", amount: 0, description: "" });
   const [newChargeCategoryOpen, setNewChargeCategoryOpen] = useState(false);
   const [newChargeCategoryName, setNewChargeCategoryName] = useState("");
+  const [questionnaire, setQuestionnaire] = useState<BookingQuestionnaireDefinition>(DEFAULT_BOOKING_QUESTIONNAIRE);
+  const [questionnaireResponses, setQuestionnaireResponses] = useState<BookingQuestionResponse[]>([]);
+  const [questionnaireErrors, setQuestionnaireErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!open) return;
@@ -173,11 +182,14 @@ export default function BookingDialog({
       })));
       setInitialPaymentOpen(false);
       setInitialPaymentErrors({});
+      setQuestionnaireResponses(booking.questionnaireResponses ?? []);
+      setQuestionnaireErrors({});
       reset(withSessionIds({
         customerId: booking.customerId,
         serviceId: booking.serviceId,
         sessions: booking.sessions.map((session) => sessionToFormValues(session, timezone)),
         servicePrice: booking.servicePrice,
+        questionnaireResponses: booking.questionnaireResponses ?? [],
         bookingStatus: booking.bookingStatus,
         fullPaymentDueDate: booking.fullPaymentDueDate,
         notes: booking.notes,
@@ -196,12 +208,21 @@ export default function BookingDialog({
     setInitialPaymentOpen(false);
     setInitialPayment(defaultInitialPayment(timezone));
     setInitialPaymentErrors({});
+    setQuestionnaireResponses(initialValues?.questionnaireResponses ?? []);
+    setQuestionnaireErrors({});
     reset(withSessionIds({
       ...defaultValues,
       ...(initialValues ?? {}),
       sessions: initialValues?.sessions ?? defaultValues.sessions,
     }));
   }, [open, booking, initialValues, reset, timezone]);
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    void loadBookingQuestionnaire().then((loaded) => { if (active) setQuestionnaire(loaded); }).catch(() => notify.error("Could not load booking questions."));
+    return () => { active = false; };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -217,6 +238,9 @@ export default function BookingDialog({
   const selectedServiceId = watch("serviceId");
   const servicePriceValue = watch("servicePrice");
   const selectedService = services.find((service) => service.id === selectedServiceId);
+  const activeQuestions = questionsForService(questionnaire, selectedServiceId);
+  const activeQuestionIds = new Set(activeQuestions.map((question) => question.id));
+  const historicalResponses = questionnaireResponses.filter((response) => !activeQuestionIds.has(response.questionId));
   const bookingPayments = booking ? payments.filter((payment) => payment.bookingId === booking.id) : [];
 
   // Booking Profit — computed from payments and expenses for this booking
@@ -370,6 +394,8 @@ export default function BookingDialog({
 
   function reviewParsedBooking({ parsed, customerId, serviceId }: Parameters<React.ComponentProps<typeof BookingCreationStart>["onReview"]>[0]) {
     const matchedService = services.find((service) => service.id === serviceId);
+    const applicableQuestionIds = new Set(questionsForService(questionnaire, serviceId).map((question) => question.id));
+    const parsedResponses = serviceId ? parsed.customResponses.filter((response) => applicableQuestionIds.has(response.questionId)) : parsed.customResponses;
     const sessionId = crypto.randomUUID();
     reset(withSessionIds({
       ...defaultValues,
@@ -387,7 +413,10 @@ export default function BookingDialog({
       }],
       fullPaymentDueDate: parsed.date,
       notes: parsed.notes,
+      questionnaireResponses: parsedResponses,
     }));
+    setQuestionnaireResponses(parsedResponses);
+    setQuestionnaireErrors({});
     if (!customerId && (parsed.name || parsed.phone || parsed.instagram || parsed.email)) {
       setQuickCustomer({ name: parsed.name, phone: parsed.phone, instagram: parsed.instagram, email: parsed.email });
       setQuickCustomerOpen(true);
@@ -436,15 +465,37 @@ export default function BookingDialog({
     setStartMode("choose");
     setParsedReviewNotice("");
     setAdditionalCharges([]);
+    setQuestionnaireResponses([]);
+    setQuestionnaireErrors({});
     onClose();
   }
 
+  async function uploadQuestionFile(_question: BookingQuestion, file: File): Promise<BookingQuestionFileAnswer> {
+    if (!["image/png", "image/jpeg", "image/webp", "application/pdf"].includes(file.type) || file.size <= 0 || file.size > 8 * 1024 * 1024) {
+      throw new Error("Use a PNG, JPG, WebP, or PDF file up to 8 MB.");
+    }
+    if (isValidationModeEnabled()) {
+      const uploaded = await validationClient.uploadMedia(file, "booking-response");
+      return { url: uploaded.url, name: file.name, mimeType: file.type, size: file.size };
+    }
+    if (file.size > 2 * 1024 * 1024) throw new Error("Local file answers are limited to 2 MB.");
+    const url = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result ?? "")); reader.onerror = () => reject(new Error("Could not read that file.")); reader.readAsDataURL(file); });
+    return { url, name: file.name, mimeType: file.type, size: file.size };
+  }
+
   async function onSubmit(values: BookingFormValues) {
+    const responseErrors = validateQuestionnaireResponses(questionnaire, values.serviceId, questionnaireResponses);
+    setQuestionnaireErrors(responseErrors);
+    if (Object.keys(responseErrors).length > 0) {
+      notify.error("Complete the required client answers before saving.");
+      return;
+    }
+    const bookingValues: BookingFormValues = { ...values, questionnaireResponses };
     let createCommand: CreateBookingCommand | null = null;
     if (!booking) {
       let parsedInitialPayment: InitialPaymentInput | null = null;
       if (initialPaymentOpen) {
-        const parsed = initialPaymentSchemaForBooking(values.servicePrice + additionalChargesTotal).safeParse(initialPayment);
+        const parsed = initialPaymentSchemaForBooking(bookingValues.servicePrice + additionalChargesTotal).safeParse(initialPayment);
         if (!parsed.success) {
           const nextErrors: Partial<Record<keyof InitialPaymentInput, string>> = {};
           for (const issue of parsed.error.issues) {
@@ -461,14 +512,14 @@ export default function BookingDialog({
       setInitialPaymentErrors({});
       createCommand = {
         requestId: creationRequestId.current || crypto.randomUUID(),
-        booking: values,
+        booking: bookingValues,
         initialPayment: parsedInitialPayment,
         additionalCharges,
       };
     }
 
     const succeeded = await action.run(() => booking
-      ? onUpdate({ id: booking.id, ...values, additionalCharges })
+      ? onUpdate({ id: booking.id, ...bookingValues, additionalCharges })
       : onCreate(createCommand!));
     if (!succeeded) {
       notify.error("Could not save the booking. Try again.");
@@ -886,6 +937,34 @@ export default function BookingDialog({
             <Label className="mb-2 block font-semibold">Notes</Label>
             <Textarea rows={4} {...register("notes")} />
           </div>
+
+          {activeQuestions.length > 0 && (
+            <div className="lg:col-span-12">
+              <QuestionnaireFields
+                questions={activeQuestions}
+                responses={questionnaireResponses}
+                errors={questionnaireErrors}
+                onChange={(responses) => {
+                  setQuestionnaireResponses(responses);
+                  setQuestionnaireErrors({});
+                }}
+                onUploadFile={async (question, file) => {
+                  try {
+                    return await uploadQuestionFile(question, file);
+                  } catch (error) {
+                    notify.error(error instanceof Error ? error.message : "Could not upload that file.");
+                    throw error;
+                  }
+                }}
+              />
+            </div>
+          )}
+
+          {historicalResponses.length > 0 && (
+            <div className="lg:col-span-12">
+              <HistoricalQuestionnaireResponses responses={historicalResponses} />
+            </div>
+          )}
 
           {booking && (
           <div className="rounded-2xl border border-zinc-200 p-4 lg:col-span-12">

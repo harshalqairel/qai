@@ -69,6 +69,11 @@ export type InvoiceSnapshot = {
   invoiceStyle: InvoiceStyle;
   signatureImage: string;
   stampImage: string;
+  watermarkEnabled?: boolean;
+  watermarkImage?: string;
+  watermarkOpacity?: number;
+  watermarkRotation?: number;
+  watermarkScale?: number;
   legalDisclaimer: string;
   version: number;
 };
@@ -105,6 +110,11 @@ export type Invoice = {
   notes: string;
   schedules: InvoiceSchedule[];
   showSchedules: boolean;
+  watermarkEnabled?: boolean;
+  watermarkImage?: string;
+  watermarkOpacity?: number;
+  watermarkRotation?: number;
+  watermarkScale?: number;
   snapshot: InvoiceSnapshot | null;
   createdAt: number;
   updatedAt: number;
@@ -125,6 +135,11 @@ export type InvoiceSettings = {
   invoiceStyle: InvoiceStyle;
   signatureImage: string;
   stampImage: string;
+  watermarkEnabled: boolean;
+  watermarkImage: string;
+  watermarkOpacity: number;
+  watermarkRotation: number;
+  watermarkScale: number;
   legalDisclaimer: string;
   paymentInstructions: string;
   defaultNotes: string;
@@ -164,7 +179,7 @@ const snapshotSchema = z.object({
   address: z.string().max(1000), phone: z.string().max(80), email: z.string().max(160), clientName: z.string().max(160),
   clientPhone: z.string().max(80), clientEmail: z.string().max(160), serviceName: z.string().max(160), invoiceDate: z.string(), dueDate: z.string(),
   lineItems: z.array(lineItemSchema).min(1).max(200), discount: z.number().nonnegative(), tax: z.number().nonnegative(), discountMode: z.enum(["none", "fixed", "percentage"]).default("none"), discountValue: z.number().nonnegative().default(0), taxPercent: z.number().min(0).max(100).default(0), taxEnabled: z.boolean().optional(), taxName: z.string().trim().max(40).optional(), taxMode: z.enum(["percentage", "fixed"]).optional(), taxValue: z.number().nonnegative().optional(), taxTreatment: z.enum(["added", "deducted"]).optional(), subtotal: z.number().nonnegative(),
-  total: z.number().nonnegative(), paymentInstructions: z.string().max(4000), notes: z.string().max(5000), schedules: z.array(scheduleSchema).max(100), showSchedules: z.boolean(), invoiceStyle: z.enum(["Creative", "Neutral", "Professional", "Modern Classic"]).default("Neutral"), signatureImage: z.string().max(3_000_000).default(""), stampImage: z.string().max(3_000_000).default(""), legalDisclaimer: z.string().max(1000).default(""), version: z.number().int().positive().default(1),
+  total: z.number().nonnegative(), paymentInstructions: z.string().max(4000), notes: z.string().max(5000), schedules: z.array(scheduleSchema).max(100), showSchedules: z.boolean(), invoiceStyle: z.enum(["Creative", "Neutral", "Professional", "Modern Classic"]).default("Neutral"), signatureImage: z.string().max(3_000_000).default(""), stampImage: z.string().max(3_000_000).default(""), watermarkEnabled: z.boolean().default(false), watermarkImage: z.string().max(3_000_000).default(""), watermarkOpacity: z.number().min(0.06).max(0.2).default(0.08), watermarkRotation: z.number().min(-45).max(-20).default(-35), watermarkScale: z.number().min(0.6).max(0.9).default(0.72), legalDisclaimer: z.string().max(1000).default(""), version: z.number().int().positive().default(1),
 });
 export const invoiceSchema = z.object({
   id: z.string().min(1), businessId: z.string().min(1), bookingId: z.string().nullable(), clientId: z.string().nullable(),
@@ -172,11 +187,11 @@ export const invoiceSchema = z.object({
   clientPhone: z.string().max(80), clientEmail: z.string().max(160), serviceName: z.string().max(160), invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), lineItems: z.array(lineItemSchema).min(1).max(200), discount: z.number().finite().nonnegative(),
   tax: z.number().finite().nonnegative(), discountMode: z.enum(["none", "fixed", "percentage"]).default("none"), discountValue: z.number().finite().nonnegative().default(0), taxPercent: z.number().finite().min(0).max(100).default(0), taxEnabled: z.boolean().optional(), taxName: z.string().trim().max(40).optional(), taxMode: z.enum(["percentage", "fixed"]).optional(), taxValue: z.number().finite().nonnegative().optional(), taxTreatment: z.enum(["added", "deducted"]).optional(), invoiceStyle: z.enum(["Creative", "Neutral", "Professional", "Modern Classic"]).default("Neutral"), paymentInstructions: z.string().max(4000), notes: z.string().max(5000), schedules: z.array(scheduleSchema).max(100),
-  showSchedules: z.boolean(), snapshot: snapshotSchema.nullable(), createdAt: z.number().int().nonnegative(), updatedAt: z.number().int().nonnegative(), issuedAt: z.number().int().nonnegative().nullable(),
+  showSchedules: z.boolean(), watermarkEnabled: z.boolean().default(false), watermarkImage: z.string().max(3_000_000).default(""), watermarkOpacity: z.number().min(0.06).max(0.2).default(0.08), watermarkRotation: z.number().min(-45).max(-20).default(-35), watermarkScale: z.number().min(0.6).max(0.9).default(0.72), snapshot: snapshotSchema.nullable(), createdAt: z.number().int().nonnegative(), updatedAt: z.number().int().nonnegative(), issuedAt: z.number().int().nonnegative().nullable(),
 }).transform((value) => ({ ...value, rootInvoiceId: value.rootInvoiceId ?? value.id }));
 const settingsSchema = z.object({
   businessId: z.string().min(1), businessLogo: z.string().max(3_000_000), businessName: z.string().trim().min(1).max(160), legalName: z.string().max(160),
-  address: z.string().max(1000), phone: z.string().max(80), email: z.string().max(160), invoicePrefix: z.string().trim().min(1).max(12).regex(/^[A-Za-z0-9-]+$/), nextInvoiceSequence: z.number().int().positive().default(1), invoiceNumberPadding: z.number().int().min(2).max(8).default(4), invoiceStyle: z.enum(["Creative", "Neutral", "Professional", "Modern Classic"]).default("Neutral"), signatureImage: z.string().max(3_000_000).default(""), stampImage: z.string().max(3_000_000).default(""), legalDisclaimer: z.string().max(1000).default(""),
+  address: z.string().max(1000), phone: z.string().max(80), email: z.string().max(160), invoicePrefix: z.string().trim().min(1).max(12).regex(/^[A-Za-z0-9-]+$/), nextInvoiceSequence: z.number().int().positive().default(1), invoiceNumberPadding: z.number().int().min(2).max(8).default(4), invoiceStyle: z.enum(["Creative", "Neutral", "Professional", "Modern Classic"]).default("Neutral"), signatureImage: z.string().max(3_000_000).default(""), stampImage: z.string().max(3_000_000).default(""), watermarkEnabled: z.boolean().default(false), watermarkImage: z.string().max(3_000_000).default(""), watermarkOpacity: z.number().min(0.06).max(0.2).default(0.08), watermarkRotation: z.number().min(-45).max(-20).default(-35), watermarkScale: z.number().min(0.6).max(0.9).default(0.72), legalDisclaimer: z.string().max(1000).default(""),
   paymentInstructions: z.string().max(4000), defaultNotes: z.string().max(5000), defaultPaymentTerms: z.string().max(2000), showSchedules: z.boolean(), showQaiAttribution: z.boolean(),
 });
 const templatesSchema = z.object({ businessId: z.string().min(1), whatsapp: z.string().max(4000), emailSubject: z.string().max(200), emailBody: z.string().max(4000) });
@@ -195,6 +210,11 @@ export const DEFAULT_INVOICE_SETTINGS: InvoiceSettings = {
   invoiceStyle: "Neutral",
   signatureImage: "",
   stampImage: "",
+  watermarkEnabled: false,
+  watermarkImage: "",
+  watermarkOpacity: 0.08,
+  watermarkRotation: -35,
+  watermarkScale: 0.72,
   legalDisclaimer: "",
   paymentInstructions: "",
   defaultNotes: "",
@@ -316,7 +336,7 @@ export function createBookingInvoiceDraft(args: { booking: Booking; customer: Cu
       ...(args.booking.additionalCharges ?? []).map((charge) => ({ id: crypto.randomUUID(), item: charge.categoryName, description: charge.description, quantity: 1, unitPrice: charge.amount })),
     ],
     discount: 0, tax: 0, discountMode: "none", discountValue: 0, taxPercent: 0, taxEnabled: false, taxName: "Tax", taxMode: "percentage", taxValue: 0, taxTreatment: "added", invoiceStyle: args.settings.invoiceStyle, paymentInstructions: args.settings.paymentInstructions, notes: args.settings.defaultNotes || args.settings.defaultPaymentTerms,
-    schedules: args.booking.sessions.map(scheduleFromBooking), showSchedules: args.settings.showSchedules, snapshot: null, createdAt: now, updatedAt: now, issuedAt: null,
+    schedules: args.booking.sessions.map(scheduleFromBooking), showSchedules: args.settings.showSchedules, watermarkEnabled: args.settings.watermarkEnabled, watermarkImage: args.settings.watermarkImage, watermarkOpacity: args.settings.watermarkOpacity, watermarkRotation: args.settings.watermarkRotation, watermarkScale: args.settings.watermarkScale, snapshot: null, createdAt: now, updatedAt: now, issuedAt: null,
   });
 }
 
@@ -340,7 +360,7 @@ export function issueInvoice(invoice: Invoice, settings: InvoiceSettings, allInv
     clientEmail: parsed.clientEmail, serviceName: parsed.serviceName, invoiceDate: parsed.invoiceDate, dueDate: parsed.dueDate,
     lineItems: structuredClone(parsed.lineItems), ...totals, discountMode: parsed.discountMode, discountValue: parsed.discountValue, taxPercent: parsed.taxPercent, taxEnabled: parsed.taxEnabled, taxName: parsed.taxName, taxMode: parsed.taxMode, taxValue: parsed.taxValue, taxTreatment: parsed.taxTreatment,
     paymentInstructions: parsed.paymentInstructions, notes: parsed.notes, schedules: structuredClone(parsed.schedules), showSchedules: parsed.showSchedules,
-    invoiceStyle: parsed.invoiceStyle, signatureImage: settings.signatureImage, stampImage: settings.stampImage, legalDisclaimer: settings.legalDisclaimer, version: parsed.version,
+    invoiceStyle: parsed.invoiceStyle, signatureImage: settings.signatureImage, stampImage: settings.stampImage, watermarkEnabled: parsed.watermarkEnabled, watermarkImage: parsed.watermarkImage, watermarkOpacity: parsed.watermarkOpacity, watermarkRotation: parsed.watermarkRotation, watermarkScale: parsed.watermarkScale, legalDisclaimer: settings.legalDisclaimer, version: parsed.version,
   });
   return { ...parsed, lifecycle: "Issued", invoiceNumber, snapshot, issuedAt: now, updatedAt: now };
 }
@@ -355,7 +375,7 @@ export function createInvoiceRevision(invoice: Invoice, now = Date.now(), versio
     serviceName: source.serviceName, invoiceDate: source.invoiceDate, dueDate: source.dueDate, lineItems: structuredClone(source.lineItems),
     discount: source.discount, tax: source.tax, discountMode: source.discountMode, discountValue: source.discountValue, taxPercent: source.taxPercent, taxEnabled: source.taxEnabled, taxName: source.taxName, taxMode: source.taxMode, taxValue: source.taxValue, taxTreatment: source.taxTreatment,
     invoiceStyle: source.invoiceStyle, paymentInstructions: source.paymentInstructions, notes: source.notes, schedules: structuredClone(source.schedules),
-    showSchedules: source.showSchedules, snapshot: null, createdAt: now, updatedAt: now, issuedAt: null,
+    showSchedules: source.showSchedules, watermarkEnabled: source.watermarkEnabled, watermarkImage: source.watermarkImage, watermarkOpacity: source.watermarkOpacity, watermarkRotation: source.watermarkRotation, watermarkScale: source.watermarkScale, snapshot: null, createdAt: now, updatedAt: now, issuedAt: null,
   });
 }
 
@@ -437,6 +457,24 @@ export function invoiceEmailUrl(email: string, subject: string, body: string): s
 
 function safeFilePart(value: string): string { return value.normalize("NFKD").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 70) || "Client"; }
 
+export type InvoiceWatermarkLayout = {
+  enabled: boolean;
+  image: string;
+  opacity: number;
+  rotation: number;
+  scale: number;
+};
+
+export function invoiceWatermarkLayout(source: Pick<Invoice, "watermarkEnabled" | "watermarkImage" | "watermarkOpacity" | "watermarkRotation" | "watermarkScale"> | Pick<InvoiceSnapshot, "watermarkEnabled" | "watermarkImage" | "watermarkOpacity" | "watermarkRotation" | "watermarkScale">): InvoiceWatermarkLayout {
+  return {
+    enabled: Boolean(source.watermarkEnabled && source.watermarkImage),
+    image: source.watermarkImage ?? "",
+    opacity: Math.min(0.2, Math.max(0.06, source.watermarkOpacity || 0.08)),
+    rotation: Math.min(-20, Math.max(-45, source.watermarkRotation || -35)),
+    scale: Math.min(0.9, Math.max(0.6, source.watermarkScale || 0.72)),
+  };
+}
+
 async function pdfImageSource(value: string): Promise<string> {
   if (!value || value.startsWith("data:")) return value;
   try { const response = await fetch(value); if (!response.ok) return ""; const blob = await response.blob(); return await new Promise((resolve) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result ?? "")); reader.onerror = () => resolve(""); reader.readAsDataURL(blob); }); } catch { return ""; }
@@ -448,13 +486,14 @@ export async function generateInvoicePdf(invoice: Invoice, settings: InvoiceSett
   const source = invoice.snapshot ?? {
     ...invoice, ...invoiceTotals(invoice), invoiceNumber: invoice.invoiceNumber ?? "DRAFT", businessName: settings.businessName, legalName: settings.legalName,
     businessLogo: settings.businessLogo, address: settings.address, phone: settings.phone, email: settings.email, signatureImage: settings.signatureImage,
-    stampImage: settings.stampImage, legalDisclaimer: settings.legalDisclaimer,
+    stampImage: settings.stampImage, watermarkEnabled: invoice.watermarkEnabled, watermarkImage: invoice.watermarkImage, watermarkOpacity: invoice.watermarkOpacity, watermarkRotation: invoice.watermarkRotation, watermarkScale: invoice.watermarkScale, legalDisclaimer: settings.legalDisclaimer,
   };
   const total = invoiceTotals(source).total;
   const totals = invoiceTotals(source);
   const paid = invoicePaidAmount(invoice, payments);
   const remaining = Math.max(total - paid, 0);
-  const [logoImage, signatureImage, stampImage] = await Promise.all([pdfImageSource(source.businessLogo), pdfImageSource(source.signatureImage), pdfImageSource(source.stampImage)]);
+  const watermark = invoiceWatermarkLayout(source);
+  const [logoImage, signatureImage, stampImage, watermarkImage] = await Promise.all([pdfImageSource(source.businessLogo), pdfImageSource(source.signatureImage), pdfImageSource(source.stampImage), pdfImageSource(watermark.image)]);
   const brandHex = typeof window === "undefined" ? "" : getComputedStyle(document.documentElement).getPropertyValue("--brand").trim();
   const accent: [number, number, number] = /^#[0-9a-f]{6}$/i.test(brandHex)
     ? [Number.parseInt(brandHex.slice(1, 3), 16), Number.parseInt(brandHex.slice(3, 5), 16), Number.parseInt(brandHex.slice(5, 7), 16)]
@@ -494,6 +533,25 @@ export async function generateInvoicePdf(invoice: Invoice, settings: InvoiceSett
       doc.addImage(image, "AUTO", x, top + (maxHeight - height) / 2, width, height, undefined, "FAST");
     } catch { /* Image assets are optional and must never make an invoice unusable. */ }
   };
+  const drawWatermark = () => {
+    if (!watermark.enabled || !watermarkImage) return;
+    try {
+      const properties = doc.getImageProperties(watermarkImage);
+      const ratio = properties.width / properties.height;
+      const maxWidth = pageWidth * watermark.scale;
+      const maxHeight = pageHeight * watermark.scale;
+      let width = maxWidth;
+      let height = width / ratio;
+      if (height > maxHeight) { height = maxHeight; width = height * ratio; }
+      const radians = watermark.rotation * Math.PI / 180;
+      const x = pageWidth / 2 - Math.cos(radians) * width / 2 + Math.sin(radians) * height / 2;
+      const top = pageHeight / 2 - height + Math.sin(radians) * width / 2 + Math.cos(radians) * height / 2;
+      doc.saveGraphicsState();
+      doc.setGState(doc.GState({ opacity: watermark.opacity }));
+      doc.addImage(watermarkImage, "AUTO", x, top, width, height, "invoice-watermark", "FAST", watermark.rotation);
+      doc.restoreGraphicsState();
+    } catch { /* Watermarks are optional and must never make an invoice unusable. */ }
+  };
   const drawPageFrame = (firstPage: boolean) => {
     if (creative) {
       if (firstPage) { setFillColor(accentSoft); doc.rect(0, 0, pageWidth, 48, "F"); }
@@ -518,11 +576,13 @@ export async function generateInvoicePdf(invoice: Invoice, settings: InvoiceSett
   const addFlowPage = () => {
     doc.addPage();
     drawPageFrame(false);
+    drawWatermark();
     drawContinuationHeader();
   };
   const ensure = (height: number) => { if (y + height > contentBottom) addFlowPage(); };
 
   drawPageFrame(true);
+  drawWatermark();
   if (logoImage) drawContainedImage(logoImage, margin, y - 1, 27, 27);
   const headerX = logoImage ? margin + 33 : margin;
   doc.setFont("helvetica", "bold");
@@ -618,29 +678,63 @@ export async function generateInvoicePdf(invoice: Invoice, settings: InvoiceSett
   drawRule(y, modernClassic ? 0.5 : 0.28, modernClassic ? ink : rule);
   y += 7;
 
-  const summaryX = 116;
-  const valueX = pageWidth - margin;
-  const summaryRows = 4 + (totals.discount > 0 ? 1 : 0) + (totals.tax > 0 ? 1 : 0) + (paid > total ? 1 : 0);
-  ensure(summaryRows * 6.3 + 10);
-  drawRule(y, 0.28, modernClassic ? ink : rule, summaryX, valueX);
-  y += 6;
-  const totalRow = (label: string, value: number, options: { strong?: boolean; emphasize?: boolean } = {}) => {
-    doc.setFont("helvetica", options.strong ? "bold" : "normal");
-    doc.setFontSize(options.strong ? 10.5 : 8.8);
-    setTextColor(options.emphasize ? danger : options.strong ? ink : body);
-    doc.text(label, summaryX, y);
-    doc.text(formatRupiah(value), valueX, y, { align: "right" });
-    y += options.strong ? 7 : 6;
-  };
-  totalRow("Subtotal", totals.subtotal);
-  if (totals.discount > 0) totalRow(source.discountMode === "percentage" ? `Discount (${source.discountValue}%)` : "Discount", -totals.discount);
-  if (totals.tax > 0) totalRow(invoiceTaxLabel(source), source.taxTreatment === "deducted" ? -totals.tax : totals.tax);
-  drawRule(y - 2.7, 0.22, modernClassic ? ink : rule, summaryX, valueX);
-  totalRow(modernClassic ? "Grand total" : "Total", total, { strong: true });
-  totalRow(modernClassic ? "Down payment" : "Paid", paid, { emphasize: modernClassic && paid > 0 });
-  totalRow("Remaining", remaining, { strong: true });
-  if (paid > total) totalRow("Overpaid", paid - total);
-  y += 5;
+  const summaryX = 108;
+  const summaryRight = pageWidth - margin;
+  const summaryWidth = summaryRight - summaryX;
+  const summaryLabelX = summaryX + 5;
+  const summaryValueX = summaryRight - 5;
+  const adjustmentRows: Array<{ label: string; value: number }> = [
+    { label: "Subtotal", value: totals.subtotal },
+    ...(totals.discount > 0 ? [{ label: source.discountMode === "percentage" ? `Discount (${source.discountValue}%)` : "Discount", value: -totals.discount }] : []),
+    ...(totals.tax > 0 ? [{ label: invoiceTaxLabel(source), value: source.taxTreatment === "deducted" ? -totals.tax : totals.tax }] : []),
+  ];
+  const grandTotalOffset = 4 + adjustmentRows.length * 4.5 + 0.8;
+  const paymentOffset = grandTotalOffset + 11.3;
+  const summaryHeight = paymentOffset + (paid > total ? 20.7 : 16.2);
+  ensure(summaryHeight + 2);
+  const summaryTop = y;
+  setFillColor([255, 255, 255]);
+  setDrawColor(modernClassic ? ink : creative ? accent : rule);
+  doc.setLineWidth(modernClassic ? 0.32 : 0.2);
+  if (modernClassic) doc.rect(summaryX, summaryTop, summaryWidth, summaryHeight, "FD");
+  else doc.roundedRect(summaryX, summaryTop, summaryWidth, summaryHeight, 1.8, 1.8, "FD");
+
+  let summaryY = summaryTop + 5;
+  doc.setFont("helvetica", "normal"); doc.setFontSize(8.2); setTextColor(muted);
+  for (const row of adjustmentRows) {
+    doc.text(row.label, summaryLabelX, summaryY);
+    doc.setFont("helvetica", "normal"); setTextColor(body);
+    doc.text(formatRupiah(row.value), summaryValueX, summaryY, { align: "right" });
+    doc.setFont("helvetica", "normal"); setTextColor(muted);
+    summaryY += 4.5;
+  }
+
+  const grandTotalTop = summaryTop + grandTotalOffset;
+  const darkTotal = modernClassic || professional;
+  setFillColor(darkTotal ? ink : creative ? accentSoft : soft);
+  doc.rect(summaryX, grandTotalTop, summaryWidth, 9, "F");
+  if (creative) { setFillColor(accent); doc.rect(summaryX, grandTotalTop, 2, 9, "F"); }
+  doc.setFont("helvetica", "bold"); doc.setFontSize(9.5); setTextColor(darkTotal ? [255, 255, 255] : ink);
+  doc.text("Grand total", summaryLabelX, grandTotalTop + 5.9);
+  doc.setFontSize(11.3);
+  doc.text(formatRupiah(total), summaryValueX, grandTotalTop + 5.9, { align: "right" });
+
+  const paymentTop = summaryTop + paymentOffset;
+  doc.setFont("helvetica", "bold"); doc.setFontSize(6.4); setTextColor(muted);
+  doc.text("PAYMENT SUMMARY", summaryLabelX, paymentTop + 2.3);
+  doc.setFont("helvetica", modernClassic && paid > 0 ? "bold" : "normal"); doc.setFontSize(8.3); setTextColor(modernClassic && paid > 0 ? danger : body);
+  doc.text(modernClassic ? "Down payment" : "Paid", summaryLabelX, paymentTop + 6.7);
+  doc.text(formatRupiah(paid), summaryValueX, paymentTop + 6.7, { align: "right" });
+  doc.setFont("helvetica", "bold"); doc.setFontSize(9.5); setTextColor(ink);
+  doc.text("Balance due", summaryLabelX, paymentTop + 12.1);
+  doc.setFontSize(10.8);
+  doc.text(formatRupiah(remaining), summaryValueX, paymentTop + 12.1, { align: "right" });
+  if (paid > total) {
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7.8); setTextColor(muted);
+    doc.text("Overpaid", summaryLabelX, paymentTop + 16.6);
+    doc.text(formatRupiah(paid - total), summaryValueX, paymentTop + 16.6, { align: "right" });
+  }
+  y = summaryTop + summaryHeight + 4;
 
   const drawFlowSection = (title: string, value: string, width = contentWidth) => {
     const lines: string[] = doc.splitTextToSize(value, width);

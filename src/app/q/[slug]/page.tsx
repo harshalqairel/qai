@@ -10,7 +10,16 @@ import { QaiMark } from "@/components/brand/QaiLogo";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { QuestionnaireFields } from "@/features/booking-questionnaire/QuestionnaireFields";
+import {
+  questionsForService,
+  validateQuestionnaireResponses,
+  type BookingQuestion,
+  type BookingQuestionFileAnswer,
+  type BookingQuestionResponse,
+} from "@/features/booking-questionnaire/questionnaire";
 import { formatDuration } from "@/features/service/utils/duration";
+import { isValidationModeEnabled } from "@/lib/supabase/config";
 import QaiPageRenderer from "@/features/qai-page/components/QaiPageRenderer";
 import {
   canShowBookedThroughQai,
@@ -29,7 +38,7 @@ import {
 } from "@/features/qai-page/validation";
 
 type FormState = {
-  clientName: string; whatsapp: string; email: string; need: string; schedules: PublicSchedule[]; locationChoice: "Business/studio" | "Client location"; location: string; budget: string; notes: string; instantSlotId: string | null;
+  clientName: string; whatsapp: string; email: string; instagram: string; need: string; schedules: PublicSchedule[]; locationChoice: "Business/studio" | "Client location"; location: string; budget: string; notes: string; instantSlotId: string | null; questionnaireResponses: BookingQuestionResponse[];
 };
 
 const Instagram = AtSign;
@@ -39,19 +48,20 @@ function PoweredByQai({ className = "" }: { className?: string }) {
 }
 
 function newSchedule(service?: PublicService): PublicSchedule { const startTime = "09:00"; return { id: crypto.randomUUID(), label: "", date: "", startTime, endTime: derivePublicEndTime(startTime, service?.durationMinutes ?? 60), location: "" }; }
-function initialForm(service: Pick<PublicService, "actionMode" | "defaultSessionCount" | "durationMinutes" | "locationPolicy">): FormState { const count = service.actionMode === "Booking request" ? service.defaultSessionCount : 0; return { clientName: "", whatsapp: "", email: "", need: "", schedules: Array.from({ length: count }, () => newSchedule(service as PublicService)), locationChoice: service.locationPolicy === "Client location only" ? "Client location" : "Business/studio", location: "", budget: "", notes: "", instantSlotId: null }; }
+function initialForm(service: Pick<PublicService, "actionMode" | "defaultSessionCount" | "durationMinutes" | "locationPolicy">): FormState { const count = service.actionMode === "Booking request" ? service.defaultSessionCount : 0; return { clientName: "", whatsapp: "", email: "", instagram: "", need: "", schedules: Array.from({ length: count }, () => newSchedule(service as PublicService)), locationChoice: service.locationPolicy === "Client location only" ? "Client location" : "Business/studio", location: "", budget: "", notes: "", instantSlotId: null, questionnaireResponses: [] }; }
 
 export default function PublicQaiPage() {
   const params = useParams<{ slug: string }>(); const slug = params.slug;
   const [page, setPage] = useState<QaiPageConfig | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
   const [selected, setSelected] = useState<PublicService | null>(null); const [form, setForm] = useState<FormState>(() => initialForm({ actionMode: "Booking request", defaultSessionCount: 1, durationMinutes: 60, locationPolicy: "Client can choose" }));
-  const [submitting, setSubmitting] = useState(false); const [confirmation, setConfirmation] = useState<PublicRequest | null>(null); const [formError, setFormError] = useState("");
+  const [submitting, setSubmitting] = useState(false); const [confirmation, setConfirmation] = useState<PublicRequest | null>(null); const [formError, setFormError] = useState(""); const [questionnaireErrors, setQuestionnaireErrors] = useState<Record<string, string>>({});
   const load = useCallback(async () => { try { setPage(await validationClient.page(slug)); setError(""); } catch (caught) { setError(caught instanceof Error ? caught.message : "This Qai Page is not available."); } finally { setLoading(false); } }, [slug]);
   useEffect(() => { const timer = window.setTimeout(() => { void load(); }, 0); return () => window.clearTimeout(timer); }, [load]);
   const services = useMemo(() => page?.services.filter((item) => item.visible) ?? [], [page]);
   const portfolio = useMemo(() => [...(page?.portfolio ?? [])].filter((item) => item.visible).sort((a, b) => a.position - b.position), [page]);
   const availableSlots = useMemo(() => page?.slots.filter((item) => item.serviceId === selected?.serviceId && item.status === "Available") ?? [], [page, selected]);
-  function choose(service: PublicService) { setSelected(service); setForm(initialForm(service)); setConfirmation(null); setFormError(""); window.scrollTo({ top: 0, behavior: "smooth" }); }
+  const activeQuestions = useMemo(() => page && selected ? questionsForService(page.questionnaire, selected.serviceId) : [], [page, selected]);
+  function choose(service: PublicService) { setSelected(service); setForm(initialForm(service)); setConfirmation(null); setFormError(""); setQuestionnaireErrors({}); window.scrollTo({ top: 0, behavior: "smooth" }); }
   function updateSchedule(id: string, changes: Partial<PublicSchedule>) { setForm({ ...form, schedules: form.schedules.map((item) => item.id === id ? { ...item, ...changes } : item) }); }
   async function submit() {
     if (!page || !selected) return;
@@ -62,14 +72,29 @@ export default function PublicQaiPage() {
     if (selected.actionMode === "Booking request" && form.schedules.some((item) => !item.date || !item.startTime)) return setFormError("Complete every preferred schedule.");
     if (selected.actionMode === "Inquiry" && !form.need.trim()) return setFormError("Tell the business what you need.");
     if (selected.actionMode === "Instant booking" && !form.instantSlotId) return setFormError("Choose an available time.");
+    const responseErrors = validateQuestionnaireResponses(page.questionnaire, selected.serviceId, form.questionnaireResponses);
+    setQuestionnaireErrors(responseErrors);
+    if (Object.keys(responseErrors).length > 0) return setFormError("Complete the required questions.");
     setSubmitting(true); setFormError("");
     try {
       const created = await validationClient.submitRequest({ pageId: page.id, slug: page.slug, serviceId: selected.serviceId, serviceName: selected.title, type: selected.actionMode,
-        clientName: form.clientName, whatsapp: form.whatsapp, email: form.email, need: form.need, schedules: form.schedules.map((item) => ({ ...item, endTime: derivePublicEndTime(item.startTime, selected.durationMinutes) })), location: resolvePublicServiceLocation(selected, form.locationChoice, form.location, page.location),
-        budget: form.budget, notes: form.notes, instantSlotId: form.instantSlotId });
+        clientName: form.clientName, whatsapp: form.whatsapp, email: form.email, instagram: form.instagram, need: form.need, schedules: form.schedules.map((item) => ({ ...item, endTime: derivePublicEndTime(item.startTime, selected.durationMinutes) })), location: resolvePublicServiceLocation(selected, form.locationChoice, form.location, page.location),
+        budget: form.budget, notes: form.notes, instantSlotId: form.instantSlotId, questionnaireResponses: form.questionnaireResponses });
       setConfirmation(created); await load();
     } catch (caught) { setFormError(caught instanceof Error ? caught.message : "Could not send this request."); }
     finally { setSubmitting(false); }
+  }
+
+  async function uploadQuestionFile(question: BookingQuestion, file: File): Promise<BookingQuestionFileAnswer> {
+    if (!selected || !page) throw new Error("Choose a service first.");
+    if (!["image/png", "image/jpeg", "image/webp", "application/pdf"].includes(file.type) || file.size <= 0 || file.size > 8 * 1024 * 1024) throw new Error("Use a PNG, JPG, WebP, or PDF file up to 8 MB.");
+    if (isValidationModeEnabled()) {
+      const uploaded = await validationClient.uploadPublicQuestionFile(file, page.slug, selected.serviceId, question.id);
+      return { url: uploaded.url, name: file.name, mimeType: file.type, size: file.size };
+    }
+    if (file.size > 2 * 1024 * 1024) throw new Error("Local file answers are limited to 2 MB.");
+    const url = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result ?? "")); reader.onerror = () => reject(new Error("Could not read that file.")); reader.readAsDataURL(file); });
+    return { url, name: file.name, mimeType: file.type, size: file.size };
   }
 
   if (loading) return <main className="min-h-screen bg-[#f7f8f5] p-4"><div className="mx-auto min-h-80 max-w-3xl animate-pulse rounded-2xl bg-white" /></main>;
@@ -83,7 +108,7 @@ export default function PublicQaiPage() {
     {!selected ? <QaiPageRenderer page={page} services={services} portfolio={portfolio} onChoose={choose} /> : <div className="mx-auto w-full max-w-2xl px-4 py-5 sm:px-6 sm:py-10">
       <button type="button" onClick={() => setSelected(null)} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-[#356f6b] hover:bg-[#eef1ec]"><ArrowLeft className="size-4" /> Back to services</button>
       <section className="mt-3 rounded-2xl border border-[#dde3dd] bg-white p-5 shadow-sm sm:p-8"><header><p className="text-sm font-semibold text-[#356f6b]">{selected.actionMode}</p><h1 className="mt-2 break-words text-2xl font-bold">{selected.title}</h1><p className="mt-2 font-semibold">{publicPriceLabel(selected)}</p></header>
-        <div className="mt-7 space-y-5"><div className="grid gap-5 sm:grid-cols-2"><Field label="Name"><Input value={form.clientName} maxLength={160} onChange={(event) => setForm({ ...form, clientName: event.target.value })} /></Field><Field label="WhatsApp"><Input inputMode="tel" placeholder="0812 3456 7890" value={form.whatsapp} maxLength={50} onChange={(event) => setForm({ ...form, whatsapp: event.target.value })} /></Field><Field label="Email"><Input type="email" value={form.email} maxLength={160} onChange={(event) => setForm({ ...form, email: event.target.value })} /></Field></div>
+        <div className="mt-7 space-y-5">{page.questionnaire.introduction && <p className="whitespace-pre-wrap rounded-xl bg-[#eef1ec] p-4 text-sm leading-6 text-[#66726f]">{page.questionnaire.introduction}</p>}<div className="grid gap-5 sm:grid-cols-2"><Field label="Name"><Input value={form.clientName} maxLength={160} onChange={(event) => setForm({ ...form, clientName: event.target.value })} /></Field><Field label="WhatsApp"><Input inputMode="tel" placeholder="0812 3456 7890" value={form.whatsapp} maxLength={50} onChange={(event) => setForm({ ...form, whatsapp: event.target.value })} /></Field>{page.questionnaire.enabledCoreFields.includes("email") && <Field label="Email"><Input type="email" value={form.email} maxLength={160} onChange={(event) => setForm({ ...form, email: event.target.value })} /></Field>}{page.questionnaire.enabledCoreFields.includes("instagram") && <Field label="Instagram"><Input value={form.instagram} maxLength={200} placeholder="@username" onChange={(event) => setForm({ ...form, instagram: event.target.value })} /></Field>}</div>
           {selected.locationPolicy === "Client can choose" && <fieldset><legend className="mb-2 text-sm font-semibold">Service location</legend><div className="grid gap-2 sm:grid-cols-2">{(["Business/studio", "Client location"] as const).map((choice) => <label key={choice} className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm font-semibold ${form.locationChoice === choice ? "border-[#356f6b] bg-[#e3eeeb]" : "border-[#dde3dd]"}`}><input type="radio" name="service-location" checked={form.locationChoice === choice} onChange={() => setForm({ ...form, locationChoice: choice, location: choice === "Business/studio" ? "" : form.location })} />{choice}</label>)}</div></fieldset>}
           {(selected.locationPolicy === "Client location only" || (selected.locationPolicy === "Client can choose" && form.locationChoice === "Client location")) && <Field label="Service address or location"><Input value={form.location} maxLength={300} placeholder="Enter the address or location details" onChange={(event) => setForm({ ...form, location: event.target.value })} /></Field>}
           {selected.locationPolicy === "Business/studio only" && <p className="rounded-xl bg-[#eef1ec] p-3 text-sm text-[#66726f]">This service takes place at {page.location || "the business location"}.</p>}
@@ -92,6 +117,8 @@ export default function PublicQaiPage() {
           {selected.actionMode === "Instant booking" && <section><h2 className="font-semibold">Choose a time</h2>{availableSlots.length === 0 ? <div className="mt-3 rounded-xl bg-[#eef1ec] p-4"><p className="text-sm font-semibold">No available times right now.</p><p className="mt-1 text-sm text-[#66726f]">Request another time by contacting {page.businessName}.</p></div> : <div className="mt-3 grid gap-2 sm:grid-cols-2">{availableSlots.map((slot) => <label key={slot.id} className={`flex cursor-pointer gap-3 rounded-xl border p-4 ${form.instantSlotId === slot.id ? "border-[#356f6b] bg-[#e3eeeb]" : "border-[#dde3dd]"}`}><input type="radio" name="slot" value={slot.id} checked={form.instantSlotId === slot.id} onChange={() => setForm({ ...form, instantSlotId: slot.id })} /><span><span className="block font-semibold">{new Date(slot.startAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: page.timezone })}</span><span className="mt-1 block text-sm text-[#66726f]">{new Date(slot.startAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: page.timezone })}{slot.location ? ` · ${slot.location}` : ""}</span></span></label>)}</div>}</section>}
           {selected.actionMode !== "Instant booking" && <section><div className="flex items-center justify-between gap-3"><h2 className="font-semibold">{selected.actionMode === "Booking request" ? (selected.defaultSessionCount === 1 ? "Preferred schedule" : `Preferred schedules (${selected.defaultSessionCount} required)`) : "Preferred dates (optional)"}</h2>{(selected.actionMode === "Inquiry" || selected.defaultSessionCount > 1) && <Button variant="outline" size="sm" onClick={() => setForm({ ...form, schedules: [...form.schedules, newSchedule(selected)] })} disabled={form.schedules.length >= 12}><Plus className="size-4" /> Add schedule</Button>}</div>{form.schedules.length === 0 ? <p className="mt-3 text-sm text-[#66726f]">No preferred dates added.</p> : <div className="mt-3 space-y-3">{form.schedules.map((schedule, index) => <article key={schedule.id} className="rounded-xl border border-[#dde3dd] p-4"><div className="flex items-center justify-between"><p className="font-semibold">{selected.defaultSessionCount === 1 ? "Schedule" : `Schedule ${index + 1}`}</p>{(selected.actionMode === "Inquiry" || form.schedules.length > selected.defaultSessionCount) && <Button variant="ghost" size="sm" onClick={() => setForm({ ...form, schedules: form.schedules.filter((item) => item.id !== schedule.id) })}><X className="size-4" /> Remove</Button>}</div><div className="mt-3 grid gap-3 sm:grid-cols-2"><Field label="Label (optional)"><Input value={schedule.label} maxLength={100} onChange={(event) => updateSchedule(schedule.id, { label: event.target.value })} /></Field><Field label="Date"><Input type="date" value={schedule.date} onChange={(event) => updateSchedule(schedule.id, { date: event.target.value })} /></Field><Field label="Start time"><Input type="time" value={schedule.startTime} onChange={(event) => updateSchedule(schedule.id, { startTime: event.target.value })} /></Field><div className="sm:col-span-2"><Field label="Location (optional)"><Input value={schedule.location} maxLength={300} onChange={(event) => updateSchedule(schedule.id, { location: event.target.value })} /></Field></div></div></article>)}</div>}</section>}
           <Field label="Notes (optional)"><Textarea rows={4} maxLength={2000} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></Field>
+          <QuestionnaireFields questions={activeQuestions} responses={form.questionnaireResponses} errors={questionnaireErrors} publicStyle onChange={(questionnaireResponses) => { setForm({ ...form, questionnaireResponses }); setQuestionnaireErrors({}); }} onUploadFile={async (question, file) => { try { return await uploadQuestionFile(question, file); } catch (caught) { setFormError(caught instanceof Error ? caught.message : "Could not upload that file."); throw caught; } }} />
+          {page.questionnaire.closing && <p className="whitespace-pre-wrap text-sm leading-6 text-[#66726f]">{page.questionnaire.closing}</p>}
           <p className="rounded-xl bg-[#eef1ec] p-4 text-xs leading-5 text-[#66726f]">Your details will be shared with {page.businessName} to handle this request.</p>{formError && <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">{formError}</p>}<Button className="w-full" size="lg" disabled={submitting || (selected.actionMode === "Instant booking" && availableSlots.length === 0)} onClick={() => void submit()}>{submitting ? "Sending…" : selected.actionMode === "Instant booking" ? "Confirm booking" : selected.actionMode === "Inquiry" ? "Send inquiry" : "Send request"}</Button>
         </div>
       </section><footer className="py-8 text-center"><PoweredByQai /></footer>

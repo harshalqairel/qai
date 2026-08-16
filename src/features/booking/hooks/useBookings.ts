@@ -100,6 +100,7 @@ export function useBookings() {
         ? prepareBookingAdditionalCharges(current.id, input.additionalCharges, sessions, current.additionalCharges ?? [], now)
         : current.additionalCharges ?? [],
       servicePrice: input.servicePrice,
+      questionnaireResponses: input.questionnaireResponses ?? current.questionnaireResponses ?? [],
       bookingStatus: input.bookingStatus,
       fullPaymentDueDate: input.fullPaymentDueDate,
       notes: input.notes,

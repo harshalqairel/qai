@@ -6,6 +6,7 @@ import {
 } from "@/lib/persistence";
 import { BOOKING_STATUSES } from "./constants";
 import { MAX_BOOKING_SESSIONS } from "./constants";
+import { bookingQuestionResponseSchema } from "@/features/booking-questionnaire/questionnaire";
 
 const storedInstantSchema = z.string().refine(
   (value) => !Number.isNaN(Date.parse(value)),
@@ -40,6 +41,7 @@ export const bookingSchema = z
       .min(1, "At least one schedule is required.")
       .max(MAX_BOOKING_SESSIONS, `A booking can have up to ${MAX_BOOKING_SESSIONS} schedules.`),
     servicePrice: z.coerce.number().min(0, "Service price cannot be negative."),
+    questionnaireResponses: z.array(bookingQuestionResponseSchema).max(50).default([]),
     bookingStatus: z.enum(["Scheduled", "Completed", "Cancelled"]),
     fullPaymentDueDate: z.string().min(1, "Full payment due date is required."),
     notes: z.string().trim().or(z.literal("")),
@@ -80,6 +82,7 @@ export const bookingRecordSchema = z
     sessions: z.array(bookingSessionRecordSchema).min(1).max(MAX_BOOKING_SESSIONS),
     servicePrice: z.number().finite().nonnegative(),
     additionalCharges: z.array(bookingAdditionalChargeRecordSchema).max(100).default([]),
+    questionnaireResponses: z.array(bookingQuestionResponseSchema).max(50).default([]),
     bookingStatus: z.enum(BOOKING_STATUSES),
     fullPaymentDueDate: storedDateSchema,
     notes: z.string(),

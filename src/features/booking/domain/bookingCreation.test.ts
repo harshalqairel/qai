@@ -83,6 +83,12 @@ describe("booking creation with optional initial payment", () => {
       .toBe("Partial Paid");
   });
 
+  it("persists private questionnaire answer snapshots at booking level", () => {
+    const base = command(null);
+    const result = prepareBookingCreation({ ...base, booking: { ...base.booking, questionnaireResponses: [{ questionId: "look", labelSnapshot: "Desired look", typeSnapshot: "Short text", answer: "Natural glow" }] } }, "Asia/Jakarta", { bookingId: "booking-1", paymentId: null }, 1_786_000_000_000);
+    expect(result.booking.questionnaireResponses).toEqual([{ questionId: "look", labelSnapshot: "Desired look", typeSnapshot: "Short text", answer: "Natural glow" }]);
+  });
+
   it("derives unpaid, partial, and fully paid outcomes from real Payment records", () => {
     const unpaid = prepared(null);
     const partial = prepared(2_000_000);

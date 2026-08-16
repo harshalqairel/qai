@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Check, Clipboard, Eye, ImagePlus, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
 
 import BookingDialog from "@/features/booking/components/BookingDialog";
+import { loadBookingQuestionnaire } from "@/features/booking-questionnaire/questionnaireRepository";
 import type { BookingFormValues } from "@/features/booking/types";
 import { zonedDateTimeToIso } from "@/features/booking/utils/bookingSessions";
 import { Button } from "@/components/ui/button";
@@ -65,7 +66,7 @@ export default function QaiPageOwner() {
   const [slotDraft, setSlotDraft] = useState({ serviceId: "", date: dateInput(7), startTime: "09:00", endTime: "10:00", location: "" });
 
   const load = useCallback(async (refreshPage = true) => {
-    try { const store = await validationClient.owner(); const existing = store.pages.find((item) => item.businessId === "local-business"); if (refreshPage) setPage(existing ?? defaultQaiPage()); setRequests(store.requests.filter((item) => !existing || item.pageId === existing.id).sort((a, b) => b.submittedAt - a.submittedAt)); }
+    try { const [store, questionnaire] = await Promise.all([validationClient.owner(), loadBookingQuestionnaire()]); const existing = store.pages.find((item) => item.businessId === "local-business"); if (refreshPage) setPage({ ...(existing ?? defaultQaiPage()), questionnaire }); setRequests(store.requests.filter((item) => !existing || item.pageId === existing.id).sort((a, b) => b.submittedAt - a.submittedAt)); }
     catch (error) { notify.error(error instanceof Error ? error.message : "Could not load Qai Page data."); }
     finally { setLoading(false); }
   }, []);
@@ -96,7 +97,7 @@ export default function QaiPageOwner() {
   async function ensureClient(request: PublicRequest) {
     const phone = normalizeContactPhone(request.whatsapp); const email = request.email.trim().toLowerCase();
     const exact = customerData.customers.find((item) => normalizeContactPhone(item.phone) === phone || (email && item.email.trim().toLowerCase() === email));
-    return exact ?? customerData.createCustomerAndReturn({ name: request.clientName, phone: request.whatsapp, email: request.email, instagram: "", notes: "Created from a Qai Page request." });
+    return exact ?? customerData.createCustomerAndReturn({ name: request.clientName, phone: request.whatsapp, email: request.email, instagram: request.instagram, notes: "Created from a Qai Page request." });
   }
   function bookingValues(request: PublicRequest, customerId: string): BookingFormValues | null {
     const service = serviceData.services.find((item) => item.id === request.serviceId); if (!service) return null;

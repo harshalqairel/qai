@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Customer } from "@/features/customer/types";
 import type { Service } from "@/features/service/types";
+import { DEFAULT_BOOKING_QUESTIONNAIRE, type BookingQuestion } from "@/features/booking-questionnaire/questionnaire";
 import { DEFAULT_BOOKING_TEMPLATE_PREFERENCES, formatBookingClientTemplate, matchExistingCustomer, matchExistingService, normalizeBookingPhone, parseBookingText } from "./bookingText";
 
 const customers: Customer[] = [
@@ -13,6 +14,7 @@ const services: Service[] = [
 ];
 
 describe("structured booking text", () => {
+  const question: BookingQuestion = { id: "look", label: "Desired Look", helperText: "", type: "Single choice", required: true, options: ["Natural", "Glam"], active: true, order: 0, serviceIds: [], createdAt: 1, updatedAt: 1 };
   it("parses the standard Qai template without saving or inventing values", () => {
     const result = parseBookingText("Name: Thia\nPhone: 081279807538\nInstagram: @thia\nService: Regular Makeup\nDate: 7 February 2026\nStart time: 15:00\nLocation: Fave Hotel\nNotes: Bridesmaid makeup");
     expect(result).toMatchObject({ name: "Thia", phone: "081279807538", instagram: "@thia", service: "Regular Makeup", date: "2026-02-07", startTime: "15:00", location: "Fave Hotel", notes: "Bridesmaid makeup" });
@@ -62,5 +64,18 @@ describe("structured booking text", () => {
     const value = formatBookingClientTemplate("Nuyi Makeup", { ...DEFAULT_BOOKING_TEMPLATE_PREFERENCES, enabledFields: ["service", "date", "name"] });
     expect(value.indexOf("Service:")).toBeLessThan(value.indexOf("Date:"));
     expect(value.indexOf("Date:")).toBeLessThan(value.indexOf("Name:"));
+  });
+
+  it("uses configured labels in both copied templates and strict case-insensitive paste parsing", () => {
+    const definition = { ...DEFAULT_BOOKING_QUESTIONNAIRE, questions: [question] };
+    expect(formatBookingClientTemplate("Nuyi Makeup", definition)).toContain("Desired Look:");
+    const parsed = parseBookingText("Name: Sarah\nPhone: 081234567890\nService: Wedding Makeup\nDate: 12 Aug 2026\nStart time: 09:00\ndesired look: Glam", definition.questions);
+    expect(parsed.customResponses).toEqual([{ questionId: "look", labelSnapshot: "Desired Look", typeSnapshot: "Single choice", answer: "Glam" }]);
+  });
+
+  it("never guesses malformed configured answers", () => {
+    const parsed = parseBookingText("Desired Look: cinematic", [question]);
+    expect(parsed.customResponses).toEqual([]);
+    expect(parsed.warnings.join(" ")).toMatch(/desired look/i);
   });
 });
