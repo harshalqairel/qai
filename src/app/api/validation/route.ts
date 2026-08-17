@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { qaiPageSchema } from "@/features/qai-page/validation";
 import { validateQuestionnaireResponses } from "@/features/booking-questionnaire/questionnaire";
-import { publicRequestSchema, defaultQaiPage, type PublicRequest, type QaiPageConfig } from "@/features/qai-page/validation";
+import { publicRequestSchema, defaultQaiPage, snapshotPublicServiceSelection, type PublicRequest, type QaiPageConfig } from "@/features/qai-page/validation";
 import { createValidationStoreRepository, ValidationStoreError, validationRequestInputSchema } from "@/features/qai-page/validationStore";
 import { isValidationModeEnabled } from "@/lib/supabase/config";
 import { createValidationAdminClient } from "@/lib/validation/admin";
@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 const repository = createValidationStoreRepository(path.resolve(process.cwd(), ".qai-validation"));
 const savePageAction = z.object({ action: z.literal("save-page"), page: qaiPageSchema });
 const submitRequestAction = z.object({ action: z.literal("submit-request"), request: validationRequestInputSchema });
-const updateRequestAction = z.object({ action: z.literal("update-request"), requestId: z.string().min(1).max(100), status: z.enum(["Pending", "Accepted", "Declined"]), bookingId: z.string().max(100).nullable() });
+const updateRequestAction = z.object({ action: z.literal("update-request"), requestId: z.string().min(1).max(100), status: z.enum(["Pending", "Accepted", "Declined"]), bookingId: z.string().max(100).nullable(), clientId: z.string().max(100).nullable().default(null) });
 const actionSchema = z.discriminatedUnion("action", [savePageAction, submitRequestAction, updateRequestAction]);
 
 const MESSAGES: Record<string, string> = {
@@ -24,6 +24,7 @@ const MESSAGES: Record<string, string> = {
   SCHEDULE_REQUIRED: "Add at least one preferred schedule.", SLOT_REQUIRED: "Choose an available time.", SLOT_TAKEN: "This time is no longer available. Choose another one.",
   REQUEST_NOT_FOUND: "This request could not be found.", REQUEST_DECLINED: "A declined request cannot be accepted.",
   QUESTIONNAIRE_INVALID: "Complete the required questions and try again.",
+  SERVICE_VARIANT_REQUIRED: "Choose an available service option.",
 };
 function failure(message: string, status = 400) { return NextResponse.json({ error: message }, { status }); }
 
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
   try {
     const data = input.action === "save-page" ? await repository.savePage(input.page)
       : input.action === "submit-request" ? await repository.submitRequest(input.request)
-        : await repository.updateRequest(input.requestId, input.status, input.bookingId);
+        : await repository.updateRequest(input.requestId, input.status, input.bookingId, input.clientId);
     return NextResponse.json({ data });
   } catch (error) {
     const code = error instanceof ValidationStoreError ? error.code : "";
@@ -94,7 +95,7 @@ async function remotePost(input: z.infer<typeof actionSchema>) {
       if (!row) throw new ValidationStoreError("REQUEST_NOT_FOUND");
       const current = publicRequestSchema.parse(row.payload);
       if (current.status === "Declined" && input.status === "Accepted") throw new ValidationStoreError("REQUEST_DECLINED");
-      const updated = publicRequestSchema.parse({ ...current, status: input.status, bookingId: input.bookingId, updatedAt: Date.now() });
+      const updated = publicRequestSchema.parse({ ...current, status: input.status, bookingId: input.bookingId, clientId: input.clientId ?? current.clientId, updatedAt: Date.now() });
       await admin.from("validation_public_requests").update({ payload: updated, updated_at: new Date().toISOString() }).eq("workspace_id", session.workspaceId).eq("id", input.requestId);
       return NextResponse.json({ data: updated });
     }
@@ -104,6 +105,8 @@ async function remotePost(input: z.infer<typeof actionSchema>) {
     const page = qaiPageSchema.parse(pageRow.payload);
     const service = page.services.find((item) => item.serviceId === input.request.serviceId && item.visible && item.actionMode === input.request.type);
     if (!service) throw new ValidationStoreError("SERVICE_NOT_AVAILABLE");
+    const activeVariants = service.variants.filter((variant) => variant.active);
+    if (activeVariants.length > 0 && !activeVariants.some((variant) => variant.id === input.request.serviceVariantId)) throw new ValidationStoreError("SERVICE_VARIANT_REQUIRED");
     if (Object.keys(validateQuestionnaireResponses(page.questionnaire, service.serviceId, input.request.questionnaireResponses, true)).length > 0) throw new ValidationStoreError("QUESTIONNAIRE_INVALID");
     const fileResponseIds = input.request.questionnaireResponses.flatMap((response) => {
       if (typeof response.answer !== "object" || Array.isArray(response.answer)) return [];
@@ -116,7 +119,8 @@ async function remotePost(input: z.infer<typeof actionSchema>) {
       const { data: assets } = await admin.from("validation_media_assets").select("id").eq("workspace_id", pageRow.workspace_id).eq("kind", "booking-response").in("id", fileResponseIds);
       if ((assets ?? []).length !== new Set(fileResponseIds).size) throw new ValidationStoreError("QUESTIONNAIRE_INVALID");
     }
-    if (input.request.type === "Booking request" && input.request.schedules.length < service.defaultSessionCount) throw new ValidationStoreError("SCHEDULE_REQUIRED");
+    const serviceSnapshot = snapshotPublicServiceSelection(service, input.request.serviceVariantId);
+    if (input.request.type === "Booking request" && input.request.schedules.length < serviceSnapshot.defaultSessionCount) throw new ValidationStoreError("SCHEDULE_REQUIRED");
     const id = crypto.randomUUID();
     let schedules = input.request.schedules;
     let status: PublicRequest["status"] = "Pending";
@@ -134,8 +138,8 @@ async function remotePost(input: z.infer<typeof actionSchema>) {
       reservedPage = page;
     }
     const now = Date.now();
-    const created = publicRequestSchema.parse({ ...input.request, id, pageId: page.id, serviceName: service.title, schedules, status, submittedAt: now, updatedAt: now, bookingId: null });
-    const idempotencyKey = `${service.serviceId}:${input.request.type}:${input.request.whatsapp.replace(/\D/g, "")}:${Math.floor(now / 3000)}`;
+    const created = publicRequestSchema.parse({ ...input.request, id, pageId: page.id, serviceName: service.title, serviceSnapshot, clientId: null, schedules, status, submittedAt: now, updatedAt: now, bookingId: null });
+    const idempotencyKey = input.request.submissionId;
     if (reservedPage) {
       const reservedSlot = reservedPage.slots.find((slot) => slot.id === input.request.instantSlotId);
       const { data: reserved, error: reserveError } = await admin.rpc("reserve_validation_instant_request", { target_workspace_id: pageRow.workspace_id, target_page_slug: page.slug, target_slot_id: input.request.instantSlotId, target_request_id: id, target_request_payload: created, target_reserved_slot: reservedSlot, target_idempotency_key: idempotencyKey }).maybeSingle();

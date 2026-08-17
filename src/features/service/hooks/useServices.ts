@@ -55,6 +55,9 @@ export function useServices(): {
       price: input.price,
       duration: input.duration,
       defaultSessionCount: input.defaultSessionCount,
+      locationPolicy: input.locationPolicy ?? "Client can choose",
+      optionGroups: input.optionGroups ?? [],
+      variants: input.variants ?? [],
       description: input.description,
     };
 

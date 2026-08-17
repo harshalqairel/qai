@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, Clipboard, ClipboardPaste, FilePenLine, Settings2 }
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import type { Customer } from "@/features/customer/types";
 import type { Service } from "@/features/service/types";
 import {
@@ -12,6 +13,7 @@ import {
   formatBookingClientTemplate,
   matchExistingCustomer,
   matchExistingService,
+  matchParsedServiceVariant,
   parseBookingText,
   type BookingTemplateField,
   type ParsedBookingText,
@@ -26,6 +28,7 @@ type ParsedReview = {
   parsed: ParsedBookingText;
   customerId: string;
   serviceId: string;
+  serviceVariantId: string | null;
 };
 
 type BookingCreationStartProps = {
@@ -41,24 +44,32 @@ export default function BookingCreationStart({ mode, customers, services, onMode
   const [parsed, setParsed] = useState<ParsedBookingText | null>(null);
   const [customerChoice, setCustomerChoice] = useState("");
   const [serviceChoice, setServiceChoice] = useState("");
+  const [variantChoice, setVariantChoice] = useState<string | null>(null);
+  const [templateServiceId, setTemplateServiceId] = useState("");
   const [preferences, setPreferences] = useState<BookingQuestionnaireDefinition>(() => typeof window === "undefined" ? structuredClone(DEFAULT_BOOKING_QUESTIONNAIRE) : getBookingQuestionnaire());
   const saveTimer = useRef<number | null>(null);
   const pendingPreferences = useRef<BookingQuestionnaireDefinition | null>(null);
   const customerMatch = useMemo(() => parsed ? matchExistingCustomer(parsed, customers) : null, [parsed, customers]);
   const serviceMatch = useMemo(() => parsed ? matchExistingService(parsed.service, services) : null, [parsed, services]);
-  const template = useMemo(() => formatBookingClientTemplate("Qai", preferences), [preferences]);
+  const selectedParsedService = services.find((service) => service.id === serviceChoice) ?? (serviceMatch?.kind === "exact" ? serviceMatch.matches[0] : null);
+  const variantMatch = useMemo(() => parsed ? matchParsedServiceVariant(parsed, selectedParsedService) : null, [parsed, selectedParsedService]);
+  const templateService = services.find((service) => service.id === templateServiceId);
+  const template = useMemo(() => formatBookingClientTemplate("Qai", preferences, templateService ?? ""), [preferences, templateService]);
+  const serviceItems = useMemo(() => services.map((service) => ({ value: service.id, label: service.name, description: service.optionGroups?.length ? `${service.optionGroups.length} option group${service.optionGroups.length === 1 ? "" : "s"}` : "Standard service", keywords: [service.name, service.description].join(" ") })), [services]);
   const orderedFields = [...preferences.enabledCoreFields, ...BOOKING_TEMPLATE_FIELDS.filter((field) => !preferences.enabledCoreFields.includes(field))];
 
   useEffect(() => { let active = true; void loadBookingQuestionnaire().then((loaded) => { if (active) setPreferences(loaded); }).catch(() => undefined); return () => { active = false; if (saveTimer.current !== null) window.clearTimeout(saveTimer.current); if (pendingPreferences.current) void saveBookingQuestionnaire(pendingPreferences.current).catch(() => undefined); }; }, []);
 
   function parse() {
     if (!source.trim()) return notify.error("Paste the completed booking text first.");
-    const result = parseBookingText(source, preferences.questions);
+    const result = parseBookingText(source, preferences.questions, services);
     const nextCustomer = matchExistingCustomer(result, customers);
     const nextService = matchExistingService(result.service, services);
     setParsed(result);
     setCustomerChoice(nextCustomer.kind === "exact" ? nextCustomer.matches[0].id : "");
     setServiceChoice(nextService.kind === "exact" ? nextService.matches[0].id : "");
+    const matched = nextService.kind === "exact" ? matchParsedServiceVariant(result, nextService.matches[0]) : null;
+    setVariantChoice(matched?.kind === "exact" ? matched.matches[0].id : null);
   }
 
   function savePreferences(next: BookingQuestionnaireDefinition) {
@@ -104,6 +115,7 @@ export default function BookingCreationStart({ mode, customers, services, onMode
       <section className="space-y-5 rounded-2xl border border-border bg-muted/25 p-4 sm:p-5">
         <div><div className="flex items-center gap-2"><Settings2 className="size-4 text-primary" /><h3 className="font-bold">Template settings</h3></div><p className="mt-1 text-sm text-muted-foreground">Keep it structured so Qai can parse the reply reliably.</p></div>
         <div><Label htmlFor="template-introduction" className="mb-2 block">Introduction</Label><Textarea id="template-introduction" rows={3} value={preferences.introduction} onChange={(event) => savePreferences({ ...preferences, introduction: event.target.value })} /></div>
+        <div><Label className="mb-2 block">Service options to include <span className="font-normal text-muted-foreground">(optional)</span></Label><SearchableSelect label="Template service" value={templateServiceId} onValueChange={setTemplateServiceId} items={serviceItems} placeholder="Generic template" searchPlaceholder="Search services…" /></div>
         <fieldset><legend className="text-sm font-semibold">Fields and order</legend><div className="mt-2 space-y-2">{orderedFields.map((field) => { const index = preferences.enabledCoreFields.indexOf(field); const enabled = index >= 0; return <div key={field} className="flex min-h-11 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm"><label className="flex min-w-0 flex-1 items-center gap-2"><input type="checkbox" checked={enabled} onChange={(event) => savePreferences({ ...preferences, enabledCoreFields: event.target.checked ? [...preferences.enabledCoreFields, field] : preferences.enabledCoreFields.filter((item) => item !== field) })} /><span className="truncate">{BOOKING_CORE_FIELD_LABELS[field]}</span></label>{enabled && <><Button type="button" size="icon-sm" variant="ghost" aria-label={`Move ${BOOKING_CORE_FIELD_LABELS[field]} earlier`} disabled={index === 0} onClick={() => moveField(field, -1)}><ArrowUp className="size-4" /></Button><Button type="button" size="icon-sm" variant="ghost" aria-label={`Move ${BOOKING_CORE_FIELD_LABELS[field]} later`} disabled={index === preferences.enabledCoreFields.length - 1} onClick={() => moveField(field, 1)}><ArrowDown className="size-4" /></Button></>}</div>; })}</div></fieldset>
         {preferences.questions.some((question) => question.active) && <p className="rounded-xl bg-card p-3 text-xs leading-5 text-muted-foreground">{preferences.questions.filter((question) => question.active).length} configured additional question{preferences.questions.filter((question) => question.active).length === 1 ? "" : "s"} will be included automatically. Manage them in Settings - Booking questions.</p>}
         <div><Label htmlFor="template-closing" className="mb-2 block">Closing message</Label><Textarea id="template-closing" rows={3} value={preferences.closing} onChange={(event) => savePreferences({ ...preferences, closing: event.target.value })} /></div>
@@ -123,7 +135,8 @@ export default function BookingCreationStart({ mode, customers, services, onMode
       {customerMatch?.kind === "ambiguous" && <div className="mt-4"><Label htmlFor="client-match" className="mb-2 block">Several clients match — choose one or create a new client</Label><select id="client-match" className="native-control" value={customerChoice} onChange={(event) => setCustomerChoice(event.target.value)}><option value="">Create/review as new client</option>{customerMatch.matches.map((customer) => <option key={customer.id} value={customer.id}>{customer.name} · {customer.phone}</option>)}</select></div>}
       {serviceMatch?.kind === "ambiguous" && <div className="mt-4"><Label htmlFor="service-match" className="mb-2 block">Choose the matching service</Label><select id="service-match" className="native-control" value={serviceChoice} onChange={(event) => setServiceChoice(event.target.value)}><option value="">Choose in the booking form</option>{serviceMatch.matches.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select></div>}
       {serviceMatch?.kind === "exact" && <p className="mt-4 rounded-xl bg-muted p-3 text-sm"><strong>Service matched:</strong> {serviceMatch.matches[0].name}</p>}
-      <div className="mt-5 flex justify-end"><Button type="button" onClick={() => onReview({ parsed, customerId: customerChoice, serviceId: serviceChoice })}>Review in booking form <FilePenLine className="size-4" /></Button></div>
+      {selectedParsedService && (selectedParsedService.variants ?? []).length > 0 && <div className="mt-4"><Label htmlFor="variant-match" className="mb-2 block">Service option</Label><select id="variant-match" className="native-control" value={variantChoice ?? ""} onChange={(event) => setVariantChoice(event.target.value || null)}><option value="">Choose in the booking form</option>{(selectedParsedService.variants ?? []).filter((variant) => variant.active).map((variant) => <option key={variant.id} value={variant.id}>{variant.displayLabel || variant.optionValueIds.map((id) => selectedParsedService.optionGroups?.flatMap((group) => group.values).find((value) => value.id === id)?.label).filter(Boolean).join(" · ")}</option>)}</select>{variantMatch?.kind === "none" && Object.keys(parsed.serviceOptions).length > 0 && <p className="mt-2 text-sm text-amber-700">The pasted option answers do not resolve to one valid combination. Choose it before saving.</p>}</div>}
+      <div className="mt-5 flex justify-end"><Button type="button" onClick={() => onReview({ parsed, customerId: customerChoice, serviceId: serviceChoice, serviceVariantId: variantChoice })}>Review in booking form <FilePenLine className="size-4" /></Button></div>
     </section>}
   </div>;
 }

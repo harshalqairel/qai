@@ -185,6 +185,8 @@ export default function CustomersPage() {
       <CustomerDialog
         open={dialogOpen}
         customer={selectedCustomer}
+        customers={customers}
+        onUseExisting={(customer) => setSelectedCustomer(customer)}
         onClose={() => {
           setDialogOpen(false);
           setSelectedCustomer(null);

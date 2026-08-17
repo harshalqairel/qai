@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Customer } from "@/features/customer/types";
 import type { Service } from "@/features/service/types";
 import { DEFAULT_BOOKING_QUESTIONNAIRE, type BookingQuestion } from "@/features/booking-questionnaire/questionnaire";
-import { DEFAULT_BOOKING_TEMPLATE_PREFERENCES, formatBookingClientTemplate, matchExistingCustomer, matchExistingService, normalizeBookingPhone, parseBookingText } from "./bookingText";
+import { DEFAULT_BOOKING_TEMPLATE_PREFERENCES, formatBookingClientTemplate, matchExistingCustomer, matchExistingService, matchParsedServiceVariant, normalizeBookingPhone, parseBookingText } from "./bookingText";
 
 const customers: Customer[] = [
   { id: "c1", name: "Thia", phone: "0812 7980 7538", instagram: "@thia", email: "", notes: "", createdAt: 1 },
@@ -52,12 +52,24 @@ describe("structured booking text", () => {
     expect(matchExistingService("Regular Makeup", [...services, { ...services[0], id: "s3" }]).kind).toBe("ambiguous");
   });
 
+  it("maps pasted generic service options only to a configured valid variant", () => {
+    const optionService: Service = { ...services[0], optionGroups: [{ id: "artist", name: "Artist", position: 0, values: [{ id: "owner", label: "Owner", active: true, position: 0 }] }], variants: [{ id: "owner-variant", optionValueIds: ["owner"], displayLabel: "Owner", price: 2, duration: 90, defaultSessionCount: 1, active: true }] };
+    const parsed = parseBookingText("Service: Regular Makeup\nArtist: Owner", [], [optionService]);
+    expect(matchParsedServiceVariant(parsed, optionService)).toMatchObject({ kind: "exact", matches: [{ id: "owner-variant" }] });
+  });
+
   it("creates a customizable copyable template from supported fields", () => {
     const value = formatBookingClientTemplate("Nuyi Makeup", { ...DEFAULT_BOOKING_TEMPLATE_PREFERENCES, enabledFields: ["name", "phone", "service", "date"] });
     expect(value).toContain("Name:");
     expect(value).toContain("Service:");
     expect(value).not.toContain("Instagram:");
     expect(value).toContain("confirm the schedule");
+  });
+
+  it("directs file questions to the private Booking Page upload flow", () => {
+    const fileQuestion: BookingQuestion = { ...question, id: "reference", label: "Reference photo", type: "File / image", options: [] };
+    const definition = { ...DEFAULT_BOOKING_QUESTIONNAIRE, questions: [fileQuestion] };
+    expect(formatBookingClientTemplate("Nuyi Makeup", definition)).toContain("Reference photo: Please upload this through our Booking Page.");
   });
 
   it("preserves the user's chosen template field order", () => {

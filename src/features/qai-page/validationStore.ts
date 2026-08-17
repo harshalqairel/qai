@@ -3,10 +3,10 @@ import path from "node:path";
 import { z } from "zod";
 import { validateQuestionnaireResponses } from "@/features/booking-questionnaire/questionnaire";
 
-import { publicRequestSchema, qaiPageSchema, type PublicRequest, type QaiPageConfig, type ValidationStore } from "./validation";
+import { publicRequestSchema, qaiPageSchema, snapshotPublicServiceSelection, type PublicRequest, type QaiPageConfig, type ValidationStore } from "./validation";
 
 const storeSchema = z.object({ pages: z.array(qaiPageSchema), requests: z.array(publicRequestSchema) });
-export const validationRequestInputSchema = publicRequestSchema.omit({ id: true, status: true, submittedAt: true, updatedAt: true, bookingId: true });
+export const validationRequestInputSchema = publicRequestSchema.omit({ id: true, status: true, submittedAt: true, updatedAt: true, bookingId: true, clientId: true, serviceSnapshot: true });
 export type ValidationRequestInput = z.infer<typeof validationRequestInputSchema>;
 
 export class ValidationStoreError extends Error {
@@ -62,10 +62,13 @@ export function createValidationStoreRepository(directory: string) {
         const page = store.pages.find((item) => item.id === input.pageId && item.slug === input.slug); if (!page) throw new ValidationStoreError("PAGE_NOT_FOUND");
         const service = page.services.find((item) => item.serviceId === input.serviceId && item.visible); if (!service || service.actionMode !== input.type) throw new ValidationStoreError("SERVICE_NOT_AVAILABLE");
         if (Object.keys(validateQuestionnaireResponses(page.questionnaire, service.serviceId, input.questionnaireResponses, true)).length > 0) throw new ValidationStoreError("QUESTIONNAIRE_INVALID");
-        if (input.type === "Booking request" && input.schedules.length < 1) throw new ValidationStoreError("SCHEDULE_REQUIRED");
+        const serviceSnapshot = snapshotPublicServiceSelection(service, input.serviceVariantId);
+        if (input.type === "Booking request" && input.schedules.length < serviceSnapshot.defaultSessionCount) throw new ValidationStoreError("SCHEDULE_REQUIRED");
         if (input.type === "Instant booking" && !input.instantSlotId) throw new ValidationStoreError("SLOT_REQUIRED");
-        const duplicate = store.requests.find((item) => item.pageId === page.id && item.serviceId === service.serviceId && item.type === input.type && item.whatsapp.replace(/\D/g, "") === input.whatsapp.replace(/\D/g, "") && Date.now() - item.submittedAt < 3000);
+        const duplicate = store.requests.find((item) => item.pageId === page.id && item.submissionId === input.submissionId);
         if (duplicate) return duplicate;
+        const activeVariants = service.variants.filter((variant) => variant.active);
+        if (activeVariants.length > 0 && !activeVariants.some((variant) => variant.id === input.serviceVariantId)) throw new ValidationStoreError("SERVICE_VARIANT_REQUIRED");
         const id = crypto.randomUUID(); let schedules = input.schedules; let status: PublicRequest["status"] = "Pending";
         if (input.type === "Instant booking") {
           const slot = page.slots.find((item) => item.id === input.instantSlotId && item.serviceId === service.serviceId);
@@ -74,16 +77,16 @@ export function createValidationStoreRepository(directory: string) {
           const start = localSchedulePart(slot.startAt, page.timezone); const end = localSchedulePart(slot.endAt, page.timezone);
           schedules = [{ id: crypto.randomUUID(), label: "", date: start.date, startTime: start.time, endTime: end.time, location: slot.location }]; page.updatedAt = Date.now();
         }
-        const now = Date.now(); const created = publicRequestSchema.parse({ ...input, id, serviceName: service.title, schedules, status, submittedAt: now, updatedAt: now, bookingId: null });
+        const now = Date.now(); const created = publicRequestSchema.parse({ ...input, id, serviceName: service.title, serviceSnapshot, clientId: null, schedules, status, submittedAt: now, updatedAt: now, bookingId: null });
         store.requests.push(created); return created;
       });
     },
-    async updateRequest(requestId: string, status: PublicRequest["status"], bookingId: string | null) {
+    async updateRequest(requestId: string, status: PublicRequest["status"], bookingId: string | null, clientId: string | null = null) {
       return mutate((store) => {
         const item = store.requests.find((candidate) => candidate.id === requestId); if (!item) throw new ValidationStoreError("REQUEST_NOT_FOUND");
         if (item.status === "Accepted" && item.bookingId && status === "Accepted") return item;
         if (item.status === "Declined" && status === "Accepted") throw new ValidationStoreError("REQUEST_DECLINED");
-        item.status = status; item.bookingId = bookingId; item.updatedAt = Date.now(); return publicRequestSchema.parse(item);
+        item.status = status; item.bookingId = bookingId; item.clientId = clientId ?? item.clientId; item.updatedAt = Date.now(); return publicRequestSchema.parse(item);
       });
     },
   };

@@ -125,13 +125,40 @@ export function normalizeQuestionLabel(value: string): string {
   return value.normalize("NFKC").toLowerCase().replace(/[._-]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
+const CORE_FIELD_ALIASES: Record<BookingCoreField, readonly string[]> = {
+  name: ["name", "nama", "client", "client name", "nama client", "nama klien"],
+  phone: ["phone", "phone number", "whatsapp", "wa", "no wa", "nomor wa", "no hp", "no. hp", "nomor hp", "nomor whatsapp"],
+  instagram: ["instagram", "instagram username", "username instagram", "ig"],
+  email: ["email", "e mail", "email address", "alamat email"],
+  service: ["service", "layanan", "jasa", "jenis layanan"],
+  date: ["date", "tanggal", "booking date", "tanggal booking"],
+  startTime: ["start time", "time", "jam", "jam mulai", "waktu mulai"],
+  endTime: ["end time", "jam selesai", "waktu selesai"],
+  location: ["location", "lokasi", "alamat", "venue"],
+  notes: ["notes", "note", "catatan", "keterangan", "request", "permintaan"],
+};
+
+export function coreFieldForQuestionLabel(value: string): BookingCoreField | null {
+  const normalized = normalizeQuestionLabel(value).replace(/[^\p{L}\p{N} ]/gu, "").replace(/\s+/g, " ").trim();
+  for (const field of BOOKING_CORE_FIELDS) {
+    if (CORE_FIELD_ALIASES[field].some((alias) => normalizeQuestionLabel(alias).replace(/[^\p{L}\p{N} ]/gu, "") === normalized)) return field;
+  }
+  return null;
+}
+
 export function questionsForService(
   definition: BookingQuestionnaireDefinition,
   serviceId: string,
   includeInactive = false,
 ): BookingQuestion[] {
+  const enabledCoreFields = new Set(definition.enabledCoreFields);
   return [...definition.questions]
-    .filter((question) => (includeInactive || question.active) && (!serviceId || question.serviceIds.length === 0 || question.serviceIds.includes(serviceId)))
+    .filter((question) => {
+      const duplicateCoreField = coreFieldForQuestionLabel(question.label);
+      return (includeInactive || question.active)
+        && (!serviceId || question.serviceIds.length === 0 || question.serviceIds.includes(serviceId))
+        && (includeInactive || !duplicateCoreField || !enabledCoreFields.has(duplicateCoreField));
+    })
     .sort((left, right) => left.order - right.order || left.createdAt - right.createdAt);
 }
 

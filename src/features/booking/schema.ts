@@ -8,6 +8,21 @@ import { BOOKING_STATUSES } from "./constants";
 import { MAX_BOOKING_SESSIONS } from "./constants";
 import { bookingQuestionResponseSchema } from "@/features/booking-questionnaire/questionnaire";
 
+export const serviceSelectionSnapshotSchema = z.object({
+  serviceName: z.string().trim().min(1).max(160),
+  variantId: z.string().min(1).max(100).nullable(),
+  variantLabel: z.string().trim().max(200),
+  options: z.array(z.object({
+    groupId: z.string().min(1).max(100),
+    groupName: z.string().trim().min(1).max(80),
+    valueId: z.string().min(1).max(100),
+    valueLabel: z.string().trim().min(1).max(80),
+  })).max(4),
+  price: z.number().finite().nonnegative(),
+  duration: z.number().finite().positive(),
+  defaultSessionCount: z.number().int().min(1).max(50),
+});
+
 const storedInstantSchema = z.string().refine(
   (value) => !Number.isNaN(Date.parse(value)),
   "Invalid schedule timestamp.",
@@ -41,6 +56,7 @@ export const bookingSchema = z
       .min(1, "At least one schedule is required.")
       .max(MAX_BOOKING_SESSIONS, `A booking can have up to ${MAX_BOOKING_SESSIONS} schedules.`),
     servicePrice: z.coerce.number().min(0, "Service price cannot be negative."),
+    serviceSnapshot: serviceSelectionSnapshotSchema.nullable().optional(),
     questionnaireResponses: z.array(bookingQuestionResponseSchema).max(50).default([]),
     bookingStatus: z.enum(["Scheduled", "Completed", "Cancelled"]),
     fullPaymentDueDate: z.string().min(1, "Full payment due date is required."),
@@ -81,6 +97,7 @@ export const bookingRecordSchema = z
     serviceId: z.string().min(1),
     sessions: z.array(bookingSessionRecordSchema).min(1).max(MAX_BOOKING_SESSIONS),
     servicePrice: z.number().finite().nonnegative(),
+    serviceSnapshot: serviceSelectionSnapshotSchema.nullable().default(null),
     additionalCharges: z.array(bookingAdditionalChargeRecordSchema).max(100).default([]),
     questionnaireResponses: z.array(bookingQuestionResponseSchema).max(50).default([]),
     bookingStatus: z.enum(BOOKING_STATUSES),

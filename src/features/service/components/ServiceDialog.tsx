@@ -32,6 +32,8 @@ import {
 } from "@/features/category/constants";
 import { normalizeCategoryName } from "@/features/category/utils";
 import { formatDuration } from "@/features/service/utils/duration";
+import { validateServiceVariantConfiguration } from "@/features/service/domain/serviceVariants";
+import ServiceVariantEditor from "@/features/service/components/ServiceVariantEditor";
 import {
   serviceSchema,
   ServiceFormValues,
@@ -54,6 +56,8 @@ const defaultValues: ServiceFormValues = {
   duration: 0,
   defaultSessionCount: 1,
   locationPolicy: "Client can choose",
+  optionGroups: [],
+  variants: [],
   description: "",
   active: true,
 };
@@ -99,6 +103,8 @@ export default function ServiceDialog({
     mode: "onTouched",
   });
   const durationValue = useWatch({ control, name: "duration" });
+  const priceValue = useWatch({ control, name: "price" });
+  const sessionCountValue = useWatch({ control, name: "defaultSessionCount" });
 
   useEffect(() => {
     if (!open) {
@@ -119,6 +125,8 @@ export default function ServiceDialog({
         duration: service.duration,
         defaultSessionCount: service.defaultSessionCount,
         locationPolicy: service.locationPolicy ?? "Client can choose",
+        optionGroups: service.optionGroups ?? [],
+        variants: service.variants ?? [],
         description: service.description,
         active: service.active,
       });
@@ -178,6 +186,11 @@ export default function ServiceDialog({
   }
 
   async function onSubmit(values: ServiceFormValues) {
+    const optionIssue = validateServiceVariantConfiguration(values.optionGroups, values.variants);
+    if (optionIssue) {
+      notify.error(optionIssue);
+      return;
+    }
     const serviceData: Service = {
       id: service?.id ?? crypto.randomUUID(),
       name: values.name.trim(),
@@ -186,6 +199,8 @@ export default function ServiceDialog({
       duration: values.duration,
       defaultSessionCount: values.defaultSessionCount,
       locationPolicy: values.locationPolicy,
+      optionGroups: values.optionGroups,
+      variants: values.variants,
       description: values.description.trim(),
       active: service?.active ?? true,
     };
@@ -463,6 +478,28 @@ export default function ServiceDialog({
             />
             <p className="mt-2 text-sm text-muted-foreground">This controls which location choices clients see on your Qai Page.</p>
           </div>
+
+          <Controller
+            control={control}
+            name="optionGroups"
+            render={({ field: groupsField }) => (
+              <Controller
+                control={control}
+                name="variants"
+                render={({ field: variantsField }) => (
+                  <ServiceVariantEditor
+                    optionGroups={groupsField.value ?? []}
+                    variants={variantsField.value ?? []}
+                    basePrice={Number(priceValue) || 0}
+                    baseDuration={Number(durationValue) || 60}
+                    baseSessionCount={Number(sessionCountValue) || 1}
+                    onOptionGroupsChange={groupsField.onChange}
+                    onVariantsChange={variantsField.onChange}
+                  />
+                )}
+              />
+            )}
+          />
 
           <div>
             <Label className="mb-2 block font-semibold">

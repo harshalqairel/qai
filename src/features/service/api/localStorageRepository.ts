@@ -34,6 +34,8 @@ function migrateServices(
         description: service.description ?? "",
         defaultSessionCount: service.defaultSessionCount ?? 1,
         locationPolicy: service.locationPolicy ?? "Client can choose",
+        optionGroups: service.optionGroups ?? [],
+        variants: service.variants ?? [],
         active: service.active ?? true,
       };
     }
@@ -50,6 +52,8 @@ function migrateServices(
       description: service.description ?? "",
       defaultSessionCount: service.defaultSessionCount ?? 1,
       locationPolicy: service.locationPolicy ?? "Client can choose",
+      optionGroups: service.optionGroups ?? [],
+      variants: service.variants ?? [],
       active: service.active ?? true,
     };
   });

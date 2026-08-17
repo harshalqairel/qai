@@ -4,6 +4,7 @@ import {
   BOOKING_QUESTION_TYPES,
   DEFAULT_BOOKING_QUESTIONNAIRE,
   bookingQuestionnaireDefinitionSchema,
+  coreFieldForQuestionLabel,
   questionsForService,
   responseForQuestion,
   validateQuestionnaireResponses,
@@ -38,5 +39,13 @@ describe("booking questionnaire domain", () => {
     const changed = bookingQuestionnaireDefinitionSchema.parse({ ...DEFAULT_BOOKING_QUESTIONNAIRE, questions: [{ ...original, label: "New label", active: false }] });
     expect(questionsForService(changed, "service-1")).toEqual([]);
     expect(response).toMatchObject({ questionId: original.id, labelSnapshot: "Event concept", typeSnapshot: "Short text", answer: "Soft Korean look" });
+  });
+
+  it("guards enabled core fields against duplicate custom aliases without deleting history", () => {
+    const duplicate = question({ label: "Nomor WA" });
+    const definition = bookingQuestionnaireDefinitionSchema.parse({ ...DEFAULT_BOOKING_QUESTIONNAIRE, questions: [duplicate] });
+    expect(coreFieldForQuestionLabel("Nomor WA")).toBe("phone");
+    expect(questionsForService(definition, "service-1")).toEqual([]);
+    expect(questionsForService(definition, "service-1", true)).toEqual([duplicate]);
   });
 });

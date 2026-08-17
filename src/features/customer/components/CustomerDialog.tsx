@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useEffect, useMemo, useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import { CreateCustomerInput, Customer, UpdateCustomerInput } from "@/features/customer/types";
@@ -14,6 +14,7 @@ import ActionButton from "@/components/system/ActionButton";
 import { useActionGuard } from "@/hooks/useActionGuard";
 import { notify } from "@/lib/notifications";
 import { XIcon } from "lucide-react";
+import { clientSecondaryIdentity, findClientMatches } from "@/features/customer/domain/clientIdentity";
 
 type CustomerDialogProps = {
   open: boolean;
@@ -21,6 +22,8 @@ type CustomerDialogProps = {
   onClose: () => void;
   onCreate: (input: CreateCustomerInput) => boolean | Promise<boolean>;
   onUpdate: (input: UpdateCustomerInput) => boolean | Promise<boolean>;
+  customers?: Customer[];
+  onUseExisting?: (customer: Customer) => void;
 };
 
 const defaultValues: CustomerFormValues = {
@@ -37,6 +40,8 @@ export default function CustomerDialog({
   onClose,
   onCreate,
   onUpdate,
+  customers = [],
+  onUseExisting,
 }: CustomerDialogProps) {
   const action = useActionGuard();
   const form = useForm<CustomerFormValues>({
@@ -44,6 +49,9 @@ export default function CustomerDialog({
     defaultValues,
     mode: "onTouched",
   });
+  const [allowSeparate, setAllowSeparate] = useState(false);
+  const identity = useWatch({ control: form.control });
+  const matches = useMemo(() => customer ? [] : findClientMatches(identity, customers).slice(0, 4), [customer, identity, customers]);
 
   useEffect(() => {
     if (!open) {
@@ -62,10 +70,13 @@ export default function CustomerDialog({
     }
 
     form.reset(defaultValues);
+    const timer = window.setTimeout(() => setAllowSeparate(false), 0);
+    return () => window.clearTimeout(timer);
   }, [open, customer, form]);
 
   function handleClose() {
     form.reset(defaultValues);
+    setAllowSeparate(false);
     onClose();
   }
 
@@ -85,6 +96,10 @@ export default function CustomerDialog({
       return;
     }
 
+    if (matches.some((match) => match.strong) && !allowSeparate) {
+      notify.error("A client with matching contact details already exists. Use that client, or confirm that this is a separate person.");
+      return;
+    }
     const succeeded = await action.run(() => onCreate(values));
     if (!succeeded) {
       notify.error("Couldn't save this client. Check the highlighted fields and try again.");
@@ -166,6 +181,19 @@ export default function CustomerDialog({
               </p>
             )}
           </div>
+
+          {!customer && matches.length > 0 && (
+            <section className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-4" aria-labelledby="possible-clients-heading">
+              <h3 id="possible-clients-heading" className="text-sm font-semibold text-amber-950">Possible existing clients</h3>
+              <p className="text-xs leading-5 text-amber-900">Names may be shared. Contact details are weighted more strongly.</p>
+              {matches.map((match) => (
+                <button key={match.customer.id} type="button" className="flex min-h-12 w-full items-center justify-between gap-3 rounded-lg border border-amber-100 bg-white px-3 py-2 text-left" onClick={() => onUseExisting?.(match.customer)}>
+                  <span className="min-w-0"><span className="block truncate text-sm font-semibold">{match.customer.name}</span><span className="block truncate text-xs text-muted-foreground">{clientSecondaryIdentity(match.customer) || "Matching name"}</span></span>{onUseExisting && <span className="shrink-0 text-xs font-semibold text-primary">Use existing</span>}
+                </button>
+              ))}
+              {matches.some((match) => match.strong) && <label className="flex min-h-11 items-center gap-2 text-xs text-amber-950"><input type="checkbox" checked={allowSeparate} onChange={(event) => setAllowSeparate(event.target.checked)} />Create a separate client with shared contact details</label>}
+            </section>
+          )}
 
           <div>
             <Label className="mb-2 block font-semibold">Notes</Label>

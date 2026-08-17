@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { z } from "zod";
@@ -26,6 +26,7 @@ import { MoneyInput } from "@/components/ui/money-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import ActionButton from "@/components/system/ActionButton";
 import DeleteAction from "@/components/system/DeleteAction";
 import { useActionGuard } from "@/hooks/useActionGuard";
@@ -43,6 +44,8 @@ import { QuestionnaireFields, HistoricalQuestionnaireResponses } from "@/feature
 import { DEFAULT_BOOKING_QUESTIONNAIRE, questionsForService, validateQuestionnaireResponses, type BookingQuestion, type BookingQuestionFileAnswer, type BookingQuestionResponse, type BookingQuestionnaireDefinition } from "@/features/booking-questionnaire/questionnaire";
 import { loadBookingQuestionnaire } from "@/features/booking-questionnaire/questionnaireRepository";
 import { validationClient } from "@/features/qai-page/validation";
+import { clientSearchText, clientSecondaryIdentity, findClientMatches } from "@/features/customer/domain/clientIdentity";
+import { defaultServiceVariant, snapshotServiceSelection } from "@/features/service/domain/serviceVariants";
 
 type BookingDialogProps = {
   open: boolean;
@@ -68,6 +71,7 @@ type BookingDialogProps = {
 const defaultValues: BookingFormValues = {
   customerId: "",
   serviceId: "",
+  serviceSnapshot: null,
   sessions: [{ label: "", date: "", startTime: "", endTime: "", location: "", notes: "" }],
   servicePrice: 0,
   questionnaireResponses: [],
@@ -165,6 +169,8 @@ export default function BookingDialog({
   const [questionnaire, setQuestionnaire] = useState<BookingQuestionnaireDefinition>(DEFAULT_BOOKING_QUESTIONNAIRE);
   const [questionnaireResponses, setQuestionnaireResponses] = useState<BookingQuestionResponse[]>([]);
   const [questionnaireErrors, setQuestionnaireErrors] = useState<Record<string, string>>({});
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
+  const [allowSeparateClient, setAllowSeparateClient] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -184,9 +190,11 @@ export default function BookingDialog({
       setInitialPaymentErrors({});
       setQuestionnaireResponses(booking.questionnaireResponses ?? []);
       setQuestionnaireErrors({});
+      setSelectedVariantId(booking.serviceSnapshot?.variantId ?? null);
       reset(withSessionIds({
         customerId: booking.customerId,
         serviceId: booking.serviceId,
+        serviceSnapshot: booking.serviceSnapshot ?? null,
         sessions: booking.sessions.map((session) => sessionToFormValues(session, timezone)),
         servicePrice: booking.servicePrice,
         questionnaireResponses: booking.questionnaireResponses ?? [],
@@ -210,6 +218,8 @@ export default function BookingDialog({
     setInitialPaymentErrors({});
     setQuestionnaireResponses(initialValues?.questionnaireResponses ?? []);
     setQuestionnaireErrors({});
+    setSelectedVariantId(initialValues?.serviceSnapshot?.variantId ?? null);
+    setAllowSeparateClient(false);
     reset(withSessionIds({
       ...defaultValues,
       ...(initialValues ?? {}),
@@ -238,10 +248,26 @@ export default function BookingDialog({
   const selectedServiceId = watch("serviceId");
   const servicePriceValue = watch("servicePrice");
   const selectedService = services.find((service) => service.id === selectedServiceId);
+  const selectedVariant = selectedService?.variants?.find((variant) => variant.id === selectedVariantId && variant.active) ?? null;
+  const selectedServiceSnapshot = selectedService ? snapshotServiceSelection(selectedService, selectedVariant) : null;
   const activeQuestions = questionsForService(questionnaire, selectedServiceId);
   const activeQuestionIds = new Set(activeQuestions.map((question) => question.id));
   const historicalResponses = questionnaireResponses.filter((response) => !activeQuestionIds.has(response.questionId));
   const bookingPayments = booking ? payments.filter((payment) => payment.bookingId === booking.id) : [];
+  const quickCustomerMatches = useMemo(() => findClientMatches(quickCustomer, customers).slice(0, 4), [quickCustomer, customers]);
+  const clientItems = useMemo(() => customers.map((customer) => ({
+    value: customer.id,
+    label: customer.name,
+    description: clientSecondaryIdentity(customer) || "No contact details",
+    keywords: clientSearchText(customer),
+  })), [customers]);
+  const serviceItems = useMemo(() => services.map((service) => ({
+    value: service.id,
+    label: service.name,
+    description: [serviceCategories.find((category) => category.id === service.categoryId)?.name, service.active ? "Active" : "Hidden"].filter(Boolean).join(" · "),
+    keywords: [service.name, service.description, ...(service.optionGroups ?? []).flatMap((group) => [group.name, ...group.values.map((value) => value.label)])].join(" "),
+    disabled: !service.active && service.id !== selectedServiceId,
+  })), [services, serviceCategories, selectedServiceId]);
 
   // Booking Profit — computed from payments and expenses for this booking
   const totalPaid = bookingPayments.reduce((sum, p) => sum + p.amount, 0);
@@ -255,11 +281,6 @@ export default function BookingDialog({
   const netRevenue = totalPaid - bookingExpensesTotal;
 
   useEffect(() => {
-    if (!selectedService) return;
-    setValue("servicePrice", selectedService.price, { shouldValidate: true });
-  }, [selectedService, setValue]);
-
-  useEffect(() => {
     if (!selectedService || booking || lastDefaultedServiceId.current === selectedService.id) return;
     lastDefaultedServiceId.current = selectedService.id;
     const current = watchedSessions ?? [];
@@ -267,7 +288,8 @@ export default function BookingDialog({
       !session.date && !session.startTime && !session.endTime && !session.location && !session.label && !session.notes,
     );
     if (!untouched) return;
-    replace(Array.from({ length: selectedService.defaultSessionCount }, () => ({
+    const defaults = selectedServiceSnapshot ?? snapshotServiceSelection(selectedService, defaultServiceVariant(selectedService));
+    replace(Array.from({ length: defaults.defaultSessionCount }, () => ({
       id: crypto.randomUUID(),
       label: "",
       date: "",
@@ -276,13 +298,13 @@ export default function BookingDialog({
       location: "",
       notes: "",
     })));
-  }, [selectedService, booking, watchedSessions, replace]);
+  }, [selectedService, selectedServiceSnapshot, booking, watchedSessions, replace]);
 
   function suggestEndTime(index: number) {
     const startTime = watchedSessions?.[index]?.startTime;
     if (!selectedService || !startTime || watchedSessions?.[index]?.endTime) return;
     const [hours, minutes] = startTime.split(":").map(Number);
-    const end = new Date(2000, 0, 1, hours, minutes + selectedService.duration);
+    const end = new Date(2000, 0, 1, hours, minutes + (selectedServiceSnapshot?.duration ?? selectedService.duration));
     setValue(
       `sessions.${index}.endTime`,
       `${String(end.getHours()).padStart(2, "0")}:${String(end.getMinutes()).padStart(2, "0")}`,
@@ -328,6 +350,10 @@ export default function BookingDialog({
       setQuickError(input.error.issues[0]?.message ?? "Check the client details.");
       return;
     }
+    if (quickCustomerMatches.some((match) => match.strong) && !allowSeparateClient) {
+      setQuickError("A client with matching contact details already exists. Use that client, or confirm that this is a separate person.");
+      return;
+    }
     setQuickPending(true);
     setQuickError("");
     const created = await onQuickCreateCustomer(input.data);
@@ -339,7 +365,43 @@ export default function BookingDialog({
     setValue("customerId", created.id, { shouldValidate: true });
     setQuickCustomer({ name: "", phone: "", instagram: "", email: "" });
     setQuickCustomerOpen(false);
+    setAllowSeparateClient(false);
     notify.success("Client added and selected.");
+  }
+
+  function selectService(serviceId: string) {
+    setValue("serviceId", serviceId, { shouldDirty: true, shouldValidate: true });
+    const service = services.find((item) => item.id === serviceId);
+    if (!service) {
+      setSelectedVariantId(null);
+      setValue("serviceSnapshot", null, { shouldDirty: true });
+      return;
+    }
+    const variant = defaultServiceVariant(service);
+    const snapshot = snapshotServiceSelection(service, variant);
+    lastDefaultedServiceId.current = service.id;
+    setSelectedVariantId(variant?.id ?? null);
+    setValue("serviceSnapshot", snapshot, { shouldDirty: true });
+    setValue("servicePrice", snapshot.price, { shouldDirty: true, shouldValidate: true });
+    if (!booking) {
+      const current = watchedSessions ?? [];
+      const untouched = current.every((session) => !session.date && !session.startTime && !session.endTime && !session.location && !session.label && !session.notes);
+      if (untouched) replace(Array.from({ length: snapshot.defaultSessionCount }, () => ({ id: crypto.randomUUID(), label: "", date: "", startTime: "", endTime: "", location: "", notes: "" })));
+    }
+  }
+
+  function selectVariant(variantId: string) {
+    if (!selectedService) return;
+    const variant = selectedService.variants?.find((item) => item.id === variantId && item.active) ?? null;
+    const snapshot = snapshotServiceSelection(selectedService, variant);
+    setSelectedVariantId(variant?.id ?? null);
+    setValue("serviceSnapshot", snapshot, { shouldDirty: true });
+    setValue("servicePrice", snapshot.price, { shouldDirty: true, shouldValidate: true });
+    if (!booking) {
+      const current = watchedSessions ?? [];
+      const untouched = current.every((session) => !session.date && !session.startTime && !session.endTime && !session.location && !session.label && !session.notes);
+      if (untouched) replace(Array.from({ length: snapshot.defaultSessionCount }, () => ({ id: crypto.randomUUID(), label: "", date: "", startTime: "", endTime: "", location: "", notes: "" })));
+    }
   }
 
   async function createServiceInline() {
@@ -366,7 +428,7 @@ export default function BookingDialog({
       setQuickError("Could not add the service.");
       return;
     }
-    setValue("serviceId", created.id, { shouldValidate: true });
+    selectService(created.id);
     setQuickService({ name: "", categoryId: "", price: 0, duration: 60, defaultSessionCount: 1 });
     setQuickServiceOpen(false);
     notify.success("Service added without losing the booking details.");
@@ -392,8 +454,10 @@ export default function BookingDialog({
     }
   }
 
-  function reviewParsedBooking({ parsed, customerId, serviceId }: Parameters<React.ComponentProps<typeof BookingCreationStart>["onReview"]>[0]) {
+  function reviewParsedBooking({ parsed, customerId, serviceId, serviceVariantId }: Parameters<React.ComponentProps<typeof BookingCreationStart>["onReview"]>[0]) {
     const matchedService = services.find((service) => service.id === serviceId);
+    const matchedVariant = matchedService?.variants?.find((variant) => variant.id === serviceVariantId && variant.active) ?? (matchedService ? defaultServiceVariant(matchedService) : null);
+    const matchedSnapshot = matchedService ? snapshotServiceSelection(matchedService, matchedVariant) : null;
     const applicableQuestionIds = new Set(questionsForService(questionnaire, serviceId).map((question) => question.id));
     const parsedResponses = serviceId ? parsed.customResponses.filter((response) => applicableQuestionIds.has(response.questionId)) : parsed.customResponses;
     const sessionId = crypto.randomUUID();
@@ -401,13 +465,14 @@ export default function BookingDialog({
       ...defaultValues,
       customerId,
       serviceId,
-      servicePrice: matchedService?.price ?? 0,
+      serviceSnapshot: matchedSnapshot,
+      servicePrice: matchedSnapshot?.price ?? matchedService?.price ?? 0,
       sessions: [{
         id: sessionId,
         label: "",
         date: parsed.date,
         startTime: parsed.startTime,
-        endTime: parsed.endTime || suggestedEndTime(parsed.startTime, matchedService?.duration ?? 60),
+        endTime: parsed.endTime || suggestedEndTime(parsed.startTime, matchedSnapshot?.duration ?? matchedService?.duration ?? 60),
         location: parsed.location,
         notes: parsed.notes,
       }],
@@ -416,6 +481,7 @@ export default function BookingDialog({
       questionnaireResponses: parsedResponses,
     }));
     setQuestionnaireResponses(parsedResponses);
+    setSelectedVariantId(matchedVariant?.id ?? null);
     setQuestionnaireErrors({});
     if (!customerId && (parsed.name || parsed.phone || parsed.instagram || parsed.email)) {
       setQuickCustomer({ name: parsed.name, phone: parsed.phone, instagram: parsed.instagram, email: parsed.email });
@@ -467,6 +533,8 @@ export default function BookingDialog({
     setAdditionalCharges([]);
     setQuestionnaireResponses([]);
     setQuestionnaireErrors({});
+    setSelectedVariantId(null);
+    setAllowSeparateClient(false);
     onClose();
   }
 
@@ -490,7 +558,11 @@ export default function BookingDialog({
       notify.error("Complete the required client answers before saving.");
       return;
     }
-    const bookingValues: BookingFormValues = { ...values, questionnaireResponses };
+    const bookingValues: BookingFormValues = {
+      ...values,
+      serviceSnapshot: selectedService ? snapshotServiceSelection(selectedService, selectedVariant) : values.serviceSnapshot,
+      questionnaireResponses,
+    };
     let createCommand: CreateBookingCommand | null = null;
     if (!booking) {
       let parsedInitialPayment: InitialPaymentInput | null = null;
@@ -533,8 +605,8 @@ export default function BookingDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center sm:p-4" role="presentation" onClick={() => !action.pending && handleClose()}>
-      <div className="max-h-dvh w-full overflow-y-auto rounded-t-[1.5rem] border border-border bg-white p-5 shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:max-w-6xl sm:rounded-2xl sm:p-8" role="dialog" aria-modal="true" aria-labelledby="booking-dialog-title" onClick={(e) => e.stopPropagation()}>
-        <div className="sticky top-0 z-10 -mx-5 -mt-5 mb-6 flex items-center justify-between border-b border-border bg-white/95 px-5 py-4 backdrop-blur sm:-mx-8 sm:-mt-8 sm:mb-8 sm:px-8 sm:py-5">
+      <div className="flex max-h-dvh w-full flex-col overflow-hidden rounded-t-[1.5rem] border border-border bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:max-w-6xl sm:rounded-2xl" role="dialog" aria-modal="true" aria-labelledby="booking-dialog-title" onClick={(e) => e.stopPropagation()}>
+        <div className="z-10 flex shrink-0 items-center justify-between border-b border-border bg-white/95 px-5 py-4 backdrop-blur sm:px-8 sm:py-5">
           <div>
             <h2 id="booking-dialog-title" className="dialog-title">{booking ? "Edit booking" : "New booking"}</h2>
             <p className="mt-2 text-slate-500">
@@ -547,10 +619,10 @@ export default function BookingDialog({
         </div>
 
         {!booking && startMode !== "manual" ? (
-          <BookingCreationStart mode={startMode} customers={customers} services={services} onModeChange={setStartMode} onReview={reviewParsedBooking} />
+          <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-8"><BookingCreationStart mode={startMode} customers={customers} services={services} onModeChange={setStartMode} onReview={reviewParsedBooking} /></div>
         ) : <form
           onSubmit={handleSubmit(onSubmit)}
-          className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-start"
+          className="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-y-auto p-5 sm:p-8 lg:grid-cols-12 lg:items-start"
         >
           {!booking && <div className="lg:col-span-12"><Button type="button" variant="ghost" size="sm" onClick={() => setStartMode("choose")}><ArrowLeft className="size-4" /> Booking options</Button>{parsedReviewNotice && <p className="mt-3 rounded-xl border border-primary/15 bg-primary/5 p-3 text-sm text-primary">{parsedReviewNotice}</p>}</div>}
           <div className="lg:col-span-6">
@@ -559,20 +631,15 @@ export default function BookingDialog({
               control={control}
               name="customerId"
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select a client">
-                      {field.value ? (customers.find((c) => c.id === field.value)?.name ?? "Client not found") : undefined}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {customers.map((customer) => (
-                      <SelectItem key={customer.id} value={customer.id}>
-                        {customer.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  label="Client"
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  items={clientItems}
+                  placeholder="Select a client"
+                  searchPlaceholder="Search name, phone, Instagram, or email…"
+                  emptyMessage="No matching clients."
+                />
               )}
             />
             {errors.customerId && <p className="mt-2 text-sm text-destructive">{errors.customerId.message}</p>}
@@ -589,6 +656,17 @@ export default function BookingDialog({
                       <div><Label className="mb-2 block">Instagram</Label><Input value={quickCustomer.instagram} onChange={(event) => setQuickCustomer((value) => ({ ...value, instagram: event.target.value }))} placeholder="@username" /></div>
                       <div><Label className="mb-2 block">Email</Label><Input type="email" value={quickCustomer.email} onChange={(event) => setQuickCustomer((value) => ({ ...value, email: event.target.value }))} /></div>
                     </div>
+                    {quickCustomerMatches.length > 0 && (
+                      <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                        <p className="text-sm font-semibold text-amber-950">Possible existing clients</p>
+                        {quickCustomerMatches.map((match) => (
+                          <button key={match.customer.id} type="button" className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-left text-sm" onClick={() => { setValue("customerId", match.customer.id, { shouldDirty: true, shouldValidate: true }); setQuickCustomerOpen(false); setAllowSeparateClient(false); setQuickError(""); }}>
+                            <span className="min-w-0"><span className="block truncate font-semibold">{match.customer.name}</span><span className="block truncate text-xs text-muted-foreground">{clientSecondaryIdentity(match.customer) || "Matching name"}</span></span><span className="shrink-0 text-xs font-semibold text-primary">Use existing</span>
+                          </button>
+                        ))}
+                        {quickCustomerMatches.some((match) => match.strong) && <label className="flex min-h-10 items-center gap-2 text-xs text-amber-950"><input type="checkbox" checked={allowSeparateClient} onChange={(event) => setAllowSeparateClient(event.target.checked)} />This is a separate client with shared contact details</label>}
+                      </div>
+                    )}
                     {quickError && <p className="text-sm text-destructive">{quickError}</p>}
                     <div className="flex gap-2"><Button type="button" size="sm" disabled={quickPending} onClick={createCustomerInline}>{quickPending ? "Adding…" : "Add and select"}</Button><Button type="button" size="sm" variant="ghost" onClick={() => setQuickCustomerOpen(false)}>Cancel</Button></div>
                   </div>
@@ -603,23 +681,30 @@ export default function BookingDialog({
               control={control}
               name="serviceId"
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select a service">
-                      {field.value ? (services.find((s) => s.id === field.value)?.name ?? "Unknown service") : undefined}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {services.map((service) => (
-                      <SelectItem key={service.id} value={service.id}>
-                        {service.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  label="Service"
+                  value={field.value}
+                  onValueChange={selectService}
+                  items={serviceItems}
+                  placeholder="Select a service"
+                  searchPlaceholder="Search service, category, or option…"
+                  emptyMessage="No matching services."
+                />
               )}
             />
             {errors.serviceId && <p className="mt-2 text-sm text-destructive">{errors.serviceId.message}</p>}
+            {selectedService && (selectedService.variants ?? []).some((variant) => variant.active) && (
+              <div className="mt-4 rounded-xl border border-border bg-muted/25 p-3">
+                <Label className="mb-2 block">Service option</Label>
+                <select className="native-control" value={selectedVariantId ?? ""} onChange={(event) => selectVariant(event.target.value)}>
+                  {(selectedService.variants ?? []).filter((variant) => variant.active).map((variant) => {
+                    const snapshot = snapshotServiceSelection(selectedService, variant);
+                    return <option key={variant.id} value={variant.id}>{snapshot.variantLabel || "Service option"} · {formatRupiah(snapshot.price)}</option>;
+                  })}
+                </select>
+                <p className="mt-2 text-xs text-muted-foreground">Price, duration, and suggested schedule count follow this valid combination.</p>
+              </div>
+            )}
             {onQuickCreateService && (
               <div className="mt-3">
                 <Button type="button" variant="outline" size="sm" onClick={() => {
@@ -729,20 +814,20 @@ export default function BookingDialog({
                       <Info className="size-4 shrink-0" aria-hidden="true" /> Ends the next day.
                     </p>
                   )}
-                  <div>
-                    <Label className="mb-2 block">Location <span className="font-normal text-muted-foreground">(optional)</span></Label>
-                    <Input {...register(`sessions.${index}.location`)} />
-                    {scheduleFields.length > 1 && session?.location?.trim() && (
-                      <Button type="button" variant="ghost" size="sm" className="mt-2" onClick={() => applyLocationToAll(index)}>
-                        Apply this location to all
-                      </Button>
-                    )}
-                  </div>
                   <details className="group rounded-xl border border-border bg-white">
                     <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
                       Optional schedule details
                     </summary>
                     <div className="space-y-4 border-t border-border p-4">
+                      <div>
+                        <Label className="mb-2 block">Location override</Label>
+                        <Input {...register(`sessions.${index}.location`)} placeholder="Use only when this schedule has a different location" />
+                        {scheduleFields.length > 1 && session?.location?.trim() && (
+                          <Button type="button" variant="ghost" size="sm" className="mt-2" onClick={() => applyLocationToAll(index)}>
+                            Apply this location to all
+                          </Button>
+                        )}
+                      </div>
                       <div>
                         <Label className="mb-2 block">Label</Label>
                         <Input {...register(`sessions.${index}.label`)} placeholder="e.g. Akad, Reception, Class 2" />

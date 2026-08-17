@@ -327,12 +327,13 @@ export function createBookingInvoiceDraft(args: { booking: Booking; customer: Cu
   const now = args.now ?? Date.now();
   const id = crypto.randomUUID();
   const invoiceDate = new Date(now).toISOString().slice(0, 10);
+  const serviceName = [args.booking.serviceSnapshot?.serviceName || args.service.name, args.booking.serviceSnapshot?.variantLabel].filter(Boolean).join(" · ");
   return invoiceSchema.parse({
     id, businessId: args.settings.businessId, bookingId: args.booking.id, clientId: args.customer.id,
     lifecycle: "Draft", rootInvoiceId: id, previousVersionId: null, version: 1, invoiceNumber: null, clientName: args.customer.name, clientPhone: args.customer.phone, clientEmail: args.customer.email,
-    serviceName: args.service.name, invoiceDate, dueDate: args.booking.fullPaymentDueDate || invoiceDate,
+    serviceName, invoiceDate, dueDate: args.booking.fullPaymentDueDate || invoiceDate,
     lineItems: [
-      { id: crypto.randomUUID(), item: args.service.name, description: args.service.description, quantity: 1, unitPrice: args.booking.servicePrice },
+      { id: crypto.randomUUID(), item: serviceName, description: args.service.description, quantity: 1, unitPrice: args.booking.servicePrice },
       ...(args.booking.additionalCharges ?? []).map((charge) => ({ id: crypto.randomUUID(), item: charge.categoryName, description: charge.description, quantity: 1, unitPrice: charge.amount })),
     ],
     discount: 0, tax: 0, discountMode: "none", discountValue: 0, taxPercent: 0, taxEnabled: false, taxName: "Tax", taxMode: "percentage", taxValue: 0, taxTreatment: "added", invoiceStyle: args.settings.invoiceStyle, paymentInstructions: args.settings.paymentInstructions, notes: args.settings.defaultNotes || args.settings.defaultPaymentTerms,

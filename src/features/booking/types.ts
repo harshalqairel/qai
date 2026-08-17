@@ -1,4 +1,5 @@
 import type { BookingQuestionResponse } from "@/features/booking-questionnaire/questionnaire";
+import type { ServiceSelectionSnapshot } from "@/features/service/types";
 
 export type BookingStatus = "Scheduled" | "Completed" | "Cancelled";
 
@@ -52,6 +53,7 @@ export type Booking = {
   serviceId: string;
   sessions: BookingSession[];
   servicePrice: number;
+  serviceSnapshot?: ServiceSelectionSnapshot | null;
   additionalCharges?: BookingAdditionalCharge[];
   questionnaireResponses?: BookingQuestionResponse[];
   bookingStatus: BookingStatus;
@@ -66,6 +68,7 @@ export type CreateBookingInput = {
   serviceId: string;
   sessions: BookingSessionInput[];
   servicePrice: number;
+  serviceSnapshot?: ServiceSelectionSnapshot | null;
   questionnaireResponses?: BookingQuestionResponse[];
   bookingStatus: BookingStatus;
   fullPaymentDueDate: string;

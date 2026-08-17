@@ -77,7 +77,7 @@ export default function BookingsPage() {
     const service = services.find((item) => item.id === booking.serviceId);
     return {
       id: booking.id,
-      label: `${customer?.name ?? "Client not found"} · ${service?.name ?? "Service not found"} · ${formatSessionDate(firstBookingSession(booking), bookingData.timezone)}`,
+      label: `${customer?.name ?? "Client not found"} · ${[booking.serviceSnapshot?.serviceName || service?.name || "Service not found", booking.serviceSnapshot?.variantLabel].filter(Boolean).join(" · ")} · ${formatSessionDate(firstBookingSession(booking), bookingData.timezone)}`,
     };
   }), [bookings, customers, services, bookingData.timezone]);
 
@@ -92,7 +92,7 @@ export default function BookingsPage() {
       ...booking,
       servicePrice: effectiveServicePrice,
       customerName: customer?.name ?? "Client not found",
-      serviceName: service?.name ?? "Unknown Service",
+      serviceName: [booking.serviceSnapshot?.serviceName || service?.name || "Unknown Service", booking.serviceSnapshot?.variantLabel].filter(Boolean).join(" · "),
       paymentStatus: paymentSummary?.paymentStatus ?? "Outstanding",
       totalPaid: paymentSummary?.totalPaid ?? 0,
       remainingAmount: financials.outstanding,

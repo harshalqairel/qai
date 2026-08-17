@@ -38,6 +38,7 @@ export function prepareBookingCreation(
     serviceId: bookingInput.serviceId,
     sessions,
     servicePrice: bookingInput.servicePrice,
+    serviceSnapshot: bookingInput.serviceSnapshot ?? null,
     additionalCharges: prepareBookingAdditionalCharges(ids.bookingId, command.additionalCharges ?? [], sessions, [], now),
     questionnaireResponses: bookingInput.questionnaireResponses,
     bookingStatus: bookingInput.bookingStatus,

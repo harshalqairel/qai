@@ -1,5 +1,10 @@
 import type { Customer } from "@/features/customer/types";
-import type { Service } from "@/features/service/types";
+import type { Service, ServiceVariant } from "@/features/service/types";
+import {
+  findClientMatches,
+  normalizeClientInstagram,
+  normalizeClientPhone,
+} from "@/features/customer/domain/clientIdentity";
 import {
   BOOKING_CORE_FIELDS,
   BOOKING_CORE_FIELD_LABELS,
@@ -33,6 +38,7 @@ export type ParsedBookingText = {
   location: string;
   notes: string;
   customResponses: BookingQuestionResponse[];
+  serviceOptions: Record<string, string>;
   warnings: string[];
 };
 
@@ -116,23 +122,18 @@ export function parseBookingTime(value: string): string {
 }
 
 export function normalizeBookingPhone(value: string): string {
-  const digits = value.replace(/\D/g, "");
-  if (!digits) return "";
-  if (digits.startsWith("0")) return `62${digits.slice(1)}`;
-  if (digits.startsWith("8")) return `62${digits}`;
-  return digits;
+  return normalizeClientPhone(value);
 }
 
 export function normalizeBookingInstagram(value: string): string {
-  const source = value.trim();
-  const url = source.match(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/([^/?#]+)/i);
-  return (url?.[1] ?? source.replace(/^@/, "")).toLowerCase().replace(/\/$/, "");
+  return normalizeClientInstagram(value);
 }
 
-export function parseBookingText(value: string, questions: readonly BookingQuestion[] = []): ParsedBookingText {
-  const fields: Omit<ParsedBookingText, "warnings"> = { name: "", phone: "", instagram: "", email: "", service: "", date: "", startTime: "", endTime: "", location: "", notes: "", customResponses: [] };
+export function parseBookingText(value: string, questions: readonly BookingQuestion[] = [], services: readonly Service[] = []): ParsedBookingText {
+  const fields: Omit<ParsedBookingText, "warnings"> = { name: "", phone: "", instagram: "", email: "", service: "", date: "", startTime: "", endTime: "", location: "", notes: "", customResponses: [], serviceOptions: {} };
   const warnings: string[] = [];
   const questionsByLabel = new Map(questions.filter((question) => question.active).map((question) => [normalizeLabel(question.label), question]));
+  const optionGroupsByLabel = new Map(services.flatMap((service) => (service.optionGroups ?? []).map((group) => [normalizeLabel(group.name), group] as const)));
   for (const rawLine of value.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line) continue;
@@ -140,10 +141,13 @@ export function parseBookingText(value: string, questions: readonly BookingQuest
     if (divider < 0) continue;
     const label = line.slice(0, divider);
     const field = fieldForLabel(label);
-    const question = field ? null : questionsByLabel.get(normalizeLabel(label));
-    if (!field && !question) continue;
+    const optionGroup = field ? null : optionGroupsByLabel.get(normalizeLabel(label));
+    const question = field || optionGroup ? null : questionsByLabel.get(normalizeLabel(label));
+    if (!field && !question && !optionGroup) continue;
     const raw = line.slice(divider + 1).trim();
-    if (question) {
+    if (optionGroup) {
+      fields.serviceOptions[normalizeLabel(optionGroup.name)] = raw;
+    } else if (question) {
       const parsed = parseCustomQuestionAnswer(question, raw);
       if (parsed.answer !== null) {
         const response = responseForQuestion(question, parsed.answer);
@@ -207,20 +211,16 @@ function parseCustomQuestionAnswer(question: BookingQuestion, raw: string): { an
   return { answer: null, warning: `Review ${question.label} and attach the file in the Booking form.` };
 }
 
-export function matchExistingCustomer(parsed: Pick<ParsedBookingText, "phone" | "instagram">, customers: Customer[]): MatchResult<Customer> {
-  const phone = normalizeBookingPhone(parsed.phone);
-  if (phone) {
-    const matches = customers.filter((customer) => normalizeBookingPhone(customer.phone) === phone);
-    if (matches.length === 1) return { kind: "exact", matches: [matches[0]] };
-    if (matches.length > 1) return { kind: "ambiguous", matches };
+export function matchExistingCustomer(parsed: Partial<Pick<ParsedBookingText, "name" | "phone" | "instagram" | "email">>, customers: Customer[]): MatchResult<Customer> {
+  const matches = findClientMatches(parsed, customers);
+  const strong = matches.filter((match) => match.strong);
+  if (strong.length > 0) {
+    const highest = strong.filter((match) => match.score === strong[0].score).map((match) => match.customer);
+    if (highest.length === 1) return { kind: "exact", matches: [highest[0]] };
+    return { kind: "ambiguous", matches: highest };
   }
-  const instagram = normalizeBookingInstagram(parsed.instagram);
-  if (instagram) {
-    const matches = customers.filter((customer) => normalizeBookingInstagram(customer.instagram) === instagram);
-    if (matches.length === 1) return { kind: "exact", matches: [matches[0]] };
-    if (matches.length > 1) return { kind: "ambiguous", matches };
-  }
-  return { kind: "none", matches: [] };
+  const weak = matches.map((match) => match.customer);
+  return weak.length > 0 ? { kind: "ambiguous", matches: weak } : { kind: "none", matches: [] };
 }
 
 export function matchExistingService(serviceText: string, services: Service[]): MatchResult<Service> {
@@ -232,13 +232,29 @@ export function matchExistingService(serviceText: string, services: Service[]): 
   return { kind: "none", matches: [] };
 }
 
+export function matchParsedServiceVariant(parsed: ParsedBookingText, service: Service | null): MatchResult<ServiceVariant> {
+  if (!service || !(service.optionGroups ?? []).length) return { kind: "none", matches: [] };
+  const selectedIds = (service.optionGroups ?? []).flatMap((group) => {
+    const requested = parsed.serviceOptions[normalizeLabel(group.name)];
+    if (!requested) return [];
+    const value = group.values.find((candidate) => candidate.active && normalizeLabel(candidate.label) === normalizeLabel(requested));
+    return value ? [value.id] : [];
+  });
+  if (selectedIds.length !== (service.optionGroups ?? []).length) return { kind: "none", matches: [] };
+  const matches = (service.variants ?? []).filter((variant) => variant.active && selectedIds.every((id) => variant.optionValueIds.includes(id)) && variant.optionValueIds.length === selectedIds.length);
+  if (matches.length === 1) return { kind: "exact", matches: [matches[0]] };
+  return matches.length > 1 ? { kind: "ambiguous", matches } : { kind: "none", matches: [] };
+}
+
 export function formatBookingClientTemplate(
   businessName: string,
   preferences: BookingTemplatePreferences | BookingQuestionnaireDefinition,
-  serviceId = "",
+  serviceOrId: string | Service = "",
 ): string {
+  const serviceId = typeof serviceOrId === "string" ? serviceOrId : serviceOrId.id;
   const enabledFields = "enabledCoreFields" in preferences ? preferences.enabledCoreFields : preferences.enabledFields;
   const rows = enabledFields.map((field) => `${BOOKING_CORE_FIELD_LABELS[field]}:`);
-  const questionRows = "questions" in preferences ? questionsForService(preferences, serviceId).map((question) => `${question.label}:`) : [];
-  return [preferences.introduction.trim() || `Booking form - ${businessName}`, ...rows, ...questionRows, preferences.closing.trim()].filter(Boolean).join("\n\n");
+  const optionRows = typeof serviceOrId === "string" ? [] : (serviceOrId.optionGroups ?? []).map((group) => `${group.name}:`);
+  const questionRows = "questions" in preferences ? questionsForService(preferences, serviceId).map((question) => question.type === "File / image" ? `${question.label}: Please upload this through our Booking Page.` : `${question.label}:`) : [];
+  return [preferences.introduction.trim() || `Booking form - ${businessName}`, ...rows, ...optionRows, ...questionRows, preferences.closing.trim()].filter(Boolean).join("\n\n");
 }

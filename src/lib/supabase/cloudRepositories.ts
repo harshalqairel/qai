@@ -36,6 +36,10 @@ function valueAsBoolean(row: DbRow, key: string): boolean {
   return row[key] === true;
 }
 
+function valueAsArray<T>(row: DbRow, key: string): T[] {
+  return Array.isArray(row[key]) ? row[key] as T[] : [];
+}
+
 function timestamp(value: unknown): number {
   if (typeof value !== "string") return Date.now();
   const parsed = Date.parse(value);
@@ -238,6 +242,8 @@ function serviceFromRow(row: DbRow): Service {
     duration: valueAsNumber(row, "duration_minutes"),
     defaultSessionCount: valueAsNumber(row, "default_session_count") || 1,
     locationPolicy: (valueAsString(row, "location_policy") || "Client can choose") as Service["locationPolicy"],
+    optionGroups: valueAsArray<NonNullable<Service["optionGroups"]>[number]>(row, "option_groups"),
+    variants: valueAsArray<NonNullable<Service["variants"]>[number]>(row, "variants"),
     description: valueAsString(row, "description"),
     active: valueAsBoolean(row, "active"),
   };
@@ -252,6 +258,8 @@ function serviceToRow(service: Service): DbRow {
     duration_minutes: service.duration,
     default_session_count: service.defaultSessionCount,
     location_policy: service.locationPolicy ?? "Client can choose",
+    option_groups: service.optionGroups ?? [],
+    variants: service.variants ?? [],
     description: service.description,
     active: service.active,
   };
@@ -303,6 +311,9 @@ function bookingFromRow(row: DbRow, sessions: BookingSession[], additionalCharge
     additionalCharges,
     questionnaireResponses: Array.isArray(row.questionnaire_responses) ? row.questionnaire_responses as Booking["questionnaireResponses"] : [],
     servicePrice: valueAsNumber(row, "service_price"),
+    serviceSnapshot: row.service_snapshot && typeof row.service_snapshot === "object" && !Array.isArray(row.service_snapshot)
+      ? row.service_snapshot as NonNullable<Booking["serviceSnapshot"]>
+      : null,
     bookingStatus: valueAsString(row, "booking_status") as Booking["bookingStatus"],
     fullPaymentDueDate: valueAsString(row, "full_payment_due_date"),
     notes: valueAsString(row, "notes"),
@@ -317,6 +328,7 @@ function bookingToPayload(booking: Booking): DbRow {
     customer_id: booking.customerId,
     service_id: booking.serviceId,
     service_price: booking.servicePrice,
+    service_snapshot: booking.serviceSnapshot ?? {},
     booking_status: booking.bookingStatus,
     full_payment_due_date: booking.fullPaymentDueDate,
     notes: booking.notes,

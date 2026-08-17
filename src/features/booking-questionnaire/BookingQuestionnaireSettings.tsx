@@ -15,6 +15,7 @@ import {
   BOOKING_QUESTION_TYPES,
   DEFAULT_BOOKING_QUESTIONNAIRE,
   bookingQuestionSchema,
+  coreFieldForQuestionLabel,
   type BookingQuestion,
   type BookingQuestionType,
   type BookingQuestionnaireDefinition,
@@ -47,6 +48,10 @@ export default function BookingQuestionnaireSettings() {
 
   async function saveQuestion() {
     if (!draft) return;
+    const duplicateCoreField = coreFieldForQuestionLabel(draft.label);
+    if (duplicateCoreField && definition.enabledCoreFields.includes(duplicateCoreField)) {
+      return notify.error(`This information is already collected as ${BOOKING_CORE_FIELD_LABELS[duplicateCoreField]}. Configure the core field instead.`);
+    }
     const parsed = bookingQuestionSchema.safeParse({ ...draft, options: draft.options.map((option) => option.trim()).filter(Boolean), updatedAt: Date.now() });
     if (!parsed.success) return notify.error(parsed.error.issues[0]?.message ?? "Check the question details.");
     const questions = definition.questions.some((question) => question.id === parsed.data.id)
@@ -103,4 +108,3 @@ export default function BookingQuestionnaireSettings() {
     </div><Button className="mt-5" onClick={() => void saveQuestion()}>Save question</Button></section>}
   </div>;
 }
-

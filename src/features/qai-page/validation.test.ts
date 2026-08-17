@@ -13,8 +13,8 @@ function page(): QaiPageConfig {
   return {
     ...defaultQaiPage(), id: "page-1", slug: "nuyi", businessName: "Nuyi Makeup Studio",
     services: [
-      { serviceId: "request-service", visible: true, title: "Wedding Package", description: "", price: 7_500_000, priceMode: "Starting from", actionMode: "Booking request", durationMinutes: 120, defaultSessionCount: 3, locationPolicy: "Client can choose" },
-      { serviceId: "instant-service", visible: true, title: "Studio Rental", description: "", price: 350_000, priceMode: "Fixed price", actionMode: "Instant booking", durationMinutes: 60, defaultSessionCount: 1, locationPolicy: "Business/studio only" },
+      { serviceId: "request-service", visible: true, title: "Wedding Package", description: "", price: 7_500_000, priceMode: "Starting from", actionMode: "Booking request", durationMinutes: 120, defaultSessionCount: 3, locationPolicy: "Client can choose", optionGroups: [], variants: [], position: 0, featured: true },
+      { serviceId: "instant-service", visible: true, title: "Studio Rental", description: "", price: 350_000, priceMode: "Fixed price", actionMode: "Instant booking", durationMinutes: 60, defaultSessionCount: 1, locationPolicy: "Business/studio only", optionGroups: [], variants: [], position: 1, featured: false },
     ],
     slots: [{ id: "slot-1", serviceId: "instant-service", startAt: "2026-08-18T03:00:00.000Z", endAt: "2026-08-18T04:00:00.000Z", location: "Studio", status: "Available", requestId: null }],
   };
@@ -22,7 +22,7 @@ function page(): QaiPageConfig {
 
 function request(changes: Partial<ValidationRequestInput> = {}): ValidationRequestInput {
   return {
-    pageId: "page-1", slug: "nuyi", serviceId: "request-service", serviceName: "Wedding Package", type: "Booking request", clientName: "Sarah",
+    pageId: "page-1", slug: "nuyi", serviceId: "request-service", serviceName: "Wedding Package", serviceVariantId: null, submissionId: "submission-1", type: "Booking request", clientName: "Sarah",
     whatsapp: "081234567890", email: "", instagram: "", need: "", questionnaireResponses: [], schedules: [
       { id: "schedule-1", label: "Akad", date: "2026-09-12", startTime: "09:00", endTime: "11:00", location: "Bandung" },
       { id: "schedule-2", label: "Reception", date: "2026-09-15", startTime: "17:00", endTime: "20:00", location: "Bandung" },
@@ -52,7 +52,7 @@ describe("Qai Page domain", () => {
     delete legacy.style;
     const parsed = qaiPageSchema.parse(legacy);
     expect(parsed.template).toBe("Muse");
-    expect(parsed.style).toMatchObject({ typography: "Modern", density: "Spacious", sectionOrder: ["portfolio", "services"] });
+    expect(parsed.style).toMatchObject({ typography: "Elegant Serif + Clean Sans", density: "Spacious", sectionOrder: ["portfolio", "services"] });
   });
 
   it("accepts the sixth editorial presentation without changing page data", () => {
@@ -70,14 +70,14 @@ describe("Qai Page domain", () => {
   });
 
   it("shows Booked through Qai only for confirmed instant bookings", () => {
-    const pending = { ...request(), id: "r1", status: "Pending" as const, submittedAt: 1, updatedAt: 1, bookingId: null };
+    const pending = { ...request(), id: "r1", status: "Pending" as const, submittedAt: 1, updatedAt: 1, bookingId: null, clientId: null, serviceSnapshot: null };
     expect(canShowBookedThroughQai(pending)).toBe(false);
     expect(canShowBookedThroughQai({ ...pending, type: "Inquiry" })).toBe(false);
     expect(canShowBookedThroughQai({ ...pending, type: "Instant booking", status: "Accepted", instantSlotId: "slot-1" })).toBe(true);
   });
 
   it("maps one public request to one booking with every requested schedule", () => {
-    const source = { ...request(), id: "r1", status: "Pending" as const, submittedAt: 1, updatedAt: 1, bookingId: null };
+    const source = { ...request(), id: "r1", status: "Pending" as const, submittedAt: 1, updatedAt: 1, bookingId: null, clientId: null, serviceSnapshot: null };
     const values = requestToBookingValues(source, { id: "request-service", name: "Wedding Package", categoryId: "cat", price: 7_500_000, duration: 120, defaultSessionCount: 1, description: "", active: true }, "client-1", "2026-09-01");
     expect(values.customerId).toBe("client-1"); expect(values.sessions).toHaveLength(3); expect(values.sessions.map((item) => item.date)).toEqual(["2026-09-12", "2026-09-15", "2026-09-20"]);
     expect(values.fullPaymentDueDate).toBe("2026-09-20"); expect(values.servicePrice).toBe(7_500_000);
@@ -107,7 +107,7 @@ describe("shared validation store", () => {
   it("reserves an instant slot atomically when two customers try the same time", async () => {
     const { repository: store } = await repository(); await store.savePage(page());
     const first = request({ serviceId: "instant-service", serviceName: "Studio Rental", type: "Instant booking", schedules: [], instantSlotId: "slot-1", whatsapp: "0812111111" });
-    const second = { ...first, whatsapp: "0812222222", clientName: "Other customer" };
+    const second = { ...first, submissionId: "submission-2", whatsapp: "0812222222", clientName: "Other customer" };
     const results = await Promise.allSettled([store.submitRequest(first), store.submitRequest(second)]);
     expect(results.filter((item) => item.status === "fulfilled")).toHaveLength(1);
     expect(results.filter((item) => item.status === "rejected")).toHaveLength(1);
@@ -125,6 +125,14 @@ describe("shared validation store", () => {
     const accepted = await store.updateRequest(first.id, "Accepted", "booking-1");
     const repeated = await store.updateRequest(first.id, "Accepted", "booking-2");
     expect(accepted.bookingId).toBe("booking-1"); expect(repeated.bookingId).toBe("booking-1");
+  });
+
+  it("keeps separate requests from the same phone when each form has a new submission ID", async () => {
+    const { repository: store } = await repository(); await store.savePage(page());
+    const first = await store.submitRequest(request({ submissionId: "form-a" }));
+    const second = await store.submitRequest(request({ submissionId: "form-b" }));
+    expect(second.id).not.toBe(first.id);
+    expect((await store.read()).requests.map((item) => item.id)).toEqual([first.id, second.id]);
   });
 
   it("enforces unique slugs and keeps declined requests without bookings", async () => {

@@ -5,23 +5,43 @@ import {
   DEFAULT_BOOKING_QUESTIONNAIRE,
 } from "@/features/booking-questionnaire/questionnaire";
 import type { BookingFormValues } from "@/features/booking/types";
-import type { Service } from "@/features/service/types";
+import type { Service, ServiceSelectionSnapshot, ServiceVariant } from "@/features/service/types";
 
 export type PublicPriceMode = "Fixed price" | "Starting from" | "Ask for price";
 export type PublicActionMode = "Booking request" | "Inquiry" | "Instant booking";
 export type PublicRequestStatus = "Pending" | "Accepted" | "Declined";
 export const QAI_PAGE_TEMPLATES = ["Muse", "Studio", "Signature", "Professional", "Warm", "Editorial"] as const;
-export const QAI_PAGE_TYPOGRAPHY = ["Modern", "Editorial", "Classic"] as const;
+export const QAI_PAGE_TYPOGRAPHY = [
+  "Elegant Serif + Clean Sans",
+  "Editorial Serif + Sans",
+  "Modern Sans",
+  "Minimal Sans",
+  "Contemporary Serif + Sans",
+] as const;
+const QAI_PAGE_TYPOGRAPHY_WITH_LEGACY = [...QAI_PAGE_TYPOGRAPHY, "Modern", "Editorial", "Classic"] as const;
 export const QAI_PAGE_DENSITIES = ["Spacious", "Compact"] as const;
-export const QAI_PAGE_SECTIONS = ["portfolio", "services"] as const;
+export const QAI_PAGE_TONES = ["Template default", "Light", "Dark"] as const;
+export const QAI_PAGE_BUTTON_STYLES = ["Soft rounded", "Rounded", "Editorial"] as const;
+export const QAI_PAGE_SECTIONS = ["about", "portfolio", "services"] as const;
 export const QAI_ATTRIBUTION_HREF = "/?ref=qai-page&utm_source=qai_page&utm_medium=attribution&utm_campaign=powered_by_qai";
+
+export const DEFAULT_REJECTION_WHATSAPP_TEMPLATE = "Hi {client_name}, thank you for your interest in {service_name}. Unfortunately, we are unable to accept your booking request at this time. Thank you for your understanding.\n\n— {business_name}";
 
 const defaultPageStyle = {
   accentColor: "#4F6BFF",
   backgroundColor: "#F7F8FC",
-  typography: "Modern" as const,
+  surfaceColor: "#FFFFFF",
+  textColor: "#111A31",
+  mutedTextColor: "#667085",
+  buttonBackgroundColor: "#56334F",
+  buttonTextColor: "#FFFFFF",
+  borderColor: "#D7DCE5",
+  tone: "Template default" as const,
+  typography: "Elegant Serif + Clean Sans" as const,
+  buttonStyle: "Soft rounded" as const,
   density: "Spacious" as const,
   sectionOrder: ["portfolio", "services"] as Array<(typeof QAI_PAGE_SECTIONS)[number]>,
+  showAbout: true,
   showPortfolio: true,
   showServices: true,
   showContact: true,
@@ -30,9 +50,18 @@ const defaultPageStyle = {
 export const qaiPageStyleSchema = z.object({
   accentColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default(defaultPageStyle.accentColor),
   backgroundColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default(defaultPageStyle.backgroundColor),
-  typography: z.enum(QAI_PAGE_TYPOGRAPHY).default(defaultPageStyle.typography),
+  surfaceColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default(defaultPageStyle.surfaceColor),
+  textColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default(defaultPageStyle.textColor),
+  mutedTextColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default(defaultPageStyle.mutedTextColor),
+  buttonBackgroundColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default(defaultPageStyle.buttonBackgroundColor),
+  buttonTextColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default(defaultPageStyle.buttonTextColor),
+  borderColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default(defaultPageStyle.borderColor),
+  tone: z.enum(QAI_PAGE_TONES).default(defaultPageStyle.tone),
+  typography: z.enum(QAI_PAGE_TYPOGRAPHY_WITH_LEGACY).default(defaultPageStyle.typography),
+  buttonStyle: z.enum(QAI_PAGE_BUTTON_STYLES).default(defaultPageStyle.buttonStyle),
   density: z.enum(QAI_PAGE_DENSITIES).default(defaultPageStyle.density),
-  sectionOrder: z.array(z.enum(QAI_PAGE_SECTIONS)).length(QAI_PAGE_SECTIONS.length).default(defaultPageStyle.sectionOrder),
+  sectionOrder: z.array(z.enum(QAI_PAGE_SECTIONS)).min(1).max(QAI_PAGE_SECTIONS.length).default(defaultPageStyle.sectionOrder),
+  showAbout: z.boolean().default(true),
   showPortfolio: z.boolean().default(true),
   showServices: z.boolean().default(true),
   showContact: z.boolean().default(true),
@@ -58,6 +87,23 @@ export const publicServiceSchema = z.object({
   durationMinutes: z.number().int().positive().max(1440),
   defaultSessionCount: z.number().int().min(1).max(12).default(1),
   locationPolicy: z.enum(["Business/studio only", "Client location only", "Client can choose", "Online"]).default("Client can choose"),
+  optionGroups: z.array(z.object({
+    id: z.string().min(1).max(100),
+    name: z.string().trim().min(1).max(80),
+    position: z.number().int().min(0).max(1000),
+    values: z.array(z.object({ id: z.string().min(1).max(100), label: z.string().trim().min(1).max(80), active: z.boolean(), position: z.number().int().min(0).max(1000) })).min(1).max(12),
+  })).max(4).default([]),
+  variants: z.array(z.object({
+    id: z.string().min(1).max(100),
+    optionValueIds: z.array(z.string().min(1).max(100)).min(1).max(4),
+    displayLabel: z.string().trim().max(120),
+    price: z.number().finite().nonnegative(),
+    duration: z.number().finite().positive(),
+    defaultSessionCount: z.number().int().min(1).max(50),
+    active: z.boolean(),
+  })).max(200).default([]),
+  position: z.number().int().min(0).max(1000).default(0),
+  featured: z.boolean().default(false),
 });
 
 export const instantSlotSchema = z.object({
@@ -75,16 +121,31 @@ export const qaiPageSchema = z.object({
   template: z.enum(QAI_PAGE_TEMPLATES).default("Muse"), style: qaiPageStyleSchema,
   businessName: z.string().trim().min(1).max(160), shortDescription: z.string().trim().max(500), location: z.string().trim().max(200),
   whatsapp: z.string().trim().max(50), email: z.string().trim().email().or(z.literal("")), instagram: z.string().trim().max(200),
-  logo: z.string().max(3_000_000), coverImage: z.string().max(3_000_000), portfolio: z.array(portfolioItemSchema).max(12).default([]), services: z.array(publicServiceSchema).max(100), slots: z.array(instantSlotSchema).max(500),
+  logo: z.string().max(3_000_000), coverImage: z.string().max(3_000_000), portfolio: z.array(portfolioItemSchema).max(40).default([]), services: z.array(publicServiceSchema).max(100), slots: z.array(instantSlotSchema).max(500),
   timezone: z.string().trim().min(1).max(100).default("Asia/Jakarta"),
   questionnaire: bookingQuestionnaireDefinitionSchema.default(DEFAULT_BOOKING_QUESTIONNAIRE),
+  messages: z.object({ rejectionWhatsappTemplate: z.string().trim().max(4000).default(DEFAULT_REJECTION_WHATSAPP_TEMPLATE) }).default({ rejectionWhatsappTemplate: DEFAULT_REJECTION_WHATSAPP_TEMPLATE }),
   updatedAt: z.number().int().nonnegative(),
+});
+
+const serviceSelectionSnapshotSchema = z.object({
+  serviceName: z.string().trim().min(1).max(160),
+  variantId: z.string().min(1).max(100).nullable(),
+  variantLabel: z.string().trim().max(200),
+  options: z.array(z.object({ groupId: z.string().min(1).max(100), groupName: z.string().trim().min(1).max(80), valueId: z.string().min(1).max(100), valueLabel: z.string().trim().min(1).max(80) })).max(4),
+  price: z.number().finite().nonnegative(),
+  duration: z.number().finite().positive(),
+  defaultSessionCount: z.number().int().min(1).max(50),
 });
 
 export const publicRequestSchema = z.object({
   id: z.string().min(1).max(100), pageId: z.string().min(1).max(100), slug: z.string().min(1).max(120), serviceId: z.string().min(1).max(100),
   serviceName: z.string().trim().min(1).max(160), type: z.enum(["Booking request", "Inquiry", "Instant booking"]),
   clientName: z.string().trim().min(1).max(160), whatsapp: z.string().trim().min(6).max(50), email: z.string().trim().email().or(z.literal("")), instagram: z.string().trim().max(200).default(""),
+  submissionId: z.string().min(1).max(100).default(() => crypto.randomUUID()),
+  clientId: z.string().min(1).max(100).nullable().default(null),
+  serviceVariantId: z.string().min(1).max(100).nullable().default(null),
+  serviceSnapshot: serviceSelectionSnapshotSchema.nullable().default(null),
   need: z.string().trim().max(1000), schedules: z.array(publicScheduleSchema).max(12), location: z.string().trim().max(300), budget: z.string().trim().max(100),
   questionnaireResponses: z.array(bookingQuestionResponseSchema).max(50).default([]),
   notes: z.string().trim().max(2000), status: z.enum(["Pending", "Accepted", "Declined"]), submittedAt: z.number().int().nonnegative(),
@@ -98,6 +159,8 @@ export type PortfolioItem = z.infer<typeof portfolioItemSchema>;
 export type QaiPageConfig = z.infer<typeof qaiPageSchema>;
 export type PublicRequest = z.infer<typeof publicRequestSchema>;
 
+export type PublicServiceVariant = ServiceVariant;
+
 export type ValidationStore = { pages: QaiPageConfig[]; requests: PublicRequest[] };
 
 export function normalizeSlug(value: string): string {
@@ -108,6 +171,50 @@ export function normalizeContactPhone(value: string): string {
   const digits = value.replace(/\D/g, "");
   if (digits.startsWith("0")) return `62${digits.slice(1)}`;
   return digits;
+}
+
+function hexChannel(value: string): number { return Number.parseInt(value, 16) / 255; }
+function relativeLuminance(color: string): number {
+  const channels = [color.slice(1, 3), color.slice(3, 5), color.slice(5, 7)].map(hexChannel).map((value) => value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+}
+export function colorContrast(left: string, right: string): number {
+  const values = [relativeLuminance(left), relativeLuminance(right)].sort((a, b) => b - a);
+  return (values[0] + 0.05) / (values[1] + 0.05);
+}
+export function qaiPageThemeIssues(style: QaiPageConfig["style"]): string[] {
+  const issues: string[] = [];
+  if (colorContrast(style.textColor, style.backgroundColor) < 4.5) issues.push("Primary text needs more contrast against the page background.");
+  if (colorContrast(style.mutedTextColor, style.backgroundColor) < 3) issues.push("Muted text needs more contrast against the page background.");
+  if (colorContrast(style.buttonTextColor, style.buttonBackgroundColor) < 4.5) issues.push("Button text needs more contrast against the button color.");
+  return issues;
+}
+
+export function normalizedPageSectionOrder(style: QaiPageConfig["style"]): Array<(typeof QAI_PAGE_SECTIONS)[number]> {
+  const ordered = style.sectionOrder.filter((section, index, items) => items.indexOf(section) === index);
+  return [...ordered, ...QAI_PAGE_SECTIONS.filter((section) => !ordered.includes(section))];
+}
+
+export function publicVariantForId(service: PublicService, variantId: string | null): PublicServiceVariant | null {
+  if (!variantId) return null;
+  return service.variants.find((variant) => variant.id === variantId && variant.active) ?? null;
+}
+
+export function snapshotPublicServiceSelection(service: PublicService, variantId: string | null): ServiceSelectionSnapshot {
+  const variant = publicVariantForId(service, variantId);
+  const options = variant ? [...service.optionGroups].sort((a, b) => a.position - b.position).flatMap((group) => {
+    const value = group.values.find((candidate) => variant.optionValueIds.includes(candidate.id));
+    return value ? [{ groupId: group.id, groupName: group.name, valueId: value.id, valueLabel: value.label }] : [];
+  }) : [];
+  return {
+    serviceName: service.title,
+    variantId: variant?.id ?? null,
+    variantLabel: variant?.displayLabel || options.map((option) => option.valueLabel).join(" · "),
+    options,
+    price: variant?.price ?? service.price,
+    duration: variant?.duration ?? service.durationMinutes,
+    defaultSessionCount: variant?.defaultSessionCount ?? service.defaultSessionCount,
+  };
 }
 
 export function publicPriceLabel(service: PublicService): string {
@@ -145,7 +252,8 @@ export function requestToBookingValues(request: PublicRequest, service: Service,
   const sessions = sourceSchedules.map((item) => ({ label: item.label, date: item.date, startTime: item.startTime, endTime: item.endTime, location: item.location || request.location, notes: request.need }));
   const finalDate = [...sessions].sort((left, right) => right.date.localeCompare(left.date))[0]?.date ?? fallbackDate;
   return {
-    customerId, serviceId: service.id, sessions, servicePrice: service.price, bookingStatus: "Scheduled", fullPaymentDueDate: finalDate,
+    customerId, serviceId: service.id, sessions, servicePrice: request.serviceSnapshot?.price ?? service.price, serviceSnapshot: request.serviceSnapshot,
+    bookingStatus: "Scheduled", fullPaymentDueDate: finalDate,
     questionnaireResponses: request.questionnaireResponses,
     notes: [request.need, request.notes, "Source: Qai Page"].filter(Boolean).join("\n\n"),
   };
@@ -161,7 +269,7 @@ export function derivePublicEndTime(startTime: string, durationMinutes: number):
 export function defaultQaiPage(): QaiPageConfig {
   return {
     id: "local-page", businessId: "local-business", slug: "my-business", template: "Muse", style: structuredClone(defaultPageStyle), businessName: "My business", shortDescription: "", location: "",
-    whatsapp: "", email: "", instagram: "", logo: "", coverImage: "", portfolio: [], services: [], slots: [], timezone: "Asia/Jakarta", questionnaire: structuredClone(DEFAULT_BOOKING_QUESTIONNAIRE), updatedAt: Date.now(),
+    whatsapp: "", email: "", instagram: "", logo: "", coverImage: "", portfolio: [], services: [], slots: [], timezone: "Asia/Jakarta", questionnaire: structuredClone(DEFAULT_BOOKING_QUESTIONNAIRE), messages: { rejectionWhatsappTemplate: DEFAULT_REJECTION_WHATSAPP_TEMPLATE }, updatedAt: Date.now(),
   };
 }
 
@@ -176,8 +284,8 @@ export const validationClient = {
   owner(): Promise<ValidationStore> { return api("/api/validation?scope=owner"); },
   page(slug: string): Promise<QaiPageConfig> { return api(`/api/validation?scope=page&slug=${encodeURIComponent(slug)}`); },
   savePage(page: QaiPageConfig): Promise<QaiPageConfig> { return api("/api/validation", { method: "POST", body: JSON.stringify({ action: "save-page", page }) }); },
-  submitRequest(request: Omit<PublicRequest, "id" | "status" | "submittedAt" | "updatedAt" | "bookingId">): Promise<PublicRequest> { return api("/api/validation", { method: "POST", body: JSON.stringify({ action: "submit-request", request }) }); },
-  updateRequest(requestId: string, status: PublicRequestStatus, bookingId: string | null): Promise<PublicRequest> { return api("/api/validation", { method: "POST", body: JSON.stringify({ action: "update-request", requestId, status, bookingId }) }); },
+  submitRequest(request: Omit<PublicRequest, "id" | "status" | "submittedAt" | "updatedAt" | "bookingId" | "clientId" | "serviceSnapshot">): Promise<PublicRequest> { return api("/api/validation", { method: "POST", body: JSON.stringify({ action: "submit-request", request }) }); },
+  updateRequest(requestId: string, status: PublicRequestStatus, bookingId: string | null, clientId: string | null = null): Promise<PublicRequest> { return api("/api/validation", { method: "POST", body: JSON.stringify({ action: "update-request", requestId, status, bookingId, clientId }) }); },
   async uploadMedia(file: File, kind: "page-logo" | "page-cover" | "portfolio" | "invoice-logo" | "invoice-signature" | "invoice-stamp" | "invoice-watermark" | "booking-response"): Promise<{ id: string; url: string }> {
     const body = new FormData(); body.set("file", file); body.set("kind", kind);
     const response = await fetch("/api/validation/media", { method: "POST", body }); const result = await response.json() as { data?: { id: string; url: string }; error?: string };
