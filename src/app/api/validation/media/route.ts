@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     const admin = createValidationAdminClient();
     if (kind === "portfolio") {
       const { count } = await admin.from("validation_media_assets").select("id", { count: "exact", head: true }).eq("workspace_id", session.workspaceId).eq("kind", "portfolio");
-      if ((count ?? 0) >= 12) return NextResponse.json({ error: "Portfolio is limited to 12 images for validation." }, { status: 409 });
+      if ((count ?? 0) >= 40) return NextResponse.json({ error: "Portfolio is limited to 40 images for validation." }, { status: 409 });
     }
     const id = crypto.randomUUID();
     const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : file.type === "application/pdf" ? "pdf" : "jpg";
@@ -35,6 +35,6 @@ export async function POST(request: Request) {
     if (recordError) { await admin.storage.from("validation-media").remove([storagePath]); throw recordError; }
     return NextResponse.json({ data: { id, url: `/api/validation/media/${id}` } }, { status: 201 });
   } catch {
-    return NextResponse.json({ error: "Could not upload that image." }, { status: 400 });
+    return NextResponse.json({ error: "Could not upload that file." }, { status: 400 });
   }
 }

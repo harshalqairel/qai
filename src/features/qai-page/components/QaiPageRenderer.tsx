@@ -1,9 +1,9 @@
 /* eslint-disable @next/next/no-img-element -- Business-owned validation images can be data URLs or protected media URLs. */
 "use client";
 
-import type { CSSProperties } from "react";
-import { useMemo, useState } from "react";
-import { ArrowRight, ArrowUpRight, AtSign, Clock3, Mail, MapPin, Menu, MessageCircle } from "lucide-react";
+import type { CSSProperties, ComponentType } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowRight, ArrowUpRight, AtSign, ChevronLeft, ChevronRight, Clock3, Images, Mail, MapPin, Menu, MessageCircle, X } from "lucide-react";
 
 import { QaiMark } from "@/components/brand/QaiLogo";
 import {
@@ -15,6 +15,7 @@ import {
 import { formatDuration } from "@/features/service/utils/duration";
 import {
   normalizedPageSectionOrder,
+  groupPortfolioWorks,
   normalizeContactPhone,
   publicActionLabel,
   publicPriceLabel,
@@ -23,6 +24,7 @@ import {
   type PublicService,
   type QaiPageConfig,
 } from "@/features/qai-page/validation";
+import { socialProfileUrl } from "@/features/qai-page/socialProfiles";
 
 type RendererProps = {
   page: QaiPageConfig;
@@ -36,19 +38,8 @@ type PageVariables = CSSProperties & Record<`--page-${string}`, string>;
 
 const NAV_LINKS = ["about", "portfolio", "services"] as const;
 
-function socialHref(value: string): string | null {
-  const contact = value.trim();
-  if (!contact) return null;
-  if (/^https?:\/\//i.test(contact)) {
-    try {
-      const url = new URL(contact);
-      return ["http:", "https:"].includes(url.protocol) ? url.toString() : null;
-    } catch {
-      return null;
-    }
-  }
-  const handle = contact.replace(/^@/, "");
-  return /^[a-zA-Z0-9._]+$/.test(handle) ? `https://instagram.com/${handle}` : null;
+function TikTokIcon({ className }: { className?: string }) {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true"><path d="M14.5 4v10.1a4.6 4.6 0 1 1-3.9-4.55" /><path d="M14.5 4c.45 2.45 1.85 3.9 4.25 4.35" /></svg>;
 }
 
 function PageButton({ children, onClick, secondary = false, className = "" }: { children: React.ReactNode; onClick?: () => void; secondary?: boolean; className?: string }) {
@@ -66,28 +57,30 @@ function PageNav({ page, inverse = false }: { page: QaiPageConfig; inverse?: boo
 
 function ContactLinks({ page, inverse = false }: { page: QaiPageConfig; inverse?: boolean }) {
   if (!page.style.showContact) return null;
-  const instagram = socialHref(page.instagram);
+  const instagram = socialProfileUrl("instagram", page.instagram);
+  const tiktok = socialProfileUrl("tiktok", page.tiktok);
   const links = [
     page.whatsapp ? { label: "WhatsApp", href: `https://wa.me/${normalizeContactPhone(page.whatsapp)}`, icon: MessageCircle } : null,
     page.email ? { label: "Email", href: `mailto:${page.email}`, icon: Mail } : null,
     instagram ? { label: "Instagram", href: instagram, icon: AtSign } : null,
-  ].filter(Boolean) as Array<{ label: string; href: string; icon: typeof Mail }>;
+    tiktok ? { label: "TikTok", href: tiktok, icon: TikTokIcon } : null,
+  ].filter(Boolean) as Array<{ label: string; href: string; icon: ComponentType<{ className?: string }> }>;
   if (!links.length) return null;
-  return <div className="mt-6 flex flex-wrap gap-2">{links.map(({ label, href, icon: Icon }) => <a key={label} href={href} target={label === "Email" ? undefined : "_blank"} rel={label === "Email" ? undefined : "noreferrer"} className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-semibold ${inverse ? "border-white/25 bg-black/20 text-white hover:bg-white hover:text-slate-950" : "border-[var(--page-border)] bg-[var(--page-surface)] text-[var(--page-text)] hover:border-[var(--page-accent)]"}`}><Icon className="size-4" />{label}</a>)}</div>;
+  return <div className="mt-6 flex flex-wrap gap-2">{links.map(({ label, href, icon: Icon }) => <a key={label} href={href} aria-label={label === "TikTok" ? `${page.businessName} on TikTok` : undefined} target={label === "Email" ? undefined : "_blank"} rel={label === "Email" ? undefined : "noreferrer"} className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-semibold ${inverse ? "border-white/25 bg-black/20 text-white hover:bg-white hover:text-slate-950" : "border-[var(--page-border)] bg-[var(--page-surface)] text-[var(--page-text)] hover:border-[var(--page-accent)]"}`}><Icon className="size-4" />{label}</a>)}</div>;
 }
 
 function HeroText({ page, inverse = false, centered = false, onPrimary }: { page: QaiPageConfig; inverse?: boolean; centered?: boolean; onPrimary?: () => void }) {
-  return <div className={`${centered ? "mx-auto text-center" : ""} max-w-3xl`}><p className={`text-xs font-semibold uppercase tracking-[0.2em] ${inverse ? "text-white/65" : "text-[var(--page-accent)]"}`}>Creative services · {page.location || "Available by appointment"}</p><h1 className="mt-5 break-words font-[var(--page-heading-font)] text-4xl font-semibold leading-[.98] tracking-[-0.045em] sm:text-6xl lg:text-7xl">{page.businessName}</h1>{page.shortDescription && <p className={`mt-6 max-w-2xl whitespace-pre-wrap text-base leading-7 sm:text-lg ${centered ? "mx-auto" : ""} ${inverse ? "text-white/75" : "text-[var(--page-muted)]"}`}>{page.shortDescription}</p>}<div className={`mt-8 flex flex-wrap gap-3 ${centered ? "justify-center" : ""}`}>{onPrimary && <PageButton onClick={onPrimary}>Book an appointment <ArrowRight className="size-4" /></PageButton>}{page.style.showPortfolio && <PageButton secondary onClick={() => document.getElementById("portfolio")?.scrollIntoView({ behavior: "smooth" })}>View portfolio</PageButton>}</div></div>;
+  return <div className={`${centered ? "mx-auto text-center" : ""} max-w-3xl`}><p className={`text-xs font-semibold uppercase tracking-[0.2em] ${inverse ? "text-white/65" : "text-[var(--page-accent)]"}`}>Creative services · {page.location || "Available by appointment"}</p><h1 className="mt-5 break-words font-[var(--page-heading-font)] text-4xl font-semibold leading-[.98] tracking-[-0.045em] sm:text-6xl lg:text-7xl">{page.businessName}</h1>{page.shortDescription && <p className={`mt-6 max-w-2xl whitespace-pre-wrap text-base leading-7 sm:text-lg ${centered ? "mx-auto" : ""} ${inverse ? "text-white/75" : "text-[var(--page-muted)]"}`}>{page.shortDescription}</p>}<div className={`mt-8 flex flex-wrap gap-3 ${centered ? "justify-center" : ""}`}>{onPrimary && <PageButton onClick={onPrimary}>Book an appointment <ArrowRight className="size-4" /></PageButton>}{page.style.showPortfolio && <PageButton secondary className={inverse ? "!border-white/40 !text-white hover:!bg-white hover:!text-slate-950" : ""} onClick={() => document.getElementById("portfolio")?.scrollIntoView({ behavior: "smooth" })}>View portfolio</PageButton>}</div></div>;
 }
 
 function Hero({ page, onPrimary }: { page: QaiPageConfig; onPrimary?: () => void }) {
   const image = page.coverImage;
   if (page.template === "Signature") return <><PageNav page={page} /><header className="mx-auto grid max-w-[86rem] gap-8 px-5 py-12 sm:px-8 sm:py-16 lg:grid-cols-[.78fr_1.22fr] lg:items-center lg:py-20"><HeroText page={page} onPrimary={onPrimary} />{image ? <img src={image} alt="" className="max-h-[35rem] w-full object-contain" /> : <div className="aspect-[7/4] bg-[linear-gradient(135deg,var(--page-surface),var(--page-accent))] opacity-65" />}</header></>;
-  if (page.template === "Studio") return <div className="bg-[#090d12] text-white"><PageNav page={page} inverse /><header className="relative isolate mx-auto min-h-[34rem] max-w-[86rem] overflow-hidden lg:min-h-[42rem]">{image ? <img src={image} alt="" className="absolute inset-0 -z-20 size-full object-cover" /> : <div className="absolute inset-0 -z-20 bg-[linear-gradient(115deg,#0a0d11,var(--page-accent),#101826)]" />}<div className="absolute inset-0 -z-10 bg-gradient-to-r from-black/90 via-black/55 to-black/15" /><div className="flex min-h-[34rem] items-end px-5 py-12 sm:px-10 lg:min-h-[42rem] lg:px-14 lg:py-16"><HeroText page={page} inverse onPrimary={onPrimary} /></div></header></div>;
-  if (page.template === "Professional") return <div className="bg-[#0b1119] text-white"><PageNav page={page} inverse /><header className="relative isolate min-h-[33rem] overflow-hidden lg:min-h-[41rem]">{image ? <img src={image} alt="" className="absolute inset-0 -z-20 size-full object-cover object-center" /> : <div className="absolute inset-0 -z-20 bg-[linear-gradient(130deg,#071017,var(--page-accent),#1c2736)]" />}<div className="absolute inset-0 -z-10 bg-gradient-to-r from-black/90 via-black/60 to-black/10" /><div className="mx-auto flex min-h-[33rem] max-w-[86rem] items-center px-5 py-12 sm:px-8 lg:min-h-[41rem]"><HeroText page={page} inverse onPrimary={onPrimary} /></div></header></div>;
-  if (page.template === "Warm") return <div className="bg-[#0b1119] text-white"><PageNav page={page} inverse /><header className="relative isolate min-h-[34rem] overflow-hidden lg:min-h-[44rem]">{image ? <img src={image} alt="" className="absolute inset-0 -z-20 size-full object-cover" /> : <div className="absolute inset-0 -z-20 bg-[linear-gradient(120deg,#111622,var(--page-accent),#3f253c)]" />}<div className="absolute inset-0 -z-10 bg-gradient-to-r from-black/90 via-black/45 to-transparent" /><div className="mx-auto flex min-h-[34rem] max-w-[86rem] items-center px-5 py-12 sm:px-8 lg:min-h-[44rem]"><HeroText page={page} inverse onPrimary={onPrimary} /></div></header></div>;
+  if (page.template === "Studio") return <div className="bg-[#090d12] text-white"><PageNav page={page} inverse /><header className="qai-page-immersive-hero relative isolate mx-auto min-h-[34rem] max-w-[86rem] overflow-hidden lg:min-h-[42rem]">{image ? <img src={image} alt="" className="absolute inset-0 -z-20 size-full object-cover" /> : <div className="absolute inset-0 -z-20 bg-[linear-gradient(115deg,#0a0d11,var(--page-accent),#101826)]" />}<div className="absolute inset-0 -z-10 bg-gradient-to-r from-black/90 via-black/55 to-black/15" /><div className="qai-page-immersive-content flex min-h-[34rem] items-end px-5 py-12 sm:px-10 lg:min-h-[42rem] lg:px-14 lg:py-16"><HeroText page={page} inverse onPrimary={onPrimary} /></div></header></div>;
+  if (page.template === "Professional") return <div className="bg-[#0b1119] text-white"><PageNav page={page} inverse /><header className="qai-page-immersive-hero relative isolate min-h-[33rem] overflow-hidden lg:min-h-[41rem]">{image ? <img src={image} alt="" className="absolute inset-0 -z-20 size-full object-cover object-center" /> : <div className="absolute inset-0 -z-20 bg-[linear-gradient(130deg,#071017,var(--page-accent),#1c2736)]" />}<div className="absolute inset-0 -z-10 bg-gradient-to-r from-black/90 via-black/60 to-black/10" /><div className="qai-page-immersive-content mx-auto flex min-h-[33rem] max-w-[86rem] items-center px-5 py-12 sm:px-8 lg:min-h-[41rem]"><HeroText page={page} inverse onPrimary={onPrimary} /></div></header></div>;
+  if (page.template === "Warm") return <div className="bg-[#0b1119] text-white"><PageNav page={page} inverse /><header className="qai-page-immersive-hero relative isolate min-h-[34rem] overflow-hidden lg:min-h-[44rem]">{image ? <img src={image} alt="" className="absolute inset-0 -z-20 size-full object-cover" /> : <div className="absolute inset-0 -z-20 bg-[linear-gradient(120deg,#111622,var(--page-accent),#3f253c)]" />}<div className="absolute inset-0 -z-10 bg-gradient-to-r from-black/90 via-black/45 to-transparent" /><div className="qai-page-immersive-content mx-auto flex min-h-[34rem] max-w-[86rem] items-center px-5 py-12 sm:px-8 lg:min-h-[44rem]"><HeroText page={page} inverse onPrimary={onPrimary} /></div></header></div>;
   if (page.template === "Editorial") return <><PageNav page={page} /><header className="mx-auto max-w-[86rem] px-5 py-10 sm:px-8"><div className="border-y border-[var(--page-border)] py-6 text-center"><HeroText page={page} centered onPrimary={onPrimary} /></div>{image && <img src={image} alt="" className="mt-8 max-h-[42rem] w-full object-contain" />}</header></>;
-  return <div className="bg-[#0b1119] text-white"><PageNav page={page} inverse /><header className="relative isolate min-h-[34rem] overflow-hidden lg:min-h-[43rem]">{image ? <img src={image} alt="" className="absolute inset-0 -z-20 size-full object-cover" /> : <div className="absolute inset-0 -z-20 bg-[linear-gradient(120deg,#0a0e16,var(--page-accent),#293b64)]" />}<div className="absolute inset-0 -z-10 bg-gradient-to-r from-black/90 via-black/50 to-black/10" /><div className="mx-auto flex min-h-[34rem] max-w-[86rem] items-center px-5 py-12 sm:px-8 lg:min-h-[43rem]"><HeroText page={page} inverse onPrimary={onPrimary} /></div></header></div>;
+  return <div className="bg-[#0b1119] text-white"><PageNav page={page} inverse /><header className="qai-page-immersive-hero relative isolate min-h-[34rem] overflow-hidden lg:min-h-[43rem]">{image ? <img src={image} alt="" className="absolute inset-0 -z-20 size-full object-cover" /> : <div className="absolute inset-0 -z-20 bg-[linear-gradient(120deg,#0a0e16,var(--page-accent),#293b64)]" />}<div className="absolute inset-0 -z-10 bg-gradient-to-r from-black/90 via-black/50 to-black/10" /><div className="qai-page-immersive-content mx-auto flex min-h-[34rem] max-w-[86rem] items-center px-5 py-12 sm:px-8 lg:min-h-[43rem]"><HeroText page={page} inverse onPrimary={onPrimary} /></div></header></div>;
 }
 
 function Facts({ page }: { page: QaiPageConfig }) {
@@ -96,36 +89,66 @@ function Facts({ page }: { page: QaiPageConfig }) {
 }
 
 function AboutSection({ page }: { page: QaiPageConfig }) {
-  if (!page.style.showAbout || (!page.shortDescription && !page.location)) return null;
+  const hasContact = Boolean(page.whatsapp || page.email || page.instagram || page.tiktok);
+  if (!page.style.showAbout || (!page.shortDescription && !page.location && !hasContact)) return null;
   const split = page.template === "Signature" || page.template === "Professional";
   return <section id="about" aria-labelledby="about-heading" className={`${split ? "grid gap-8 lg:grid-cols-[.65fr_1.35fr]" : "max-w-4xl"}`}><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--page-accent)]">About</p><h2 id="about-heading" className="mt-2 font-[var(--page-heading-font)] text-3xl font-semibold tracking-tight sm:text-4xl">About {page.businessName}</h2></div><div>{page.shortDescription && <p className="whitespace-pre-wrap text-base leading-8 text-[var(--page-muted)] sm:text-lg">{page.shortDescription}</p>}{page.location && <p className="mt-5 inline-flex items-center gap-2 text-sm font-semibold"><MapPin className="size-4 text-[var(--page-accent)]" />{page.location}</p>}<ContactLinks page={page} /></div></section>;
 }
 
 function PortfolioSection({ page, services, portfolio, onChoose }: RendererProps) {
-  if (!page.style.showPortfolio || portfolio.length === 0) return null;
-  const columns = portfolio.length === 1 ? "columns-1 max-w-4xl" : portfolio.length <= 3 ? "columns-1 sm:columns-2" : "columns-2 lg:columns-3";
+  const works = useMemo(() => groupPortfolioWorks(portfolio), [portfolio]);
+  const [activeWorkId, setActiveWorkId] = useState<string | null>(null);
+  const [activeImage, setActiveImage] = useState(0);
+  const touchStart = useRef<number | null>(null);
+  const activeWork = works.find((work) => work.id === activeWorkId) ?? null;
+
+  useEffect(() => {
+    if (!activeWork) return;
+    const work = activeWork;
+    function keyboard(event: KeyboardEvent) {
+      if (event.key === "Escape") setActiveWorkId(null);
+      if (event.key === "ArrowLeft") setActiveImage((index) => (index - 1 + work.images.length) % work.images.length);
+      if (event.key === "ArrowRight") setActiveImage((index) => (index + 1) % work.images.length);
+    }
+    window.addEventListener("keydown", keyboard);
+    return () => window.removeEventListener("keydown", keyboard);
+  }, [activeWork]);
+
+  if (!page.style.showPortfolio || works.length === 0) return null;
+  const columns = works.length === 1 ? "grid-cols-1 max-w-4xl" : works.length <= 3 ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3";
   return (
     <section id="portfolio" aria-labelledby="portfolio-heading">
       <div className={page.template === "Editorial" ? "border-b border-[var(--page-border)] pb-5" : ""}>
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--page-accent)]">Portfolio</p>
         <h2 id="portfolio-heading" className="mt-2 font-[var(--page-heading-font)] text-3xl font-semibold tracking-tight sm:text-4xl">Selected work</h2>
       </div>
-      <div className={`mt-7 ${columns} gap-3 sm:gap-5`}>
-        {portfolio.map((item, index) => {
-          const related = services.find((service) => service.serviceId === item.serviceId);
+      <div className={`mt-7 grid ${columns} gap-4 sm:gap-5`}>
+        {works.map((work, index) => {
+          const cover = work.images.find((image) => image.isCover) ?? work.images[0];
+          const related = services.find((service) => service.serviceId === work.serviceId);
           return (
-            <figure key={item.id} className="mb-3 break-inside-avoid overflow-hidden border border-[var(--page-border)] bg-[var(--page-surface)] sm:mb-5" style={{ borderRadius: page.template === "Editorial" || page.template === "Signature" ? 0 : "1rem" }}>
-              <img src={item.imageUrl} alt={item.caption || `${page.businessName} selected work ${index + 1}`} className="h-auto w-full object-contain" loading={index < 2 ? "eager" : "lazy"} />
-              {(item.caption || related) && (
-                <figcaption className="p-4 sm:p-5">
-                  {item.caption && <p className="text-sm leading-6">{item.caption}</p>}
-                  {related && onChoose && <button type="button" onClick={() => onChoose(related, related.variants.find((variant) => variant.active)?.id ?? null)} className="mt-2 inline-flex min-h-10 items-center gap-1 text-xs font-semibold text-[var(--page-accent)] hover:underline">View {related.title}<ArrowUpRight className="size-3.5" /></button>}
+            <figure key={work.id} className="overflow-hidden border border-[var(--page-border)] bg-[var(--page-surface)]" style={{ borderRadius: page.template === "Editorial" || page.template === "Signature" ? 0 : "1rem" }}>
+              <button type="button" className="group relative block w-full overflow-hidden text-left" onClick={() => { setActiveWorkId(work.id); setActiveImage(0); }} aria-label={`Open ${work.title} gallery`}>
+                <img src={cover.imageUrl} alt={cover.caption || `${page.businessName} ${work.title}`} className="aspect-[4/3] w-full object-cover transition duration-300 group-hover:scale-[1.015]" loading={index < 2 ? "eager" : "lazy"} />
+                {work.images.length > 1 && <span className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-full bg-black/70 px-2.5 py-1 text-xs font-semibold text-white"><Images className="size-3.5" />{work.images.length}</span>}
+              </button>
+              <figcaption className="p-4 sm:p-5">
+                  {work.category && <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--page-accent)]">{work.category}</p>}
+                  <h3 className="mt-1 font-[var(--page-heading-font)] text-xl font-semibold">{work.title}</h3>
+                  {work.description && <p className="mt-2 line-clamp-3 text-sm leading-6 text-[var(--page-muted)]">{work.description}</p>}
+                  {related && onChoose && <button type="button" onClick={() => onChoose(related, related.variants.find((variant) => variant.active)?.id ?? null)} className="mt-3 inline-flex min-h-10 items-center gap-1 text-xs font-semibold text-[var(--page-accent)] hover:underline">View {related.title}<ArrowUpRight className="size-3.5" /></button>}
                 </figcaption>
-              )}
             </figure>
           );
         })}
       </div>
+      {activeWork && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/92 p-3 sm:p-6" role="dialog" aria-modal="true" aria-label={`${activeWork.title} gallery`} onMouseDown={(event) => { if (event.target === event.currentTarget) setActiveWorkId(null); }}>
+        <button type="button" onClick={() => setActiveWorkId(null)} className="absolute right-3 top-[max(.75rem,env(safe-area-inset-top))] flex size-11 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20" aria-label="Close gallery"><X className="size-5" /></button>
+        <div className="flex max-h-full w-full max-w-6xl flex-col items-center" onTouchStart={(event) => { touchStart.current = event.touches[0]?.clientX ?? null; }} onTouchEnd={(event) => { if (touchStart.current === null) return; const distance = (event.changedTouches[0]?.clientX ?? touchStart.current) - touchStart.current; if (Math.abs(distance) > 45) setActiveImage((current) => distance > 0 ? (current - 1 + activeWork.images.length) % activeWork.images.length : (current + 1) % activeWork.images.length); touchStart.current = null; }}>
+          <img src={activeWork.images[activeImage]?.imageUrl} alt={activeWork.images[activeImage]?.caption || `${activeWork.title} image ${activeImage + 1}`} className="max-h-[75dvh] max-w-full object-contain" />
+          <div className="mt-4 flex w-full max-w-3xl items-center justify-between gap-3 text-white"><button type="button" className="flex size-11 shrink-0 items-center justify-center rounded-full bg-white/10 hover:bg-white/20" aria-label="Previous image" onClick={() => setActiveImage((current) => (current - 1 + activeWork.images.length) % activeWork.images.length)}><ChevronLeft className="size-5" /></button><div className="min-w-0 text-center"><p className="truncate font-semibold">{activeWork.title}</p><p className="mt-1 text-xs text-white/65">{activeImage + 1} / {activeWork.images.length}{activeWork.images[activeImage]?.caption ? ` · ${activeWork.images[activeImage].caption}` : ""}</p></div><button type="button" className="flex size-11 shrink-0 items-center justify-center rounded-full bg-white/10 hover:bg-white/20" aria-label="Next image" onClick={() => setActiveImage((current) => (current + 1) % activeWork.images.length)}><ChevronRight className="size-5" /></button></div>
+        </div>
+      </div>}
     </section>
   );
 }
@@ -238,5 +261,5 @@ export default function QaiPageRenderer({ page, services, portfolio, onChoose, p
     portfolio: <PortfolioSection key="portfolio" page={page} services={services} portfolio={portfolio} onChoose={onChoose} />,
     services: <ServicesSection key="services" page={page} services={services} portfolio={portfolio} onChoose={onChoose} />,
   };
-  return <div className="min-h-full overflow-x-hidden bg-[var(--page-bg)] text-[var(--page-text)]" style={variables} data-template={page.template}><Hero page={page} onPrimary={first && onChoose ? () => onChoose(first, first.variants.find((variant) => variant.active)?.id ?? null) : undefined} /><Facts page={page} /><div className={`mx-auto w-full max-w-[86rem] px-4 sm:px-7 lg:px-10 ${sectionClass}`}>{ordered.map((section) => sectionMap[section])}<ClosingCta page={page} services={services} portfolio={portfolio} onChoose={onChoose} /><footer className="border-t border-[var(--page-border)] pt-8 text-center text-xs text-[var(--page-muted)]"><a href={QAI_ATTRIBUTION_HREF} aria-label="Powered by Qai" className="inline-flex min-h-10 items-center gap-1.5 rounded-full px-3 font-medium hover:bg-black/5 hover:text-[var(--page-accent)]"><QaiMark size="sm" tone="monochrome" decorative />Powered by Qai</a>{preview && <p className="mt-1">Preview</p>}</footer></div></div>;
+  return <div className="min-h-full min-w-0 w-full max-w-none overflow-x-hidden bg-[var(--page-bg)] text-[var(--page-text)]" style={variables} data-template={page.template} data-qai-page-root><Hero page={page} onPrimary={first && onChoose ? () => onChoose(first, first.variants.find((variant) => variant.active)?.id ?? null) : undefined} /><Facts page={page} /><div className={`mx-auto w-full max-w-[86rem] px-4 sm:px-7 lg:px-10 ${sectionClass}`}>{ordered.map((section) => sectionMap[section])}<ClosingCta page={page} services={services} portfolio={portfolio} onChoose={onChoose} /><footer className="border-t border-[var(--page-border)] pt-8 text-center text-xs text-[var(--page-muted)]"><a href={QAI_ATTRIBUTION_HREF} aria-label="Powered by Qai" className="inline-flex min-h-10 items-center gap-1.5 rounded-full px-3 font-medium hover:bg-black/5 hover:text-[var(--page-accent)]"><QaiMark size="sm" tone="monochrome" decorative />Powered by Qai</a>{preview && <p className="mt-1">Preview</p>}</footer></div></div>;
 }

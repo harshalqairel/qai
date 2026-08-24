@@ -34,7 +34,7 @@ import PageSkeleton from "@/components/system/PageSkeleton";
 import { QaiLogo } from "@/components/brand/QaiLogo";
 
 const SECTIONS = [
-  { id: "how-to-use", label: "How to use Qai", description: "Tips for getting the most from Qai", Icon: CircleHelp },
+  { id: "how-to-use", label: "Qai Guide", description: "Search practical help by task", Icon: CircleHelp },
   { id: "data-backup", label: "Data backup", description: "Download or restore your business data", Icon: Database },
   { id: "service-categories", label: "Service categories", description: "Organize the services you offer", Icon: Tags },
   { id: "expense-categories", label: "Expense categories", description: "Manage how expenses are grouped", Icon: ReceiptText },

@@ -54,6 +54,7 @@
   --font-mono-system: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --app-background: #f2f4f8;
   --surface: #ffffff;
+  --surface-elevated: #fffefd;
   --surface-subtle: #f2f4f8;
   --line: #dfe3ec;
   --ink: #0f1b33;
@@ -80,6 +81,8 @@
   --space-6: 1.5rem;
   --space-8: 2rem;
   --space-12: 3rem;
+  --shadow-surface: 0 1px 2px rgb(15 27 51 / 0.04), 0 6px 18px rgb(15 27 51 / 0.05);
+  --shadow-floating: 0 18px 48px rgb(15 27 51 / 0.16);
   --background: var(--app-background);
   --foreground: var(--ink);
   --card: var(--surface);
@@ -326,8 +329,18 @@
   }
 
   .surface-card {
-    @apply rounded-xl border bg-card shadow-sm;
+    @apply rounded-xl border bg-card;
     border-color: var(--line);
+    box-shadow: var(--shadow-surface);
+  }
+
+  .surface-section {
+    @apply border-y py-6 sm:py-8;
+    border-color: var(--line);
+  }
+
+  .section-kicker {
+    @apply text-xs font-bold uppercase tracking-[0.14em] text-primary;
   }
 
   .filter-bar {
@@ -336,7 +349,7 @@
   }
 
   .native-control {
-    @apply min-h-10 w-full rounded-lg border bg-card px-3 py-2 text-sm text-foreground transition-colors placeholder:text-muted-foreground;
+    @apply min-h-11 w-full rounded-lg border bg-card px-3 py-2 text-sm text-foreground shadow-xs transition-colors placeholder:text-muted-foreground;
     border-color: var(--line);
   }
 
@@ -347,6 +360,19 @@
   .dialog-sheet {
     @apply h-dvh w-full overflow-y-auto border-l bg-card p-5 shadow-xl sm:max-w-xl sm:p-8;
     border-color: var(--line);
+    box-shadow: var(--shadow-floating);
+  }
+
+  @media (orientation: landscape) and (max-height: 500px) {
+    .qai-page-immersive-hero,
+    .qai-page-immersive-content {
+      min-height: 20rem !important;
+    }
+
+    .qai-page-immersive-content {
+      padding-top: 2rem !important;
+      padding-bottom: 2rem !important;
+    }
   }
 
   .empty-state {

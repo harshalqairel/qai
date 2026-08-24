@@ -3,22 +3,8 @@ type BookingHeaderProps = {
 };
 
 export default function BookingHeader({ onAdd }: BookingHeaderProps) {
-  return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <h1 className="page-title">Bookings</h1>
-        <p className="mt-3 text-sm leading-6 text-muted-foreground sm:text-base">
-          Track each booking, its schedules, and payments.
-        </p>
-      </div>
-
-      <button
-        type="button"
-        onClick={onAdd}
-        className="min-h-11 rounded-lg bg-primary px-5 py-2.5 font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-[var(--brand-hover)]"
-      >
-        + Add booking
-      </button>
-    </div>
-  );
+  return <PageHeader title="Bookings" description="Track every client job, schedule, payment, invoice, and result in one place." actions={<Button onClick={onAdd} aria-label="+ Add booking"><Plus className="size-4" />Add booking</Button>} />;
 }
+import { Plus } from "lucide-react";
+import PageHeader from "@/components/system/PageHeader";
+import { Button } from "@/components/ui/button";

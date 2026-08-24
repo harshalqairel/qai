@@ -2,12 +2,13 @@ import { Service } from "@/features/service/types";
 import ServiceTable from "./ServiceTable";
 import EmptyState from "@/components/system/EmptyState";
 import { BriefcaseBusiness } from "lucide-react";
+import type { ServiceSort } from "./ServiceToolbar";
 
 type ServiceListProps = {
   services: Service[];
   onAdd: () => void;
-  sort: string;
-  onSortChange: (value: string) => void;
+  sort: ServiceSort;
+  onSortChange: (value: ServiceSort) => void;
   getCategoryName: (categoryId: string) => string;
   getCategoryColor: (categoryId: string) => string;
   onEdit: (service: Service) => void;

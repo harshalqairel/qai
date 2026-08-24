@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Invoice } from "@/features/invoice/invoice";
 import BookingTable from "./BookingTable";
@@ -69,22 +70,30 @@ const callbacks = {
   onDelete: vi.fn(() => true),
   onStatusChange: vi.fn(() => true),
   onFinancialDetailsClick: vi.fn(),
+  sort: "newest" as const,
+  onSortChange: vi.fn(),
 };
 
+afterEach(cleanup);
+
 describe("BookingTable invoice summary", () => {
-  it("offers a booking-linked draft and hides zero expense noise", () => {
+  it("offers booking-linked invoice actions from the shared row menu and hides zero expense noise", async () => {
+    const user = userEvent.setup();
     render(<BookingTable bookings={[booking]} invoices={[]} timezone="Asia/Jakarta" {...callbacks} />);
 
-    expect(screen.getAllByRole("button", { name: "Create draft" })[0].getAttribute("href")).toBe("/invoices?booking=booking-1&action=create");
-    expect(screen.getAllByRole("link", { name: "Issue invoice" })[0].getAttribute("href")).toBe("/invoices?booking=booking-1&action=issue");
+    await user.click(screen.getAllByRole("button", { name: "Actions for Ayu's booking" })[0]);
+    expect(screen.getByRole("menuitem", { name: "Create invoice draft" }).getAttribute("href")).toBe("/invoices?booking=booking-1&action=create");
+    expect(screen.getByRole("menuitem", { name: "Issue invoice" }).getAttribute("href")).toBe("/invoices?booking=booking-1&action=issue");
     expect(screen.queryByText("Expenses: Rp 0")).toBeNull();
   });
 
-  it("summarizes multiple invoices using the latest issued number", () => {
+  it("summarizes multiple invoices and keeps issued actions in the row menu", async () => {
+    const user = userEvent.setup();
     const invoices = [issuedInvoice("invoice-1", "INV-2026-001", 1), issuedInvoice("invoice-2", "INV-2026-002", 2)];
     render(<BookingTable bookings={[booking]} invoices={invoices} timezone="Asia/Jakarta" {...callbacks} />);
 
     expect(screen.getAllByRole("link", { name: "2 invoices · Latest INV-2026-002" })).toHaveLength(2);
-    expect(screen.getAllByRole("link", { name: "Download PDF" })[0].getAttribute("href")).toBe("/invoices?invoice=invoice-2&action=download");
+    await user.click(screen.getAllByRole("button", { name: "Actions for Ayu's booking" })[0]);
+    expect(screen.getByRole("menuitem", { name: "Download invoice" }).getAttribute("href")).toBe("/invoices?invoice=invoice-2&action=download");
   });
 });

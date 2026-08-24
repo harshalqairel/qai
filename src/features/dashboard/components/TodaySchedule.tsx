@@ -13,24 +13,40 @@ type TodayScheduleProps = {
 export default function TodaySchedule({ items, timezone }: TodayScheduleProps) {
   const router = useRouter();
   const openBooking = (id: string) => router.push(`/bookings?booking=${encodeURIComponent(id)}`);
+  const first = items[0];
   return (
     <section>
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-[var(--dashboard-text)]">Today&apos;s schedule</h2>
-          <p className="mt-1 text-sm text-[var(--dashboard-muted-text)]">Work planned for today.</p>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">Today</p>
+          <h2 className="mt-1 hidden text-lg font-semibold text-[var(--dashboard-text)] lg:block">Today&apos;s schedule</h2>
         </div>
-        <span className="rounded-full bg-[var(--dashboard-income-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--dashboard-income-text)]">
+        <span className="text-sm font-semibold tabular-nums text-[var(--dashboard-muted-text)]">
           {items.length}
         </span>
       </div>
 
       {items.length === 0 ? (
-        <div className="mt-5 rounded-xl border border-dashed border-[var(--dashboard-border)] bg-[var(--dashboard-surface-muted)] p-6 text-center text-sm text-[var(--dashboard-muted-text)]">
-          No bookings on this day.
+        <div className="mt-4 py-2">
+          <p className="font-semibold text-[var(--dashboard-text)]">No bookings today.</p>
+          <p className="mt-1 text-sm text-[var(--dashboard-muted-text)]">Your schedule is clear.</p>
+          <button type="button" onClick={() => router.push("/calendar")} className="mt-2 min-h-10 text-sm font-semibold text-primary hover:underline">Open calendar →</button>
         </div>
       ) : (
-        <div className="mt-5 space-y-3">
+        <>
+          {first && <article role="link" tabIndex={0} onClick={() => openBooking(first.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openBooking(first.id); } }} className="mt-4 grid cursor-pointer grid-cols-[3.75rem_minmax(0,1fr)] gap-3 border-y border-[var(--dashboard-border)] py-4 lg:hidden">
+            <p className="font-semibold tabular-nums text-[var(--dashboard-text)]">{formatSessionTime(first.session, timezone).split("–")[0]}</p>
+            <div className="min-w-0">
+              <p className="truncate font-semibold text-[var(--dashboard-text)]">{first.customerName}</p>
+              <p className="mt-0.5 truncate text-sm text-[var(--dashboard-muted-text)]">{first.serviceName}{first.session.label ? ` · ${first.session.label}` : ""}</p>
+              <p className="mt-2 truncate text-sm text-[var(--dashboard-muted-text)]">{first.session.location.trim() || "Location not set"} · <span className="font-medium text-[var(--dashboard-text)]">{first.paymentStatus === "Fully Paid" ? "Paid" : first.paymentStatus === "Partial Paid" ? "Part paid" : first.paymentStatus}</span></p>
+            </div>
+          </article>}
+          <div className="mt-3 flex items-center justify-between gap-3 lg:hidden">
+            <span className="text-sm text-[var(--dashboard-muted-text)]">{items.length > 1 ? `${items.length - 1} more today` : "Your only booking today"}</span>
+            <button type="button" onClick={() => router.push("/calendar")} className="min-h-10 text-sm font-semibold text-primary hover:underline">View calendar</button>
+          </div>
+        <div className="mt-5 hidden space-y-3 lg:block">
           {items.map((booking) => (
             <article
               key={booking.session.id}
@@ -68,6 +84,7 @@ export default function TodaySchedule({ items, timezone }: TodayScheduleProps) {
             </article>
           ))}
         </div>
+        </>
       )}
     </section>
   );

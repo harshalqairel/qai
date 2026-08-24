@@ -4,10 +4,12 @@ import { useState } from "react";
 
 import ServiceHeader from "@/features/service/components/ServiceHeader";
 import ServiceToolbar from "@/features/service/components/ServiceToolbar";
+import type { ServiceSort } from "@/features/service/components/ServiceToolbar";
 import ServiceList from "@/features/service/components/ServiceList";
 import ServiceDialog from "@/features/service/components/ServiceDialog";
 
-import { Service, CreateServiceInput } from "@/features/service/types";
+import { Service } from "@/features/service/types";
+import { serviceCreateInputFromRecord } from "@/features/service/domain/serviceCreateInput";
 import { useServices } from "@/features/service/hooks/useServices";
 import { useServiceCategories } from "@/features/service-category/hooks/useServiceCategories";
 import PageSkeleton from "@/components/system/PageSkeleton";
@@ -26,7 +28,7 @@ export default function ServicesPage() {
 
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
-  const [sort, setSort] = useState("");
+  const [sort, setSort] = useState<ServiceSort>("newest");
 
   const keyword = search.trim().toLowerCase();
   const categoryNameById = new Map(categories.map((item) => [item.id, item.name]));
@@ -71,6 +73,14 @@ export default function ServicesPage() {
     sortedServices.sort((a, b) => b.duration - a.duration);
     break;
 
+  case "category-asc":
+    sortedServices.sort((a, b) => (categoryNameById.get(a.categoryId) ?? "").localeCompare(categoryNameById.get(b.categoryId) ?? ""));
+    break;
+
+  case "category-desc":
+    sortedServices.sort((a, b) => (categoryNameById.get(b.categoryId) ?? "").localeCompare(categoryNameById.get(a.categoryId) ?? ""));
+    break;
+
   case "sessions-asc":
     sortedServices.sort((a, b) => a.defaultSessionCount - b.defaultSessionCount);
     break;
@@ -79,8 +89,20 @@ export default function ServicesPage() {
     sortedServices.sort((a, b) => b.defaultSessionCount - a.defaultSessionCount);
     break;
 
-  case "status":
+  case "choices-asc":
+    sortedServices.sort((a, b) => (a.variants?.filter((item) => item.active).length ?? 0) - (b.variants?.filter((item) => item.active).length ?? 0));
+    break;
+
+  case "choices-desc":
+    sortedServices.sort((a, b) => (b.variants?.filter((item) => item.active).length ?? 0) - (a.variants?.filter((item) => item.active).length ?? 0));
+    break;
+
+  case "status-desc":
     sortedServices.sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name));
+    break;
+
+  case "status-asc":
+    sortedServices.sort((a, b) => Number(a.active) - Number(b.active) || a.name.localeCompare(b.name));
     break;
 
   default:
@@ -145,16 +167,7 @@ export default function ServicesPage() {
           setSelectedService(null);
         }}
         onCreate={(service: Service) => {
-          const input: CreateServiceInput = {
-            name: service.name,
-            categoryId: service.categoryId,
-            price: service.price,
-            duration: service.duration,
-            defaultSessionCount: service.defaultSessionCount,
-            description: service.description,
-          };
-
-          return createService(input);
+          return createService(serviceCreateInputFromRecord(service));
         }}
         onUpdate={(updated: Service) => updateService(updated)}
       />

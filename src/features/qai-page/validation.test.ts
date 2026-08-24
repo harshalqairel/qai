@@ -45,12 +45,25 @@ describe("Qai Page domain", () => {
     expect(publicPriceLabel({ ...page().services[0], priceMode: "Ask for price" })).toBe("Ask for price");
   });
 
+  it("groups legacy images and multi-image work without changing stored media URLs", async () => {
+    const { groupPortfolioWorks } = await import("./validation");
+    const works = groupPortfolioWorks([
+      { id: "legacy", imageUrl: "/legacy.jpg", caption: "Legacy work", serviceId: null, visible: true, position: 0 },
+      { id: "cover", workId: "bridal", workTitle: "Bridal story", workDescription: "A full day.", imageUrl: "/cover.jpg", caption: "", serviceId: "request-service", visible: true, position: 1, isCover: true },
+      { id: "detail", workId: "bridal", workTitle: "Bridal story", imageUrl: "/detail.jpg", caption: "Details", serviceId: "request-service", visible: true, position: 2 },
+    ]);
+    expect(works).toHaveLength(2);
+    expect(works[0]).toMatchObject({ id: "legacy", title: "Legacy work" });
+    expect(works[1].images.map((image) => image.imageUrl)).toEqual(["/cover.jpg", "/detail.jpg"]);
+  });
+
   it("adds presentation defaults to legacy Qai Page payloads", () => {
     const current = defaultQaiPage();
     const legacy: Partial<QaiPageConfig> = { ...current };
     delete legacy.template;
     delete legacy.style;
     const parsed = qaiPageSchema.parse(legacy);
+    expect(parsed.tiktok).toBe("");
     expect(parsed.template).toBe("Muse");
     expect(parsed.style).toMatchObject({ typography: "Elegant Serif + Clean Sans", density: "Spacious", sectionOrder: ["portfolio", "services"] });
   });
@@ -133,6 +146,10 @@ describe("shared validation store", () => {
     const second = await store.submitRequest(request({ submissionId: "form-b" }));
     expect(second.id).not.toBe(first.id);
     expect((await store.read()).requests.map((item) => item.id)).toEqual([first.id, second.id]);
+    await store.updateRequest(second.id, "Declined", null);
+    const afterAction = await store.read();
+    expect(afterAction.requests.find((item) => item.id === first.id)?.status).toBe("Pending");
+    expect(afterAction.requests.find((item) => item.id === second.id)?.status).toBe("Declined");
   });
 
   it("enforces unique slugs and keeps declined requests without bookings", async () => {

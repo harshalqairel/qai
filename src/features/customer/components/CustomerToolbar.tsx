@@ -1,8 +1,17 @@
+import ListSortControl from "@/components/system/ListSortControl";
+
+export type CustomerSort =
+  | "newest" | "oldest"
+  | "name-asc" | "name-desc"
+  | "activity-asc" | "activity-desc"
+  | "paid-asc" | "paid-desc"
+  | "unpaid-asc" | "unpaid-desc";
+
 type CustomerToolbarProps = {
   search: string;
   onSearchChange: (value: string) => void;
-  sort: string;
-  onSortChange: (value: string) => void;
+  sort: CustomerSort;
+  onSortChange: (value: CustomerSort) => void;
 };
 
 export default function CustomerToolbar({
@@ -22,16 +31,23 @@ export default function CustomerToolbar({
         onChange={(e) => onSearchChange(e.target.value)}
       />
 
-      <select
-        className="native-control lg:w-auto"
+      <ListSortControl
+        className="lg:w-52"
         value={sort}
-        onChange={(e) => onSortChange(e.target.value)}
-      >
-        <option value="newest">Newest</option>
-        <option value="oldest">Oldest</option>
-        <option value="name-asc">Name (A-Z)</option>
-        <option value="name-desc">Name (Z-A)</option>
-      </select>
+        onChange={onSortChange}
+        options={[
+          { value: "newest", label: "Newest added" },
+          { value: "oldest", label: "Oldest added" },
+          { value: "name-asc", label: "Client · A–Z" },
+          { value: "name-desc", label: "Client · Z–A" },
+          { value: "activity-desc", label: "Activity · most" },
+          { value: "activity-asc", label: "Activity · least" },
+          { value: "paid-desc", label: "Paid · highest" },
+          { value: "paid-asc", label: "Paid · lowest" },
+          { value: "unpaid-desc", label: "Unpaid · highest" },
+          { value: "unpaid-asc", label: "Unpaid · lowest" },
+        ]}
+      />
     </div>
   );
 }

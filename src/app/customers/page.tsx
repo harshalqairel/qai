@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import CustomerHeader from "@/features/customer/components/CustomerHeader";
 import CustomerToolbar from "@/features/customer/components/CustomerToolbar";
+import type { CustomerSort } from "@/features/customer/components/CustomerToolbar";
 import CustomerTable from "@/features/customer/components/CustomerTable";
 import ClientProfileDialog from "@/features/customer/components/ClientProfileDialog";
 import CustomerDialog from "@/features/customer/components/CustomerDialog";
@@ -40,7 +41,7 @@ export default function CustomersPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [search, setSearch] = useState("");
-  const [sort, setSort] = useState("newest");
+  const [sort, setSort] = useState<CustomerSort>("newest");
   const [profileCustomer, setProfileCustomer] = useState<CustomerWithFinancials | null>(null);
   const handledQuickCreate = useRef(false);
 
@@ -69,27 +70,6 @@ export default function CustomersPage() {
       customer.notes.toLowerCase().includes(keyword)
     );
   });
-
-  const sortedCustomers = [...filteredCustomers];
-
-  switch (sort) {
-    case "name-asc":
-      sortedCustomers.sort((a, b) => a.name.localeCompare(b.name));
-      break;
-
-    case "name-desc":
-      sortedCustomers.sort((a, b) => b.name.localeCompare(a.name));
-      break;
-
-    case "oldest":
-      sortedCustomers.sort((a, b) => a.createdAt - b.createdAt);
-      break;
-
-    case "newest":
-    default:
-      sortedCustomers.sort((a, b) => b.createdAt - a.createdAt);
-      break;
-  }
 
   const customerFinancials = useMemo(() => {
     const paymentSummaries = summarizeBookingPayments(bookings, payments);
@@ -124,7 +104,7 @@ export default function CustomersPage() {
     return totalsByCustomerId;
   }, [bookings, payments, loadedAt]);
 
-  const customersWithFinancials = sortedCustomers.map((customer) => ({
+  const customersWithFinancials = filteredCustomers.map((customer) => ({
     ...customer,
     lifetimeRevenue: customerFinancials.get(customer.id)?.lifetimeRevenue ?? 0,
     outstanding: customerFinancials.get(customer.id)?.outstanding ?? 0,
@@ -133,6 +113,20 @@ export default function CustomersPage() {
       ? new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(new Date(customerFinancials.get(customer.id)!.nextBooking!))
       : null,
   }));
+
+  switch (sort) {
+    case "name-asc": customersWithFinancials.sort((a, b) => a.name.localeCompare(b.name)); break;
+    case "name-desc": customersWithFinancials.sort((a, b) => b.name.localeCompare(a.name)); break;
+    case "activity-asc": customersWithFinancials.sort((a, b) => a.bookingCount - b.bookingCount); break;
+    case "activity-desc": customersWithFinancials.sort((a, b) => b.bookingCount - a.bookingCount); break;
+    case "paid-asc": customersWithFinancials.sort((a, b) => a.lifetimeRevenue - b.lifetimeRevenue); break;
+    case "paid-desc": customersWithFinancials.sort((a, b) => b.lifetimeRevenue - a.lifetimeRevenue); break;
+    case "unpaid-asc": customersWithFinancials.sort((a, b) => a.outstanding - b.outstanding); break;
+    case "unpaid-desc": customersWithFinancials.sort((a, b) => b.outstanding - a.outstanding); break;
+    case "oldest": customersWithFinancials.sort((a, b) => a.createdAt - b.createdAt); break;
+    case "newest":
+    default: customersWithFinancials.sort((a, b) => b.createdAt - a.createdAt); break;
+  }
 
   const isLoading = customerData.isLoading || bookingData.isLoading || paymentData.isLoading || serviceData.isLoading;
   const loadError = customerData.loadError || bookingData.loadError || paymentData.loadError || serviceData.loadError;
@@ -178,6 +172,8 @@ export default function CustomersPage() {
             }}
             onDelete={(customer) => deleteCustomer(customer.id)}
             onView={setProfileCustomer}
+            sort={sort}
+            onSortChange={setSort}
           />
         </div>
       </main>

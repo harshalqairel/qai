@@ -53,6 +53,10 @@ export default function CalendarPage() {
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [selectedBookingIdForPayment, setSelectedBookingIdForPayment] = useState<string | null>(null);
   const [editingPayment, setEditingPayment] = useState<import("@/features/payment/types").Payment | null>(null);
+  const monthSessions = bookingsWithNames.filter((booking) => {
+    const date = new Date(`${booking.bookingDate}T00:00:00`);
+    return date.getFullYear() === activeDate.getFullYear() && date.getMonth() === activeDate.getMonth();
+  });
 
   function openPaymentDialog(bookingId: string, payment?: import("@/features/payment/types").Payment) {
     setSelectedBookingIdForPayment(bookingId);
@@ -100,9 +104,13 @@ export default function CalendarPage() {
             onNextMonth={goNextMonth}
           />
 
-          <GoogleCalendarSyncCard />
+          <section aria-label="Calendar summary" className="grid grid-cols-3 divide-x divide-border overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+            <CalendarMetric label="This month" value={monthSessions.length} />
+            <CalendarMetric label="Today" value={bookingsWithNames.filter((booking) => booking.bookingDate === todayKey).length} />
+            <CalendarMetric label="Scheduled" value={monthSessions.filter((booking) => booking.bookingStatus === "Scheduled").length} />
+          </section>
 
-          <div className="surface-card p-3 sm:p-6">
+          <div className="min-w-0">
             <CalendarView
               view={view}
               activeDate={activeDate}
@@ -113,6 +121,8 @@ export default function CalendarPage() {
               todayKey={todayKey}
             />
           </div>
+
+          <GoogleCalendarSyncCard />
         </div>
       </main>
 
@@ -147,4 +157,8 @@ export default function CalendarPage() {
       />
     </>
   );
+}
+
+function CalendarMetric({ label, value }: { label: string; value: number }) {
+  return <div className="min-w-0 px-3 py-3 text-center sm:px-5 sm:py-4"><p className="truncate text-xs font-medium text-muted-foreground">{label}</p><p className="mt-1 text-xl font-bold tabular-nums sm:text-2xl">{value}</p></div>;
 }

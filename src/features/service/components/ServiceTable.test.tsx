@@ -25,7 +25,7 @@ describe("ServiceTable", () => {
     render(
       <ServiceTable
         services={[service]}
-        sort=""
+        sort="newest"
         onSortChange={onSortChange}
         getCategoryName={() => "Wedding"}
         getCategoryColor={() => "category-blue"}
@@ -37,7 +37,7 @@ describe("ServiceTable", () => {
     await user.click(screen.getByRole("link"));
     expect(onEdit).toHaveBeenCalledTimes(1);
 
-    await user.click(screen.getByRole("button", { name: "Price" }));
+    await user.click(screen.getByRole("button", { name: "Sort by Price, ascending" }));
     expect(onSortChange).toHaveBeenCalledWith("price-asc");
   });
 });

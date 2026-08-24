@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import BookingHeader from "@/features/booking/components/BookingHeader";
 import BookingToolbar from "@/features/booking/components/BookingToolbar";
+import type { BookingSort } from "@/features/booking/components/BookingToolbar";
 import BookingTable from "@/features/booking/components/BookingTable";
 import BookingDialog from "@/features/booking/components/BookingDialog";
 import BookingFinancialDetailsDialog, {
@@ -31,7 +32,7 @@ import PageSkeleton from "@/components/system/PageSkeleton";
 import DataErrorState from "@/components/system/DataErrorState";
 import { notify } from "@/lib/notifications";
 import { useServiceCategories } from "@/features/service-category/hooks/useServiceCategories";
-import { invoiceRepository } from "@/features/invoice/invoice";
+import { invoiceRepository, latestInvoiceVersions } from "@/features/invoice/invoice";
 import type { BookingFormValues } from "@/features/booking/schema";
 
 export default function BookingsPage() {
@@ -66,7 +67,7 @@ export default function BookingsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState("");
-  const [sort, setSort] = useState("newest");
+  const [sort, setSort] = useState<BookingSort>("newest");
   const handledDeepLink = useRef(false);
 
   const paymentSummaries = useMemo(() => summarizeBookingPayments(bookings, payments), [bookings, payments]);
@@ -144,10 +145,30 @@ export default function BookingsPage() {
   });
 
   const sortedBookings = [...filteredBookings];
+  const allInvoices = invoiceRepository.getAll();
+  const invoiceState = (bookingId: string) => {
+    const latest = latestInvoiceVersions(allInvoices.filter((invoice) => invoice.bookingId === bookingId))
+      .sort((left, right) => right.updatedAt - left.updatedAt)[0];
+    return latest?.lifecycle ?? "No invoice";
+  };
+  const clientTotal = (booking: BookingFinancialDetails) => booking.servicePrice + (booking.additionalCharges ?? []).reduce((sum, charge) => sum + charge.amount, 0);
+  const nullableNumber = (left: number | null, right: number | null) => (left ?? Number.NEGATIVE_INFINITY) - (right ?? Number.NEGATIVE_INFINITY);
   switch (sort) {
+    case "client-asc": sortedBookings.sort((a, b) => a.customerName.localeCompare(b.customerName) || a.serviceName.localeCompare(b.serviceName)); break;
+    case "client-desc": sortedBookings.sort((a, b) => b.customerName.localeCompare(a.customerName) || b.serviceName.localeCompare(a.serviceName)); break;
     case "date-asc":
       sortedBookings.sort(compareBookingsByFirstSession);
       break;
+    case "booking-status-asc": sortedBookings.sort((a, b) => a.bookingStatus.localeCompare(b.bookingStatus)); break;
+    case "booking-status-desc": sortedBookings.sort((a, b) => b.bookingStatus.localeCompare(a.bookingStatus)); break;
+    case "payment-status-asc": sortedBookings.sort((a, b) => a.paymentStatus.localeCompare(b.paymentStatus)); break;
+    case "payment-status-desc": sortedBookings.sort((a, b) => b.paymentStatus.localeCompare(a.paymentStatus)); break;
+    case "invoice-status-asc": sortedBookings.sort((a, b) => invoiceState(a.id).localeCompare(invoiceState(b.id))); break;
+    case "invoice-status-desc": sortedBookings.sort((a, b) => invoiceState(b.id).localeCompare(invoiceState(a.id))); break;
+    case "amount-asc": sortedBookings.sort((a, b) => clientTotal(a) - clientTotal(b)); break;
+    case "amount-desc": sortedBookings.sort((a, b) => clientTotal(b) - clientTotal(a)); break;
+    case "profit-asc": sortedBookings.sort((a, b) => nullableNumber(a.estimatedProfit, b.estimatedProfit)); break;
+    case "profit-desc": sortedBookings.sort((a, b) => nullableNumber(b.estimatedProfit, a.estimatedProfit)); break;
     case "date-desc":
       sortedBookings.sort((a, b) => compareBookingsByFirstSession(b, a));
       break;
@@ -251,8 +272,10 @@ export default function BookingsPage() {
             }}
             onStatusChange={updateBookingStatus}
             onFinancialDetailsClick={openFinancialDetails}
-            invoices={invoiceRepository.getAll()}
+            invoices={allInvoices}
             timezone={bookingData.timezone}
+            sort={sort}
+            onSortChange={setSort}
           />
         </div>
       </main>

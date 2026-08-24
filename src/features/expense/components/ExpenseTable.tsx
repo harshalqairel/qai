@@ -1,6 +1,3 @@
-import { Pencil, Trash2 } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -9,11 +6,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import DeleteAction from "@/components/system/DeleteAction";
+import SortableTableHeader from "@/components/system/SortableTableHeader";
 import { categoryColorCss } from "@/features/category/constants";
 import type { Expense } from "@/features/expense/types";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
 import type { ExpenseBookingDetails } from "./ExpenseCard";
+import ExpenseActions from "./ExpenseActions";
+import type { ExpenseSort } from "./ExpenseToolbar";
 
 type ExpenseTableProps = {
   expenses: Expense[];
@@ -22,6 +21,8 @@ type ExpenseTableProps = {
   getCategoryColor: (categoryId: string) => string;
   onEdit: (expense: Expense) => void;
   onDelete: (expense: Expense) => boolean | Promise<boolean>;
+  sort: ExpenseSort;
+  onSortChange: (sort: ExpenseSort) => void;
 };
 
 function formatDate(date: string) {
@@ -39,18 +40,20 @@ export default function ExpenseTable({
   getCategoryColor,
   onEdit,
   onDelete,
+  sort,
+  onSortChange,
 }: ExpenseTableProps) {
   return (
-    <div className="hidden overflow-hidden rounded-xl border border-border bg-card shadow-sm md:block">
+    <div className="hidden overflow-hidden rounded-xl border border-border bg-card shadow-sm xl:block">
       <Table className="min-w-[980px]">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead className="pl-4">Date</TableHead>
-            <TableHead>Category</TableHead>
+            <SortableTableHeader className="pl-4" label="Date" sort={sort} ascending="date-asc" descending="date-desc" onSortChange={onSortChange} />
+            <SortableTableHeader label="Category" sort={sort} ascending="category-asc" descending="category-desc" onSortChange={onSortChange} />
             <TableHead className="w-[24%]">Description</TableHead>
-            <TableHead className="w-[22%]">Booking / paid to</TableHead>
-            <TableHead>Payment method</TableHead>
-            <TableHead className="text-right">Amount</TableHead>
+            <SortableTableHeader className="w-[22%]" label="Booking / paid to" sort={sort} ascending="target-asc" descending="target-desc" onSortChange={onSortChange} />
+            <SortableTableHeader label="Payment method" sort={sort} ascending="payment-asc" descending="payment-desc" onSortChange={onSortChange} />
+            <SortableTableHeader label="Amount" sort={sort} ascending="amount-asc" descending="amount-desc" onSortChange={onSortChange} align="right" />
             <TableHead className="pr-4 text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
@@ -100,21 +103,8 @@ export default function ExpenseTable({
                 <TableCell>{expense.paymentMethod}</TableCell>
                 <TableCell className="text-right font-bold tabular-nums">{formatRupiah(expense.amount)}</TableCell>
                 <TableCell className="pr-4">
-                  <div className="flex justify-end gap-2" onClick={(event) => event.stopPropagation()}>
-                    <Button type="button" variant="ghost" size="icon-sm" onClick={() => onEdit(expense)} aria-label="Edit expense" title="Edit expense">
-                      <Pencil className="size-4" aria-hidden="true" />
-                    </Button>
-                    <DeleteAction
-                      itemName="this expense"
-                      onConfirm={() => onDelete(expense)}
-                      successMessage="Expense deleted."
-                      errorMessage="Could not delete the expense. Try again."
-                      triggerClassName="size-8 p-0"
-                      confirmLabel="Delete expense"
-                    >
-                      <Trash2 className="size-4" aria-hidden="true" />
-                      <span className="sr-only">Delete expense</span>
-                    </DeleteAction>
+                  <div className="flex justify-end" onClick={(event) => event.stopPropagation()}>
+                    <ExpenseActions expense={expense} onEdit={onEdit} onDelete={onDelete} />
                   </div>
                 </TableCell>
               </TableRow>

@@ -33,6 +33,8 @@ describe("QaiPageRenderer", () => {
     const { container, unmount } = render(<QaiPageRenderer page={page} services={page.services} portfolio={[]} onChoose={onChoose} />);
 
     expect(container.querySelector(`[data-template="${template}"]`)).toBeTruthy();
+    expect(container.querySelector("[data-qai-page-root]")?.className).toContain("w-full");
+    expect(container.querySelector("[data-qai-page-root]")?.className).toContain("max-w-none");
     expect(screen.getAllByText("Nuyi Studio").length).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: "Powered by Qai" }).getAttribute("href")).toContain("utm_source=qai_page");
     await user.click(screen.getByRole("button", { name: "Request" }));
@@ -71,5 +73,34 @@ describe("QaiPageRenderer", () => {
     expect(screen.getByText("3 hours 20 minutes")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Request" }));
     expect(onChoose).toHaveBeenCalledWith(serviceWithVariants, "mentor-two");
+  });
+
+  it("opens a multi-image work gallery with navigation and a counter", async () => {
+    const user = userEvent.setup();
+    const page = { ...defaultQaiPage(), businessName: "Nuyi Studio" };
+    const portfolio = [
+      { id: "cover", workId: "work-1", workTitle: "Bridal story", imageUrl: "/cover.jpg", caption: "Cover", serviceId: null, visible: true, position: 0, isCover: true },
+      { id: "detail", workId: "work-1", workTitle: "Bridal story", imageUrl: "/detail.jpg", caption: "Details", serviceId: null, visible: true, position: 1 },
+    ];
+    render(<QaiPageRenderer page={page} services={[]} portfolio={portfolio} />);
+
+    await user.click(screen.getByRole("button", { name: "Open Bridal story gallery" }));
+    expect(screen.getByRole("dialog", { name: "Bridal story gallery" })).toBeTruthy();
+    expect(screen.getByText(/1 \/ 2/)).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Next image" }));
+    expect(screen.getByText(/2 \/ 2/)).toBeTruthy();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Bridal story gallery" })).toBeNull();
+  });
+
+  it("renders normalized social profiles only when configured", () => {
+    const page = { ...defaultQaiPage(), instagram: "@qai.studio", tiktok: "https://www.tiktok.com/@qai_video" };
+    const { rerender } = render(<QaiPageRenderer page={page} services={[]} portfolio={[]} />);
+
+    expect(screen.getByRole("link", { name: "Instagram" }).getAttribute("href")).toBe("https://www.instagram.com/qai.studio");
+    expect(screen.getByRole("link", { name: "My business on TikTok" }).getAttribute("href")).toBe("https://www.tiktok.com/@qai_video");
+
+    rerender(<QaiPageRenderer page={{ ...page, tiktok: "" }} services={[]} portfolio={[]} />);
+    expect(screen.queryByRole("link", { name: "My business on TikTok" })).toBeNull();
   });
 });

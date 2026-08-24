@@ -752,7 +752,8 @@ export default function BookingDialog({
             )}
           </div>
 
-          <section className="space-y-4 lg:col-span-8" aria-labelledby="booking-schedule-heading">
+          <div className="space-y-6 lg:col-span-8">
+          <section className="space-y-4" aria-labelledby="booking-schedule-heading">
             <div>
               <h3 id="booking-schedule-heading" className="font-semibold text-foreground">Schedule</h3>
               <p className="mt-1 text-sm text-muted-foreground">Add every date included in this booking.</p>
@@ -855,8 +856,15 @@ export default function BookingDialog({
               <Plus className="size-4" aria-hidden="true" /> Add another schedule
             </Button>
           </section>
+          </div>
 
-          <div className="grid grid-cols-1 gap-5 rounded-2xl border border-border bg-muted/20 p-4 sm:grid-cols-2 lg:col-span-4">
+          <aside className="space-y-4 lg:sticky lg:top-4 lg:col-span-4">
+          <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
+            <div className="mb-4">
+              <p className="section-kicker">Booking summary</p>
+              <h3 className="mt-1 text-lg font-bold tracking-tight">Pricing &amp; status</h3>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1">
             <div>
               <Label className="mb-2 block font-semibold">Price</Label>
               <Controller
@@ -881,9 +889,10 @@ export default function BookingDialog({
               <Input type="date" {...register("fullPaymentDueDate")} />
               {errors.fullPaymentDueDate && <p className="mt-2 text-sm text-destructive">{errors.fullPaymentDueDate.message}</p>}
             </div>
-          </div>
+            </div>
+          </section>
 
-          <section className="rounded-2xl border border-border bg-card p-4 lg:col-span-4" aria-labelledby="booking-charges-heading">
+          <section className="rounded-xl border border-border bg-card p-4 shadow-sm" aria-labelledby="booking-charges-heading">
             <div className="flex items-start justify-between gap-3"><div><h3 id="booking-charges-heading" className="font-semibold">Additional charges</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">Client-facing revenue. Business costs remain separate Expenses.</p></div><Button type="button" size="sm" variant="outline" onClick={() => setAddingCharge((value) => !value)}><Plus className="size-4" /> Add charge</Button></div>
             {additionalCharges.length > 0 && <div className="mt-4 space-y-2">{additionalCharges.map((charge) => { const scheduleIndex = (watchedSessions ?? []).findIndex((session) => session.id === charge.sessionId); return <article key={charge.id} className="flex min-w-0 items-start gap-2 rounded-xl bg-muted/55 p-3"><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{charge.categoryName}</p><p className="mt-1 truncate text-xs text-muted-foreground">{scheduleIndex >= 0 ? `Schedule ${scheduleIndex + 1}` : "Overall booking"}{charge.description ? ` · ${charge.description}` : ""}</p></div><p className="shrink-0 text-sm font-bold">{formatRupiah(charge.amount)}</p><Button type="button" size="icon-sm" variant="ghost" className="shrink-0 text-destructive" aria-label={`Remove ${charge.categoryName} charge`} onClick={() => setAdditionalCharges((current) => current.filter((item) => item.id !== charge.id))}><Trash2 className="size-4" /></Button></article>; })}</div>}
             {addingCharge && <div className="mt-4 space-y-3 rounded-xl border border-border bg-muted/25 p-3">
@@ -897,7 +906,7 @@ export default function BookingDialog({
           </section>
 
           {!booking && (
-            <section className="rounded-2xl border border-border bg-muted/20 p-4 lg:col-span-4" aria-labelledby="initial-payment-heading">
+            <section className="rounded-xl border border-border bg-card p-4 shadow-sm" aria-labelledby="initial-payment-heading">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h3 id="initial-payment-heading" className="font-semibold text-foreground">
@@ -997,7 +1006,7 @@ export default function BookingDialog({
             </section>
           )}
 
-          <div className="lg:col-span-4">
+          <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <Label className="mb-2 block font-semibold">Booking status</Label>
             <Controller
               control={control}
@@ -1016,7 +1025,8 @@ export default function BookingDialog({
               )}
             />
             {errors.bookingStatus && <p className="mt-2 text-sm text-destructive">{errors.bookingStatus.message}</p>}
-          </div>
+          </section>
+          </aside>
 
           <div className="lg:col-span-8">
             <Label className="mb-2 block font-semibold">Notes</Label>

@@ -8,6 +8,7 @@ import type { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/money-input";
+import { EditableNumberInput } from "@/components/ui/editable-number-input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -423,11 +424,7 @@ export default function ServiceDialog({
               </Label>
 
               <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  min={1}
-                  {...register("duration", { valueAsNumber: true })}
-                />
+                <Controller control={control} name="duration" render={({ field }) => <EditableNumberInput name={field.name} ref={field.ref} min={1} value={Number(field.value) || 0} emptyValue={0} onBlur={field.onBlur} onValueChange={field.onChange} />} />
                 <span className="shrink-0 text-sm text-muted-foreground">minutes</span>
               </div>
               {Number(durationValue) > 0 && (
@@ -444,13 +441,7 @@ export default function ServiceDialog({
 
           <div>
             <Label className="mb-2 block font-semibold">Usual number of schedules</Label>
-            <Input
-              type="number"
-              min={1}
-              max={50}
-              inputMode="numeric"
-              {...register("defaultSessionCount", { valueAsNumber: true })}
-            />
+            <Controller control={control} name="defaultSessionCount" render={({ field }) => <EditableNumberInput name={field.name} ref={field.ref} min={1} max={50} inputMode="numeric" value={Number(field.value) || 0} emptyValue={0} onBlur={field.onBlur} onValueChange={field.onChange} />} />
             <p className="mt-2 text-sm text-muted-foreground">
               How many separate dates or time slots does this service usually need? You can change this for each booking.
             </p>

@@ -1,18 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { MoreHorizontalIcon, PencilIcon, PhoneIcon, Trash2Icon, UsersIcon } from "lucide-react";
+import { AtSign, EyeIcon, PencilIcon, PhoneIcon, Trash2Icon, UsersIcon } from "lucide-react";
 
 import DeleteAction from "@/components/system/DeleteAction";
 import EmptyState from "@/components/system/EmptyState";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import RowActionsMenu from "@/components/system/RowActionsMenu";
+import SortableTableHeader from "@/components/system/SortableTableHeader";
 import {
   Table,
   TableBody,
@@ -22,7 +16,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Customer } from "@/features/customer/types";
+import { normalizeClientInstagram } from "@/features/customer/domain/clientIdentity";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
+import type { CustomerSort } from "./CustomerToolbar";
 
 export type CustomerWithFinancials = Customer & {
   lifetimeRevenue: number;
@@ -37,6 +33,8 @@ type CustomerTableProps = {
   onEdit: (customer: CustomerWithFinancials) => void;
   onDelete: (customer: CustomerWithFinancials) => boolean | Promise<boolean>;
   onView: (customer: CustomerWithFinancials) => void;
+  sort: CustomerSort;
+  onSortChange: (sort: CustomerSort) => void;
 };
 
 function getWhatsAppUrl(phone: string): string | null {
@@ -51,49 +49,28 @@ function getWhatsAppUrl(phone: string): string | null {
 
 type CustomerActionsProps = {
   customer: CustomerWithFinancials;
+  onView: (customer: CustomerWithFinancials) => void;
   onEdit: (customer: CustomerWithFinancials) => void;
   onDelete: (customer: CustomerWithFinancials) => boolean | Promise<boolean>;
 };
 
-function CustomerActions({ customer, onEdit, onDelete }: CustomerActionsProps) {
+function CustomerActions({ customer, onView, onEdit, onDelete }: CustomerActionsProps) {
   const whatsAppUrl = getWhatsAppUrl(customer.phone);
+  const instagramHandle = normalizeClientInstagram(customer.instagram);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label={`Open actions for ${customer.name}`}
-            />
-          }
-        >
-          <MoreHorizontalIcon aria-hidden="true" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-44">
-          {whatsAppUrl && (
-            <DropdownMenuItem
-              render={<a href={whatsAppUrl} target="_blank" rel="noreferrer" />}
-            >
-              <PhoneIcon aria-hidden="true" />
-              WhatsApp
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuItem onClick={() => onEdit(customer)}>
-            <PencilIcon aria-hidden="true" />
-            Edit
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive" onClick={() => setDeleteOpen(true)}>
-            <Trash2Icon aria-hidden="true" />
-            Delete
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <RowActionsMenu
+        recordLabel={customer.name}
+        actions={[
+          { label: "View profile", icon: EyeIcon, onSelect: () => onView(customer) },
+          { label: "Edit client", icon: PencilIcon, onSelect: () => onEdit(customer) },
+          ...(whatsAppUrl ? [{ label: "WhatsApp", icon: PhoneIcon, href: whatsAppUrl, target: "_blank" }] : []),
+          ...(instagramHandle ? [{ label: "Instagram", icon: AtSign, href: `https://www.instagram.com/${instagramHandle}`, target: "_blank" }] : []),
+          { label: "Delete client", icon: Trash2Icon, onSelect: () => setDeleteOpen(true), destructive: true, separatorBefore: true },
+        ]}
+      />
       <DeleteAction
         itemName="this client"
         onConfirm={() => onDelete(customer)}
@@ -113,6 +90,8 @@ export default function CustomerTable({
   onEdit,
   onDelete,
   onView,
+  sort,
+  onSortChange,
 }: CustomerTableProps) {
   if (customers.length === 0) {
     return (
@@ -132,11 +111,11 @@ export default function CustomerTable({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="px-4">Client</TableHead>
+              <SortableTableHeader className="px-4" label="Client" sort={sort} ascending="name-asc" descending="name-desc" onSortChange={onSortChange} />
               <TableHead>Contact</TableHead>
-              <TableHead>Activity</TableHead>
-              <TableHead className="text-right">Paid</TableHead>
-              <TableHead className="text-right">Unpaid</TableHead>
+              <SortableTableHeader label="Activity" sort={sort} ascending="activity-asc" descending="activity-desc" onSortChange={onSortChange} />
+              <SortableTableHeader label="Paid" sort={sort} ascending="paid-asc" descending="paid-desc" onSortChange={onSortChange} align="right" />
+              <SortableTableHeader label="Unpaid" sort={sort} ascending="unpaid-asc" descending="unpaid-desc" onSortChange={onSortChange} align="right" />
               <TableHead className="w-16 px-4 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -176,6 +155,7 @@ export default function CustomerTable({
                 <TableCell className="px-4 py-2 text-right" onClick={(event) => event.stopPropagation()}>
                   <CustomerActions
                     customer={customer}
+                    onView={onView}
                     onEdit={onEdit}
                     onDelete={onDelete}
                   />
@@ -191,7 +171,10 @@ export default function CustomerTable({
           <article
             key={customer.id}
             className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-sm"
+            role="button"
+            tabIndex={0}
             onClick={() => onView(customer)}
+            onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onView(customer); } }}
           >
             <div className="min-w-0 flex-1">
               <h2 className="truncate font-semibold text-foreground">{customer.name}</h2>
@@ -227,7 +210,7 @@ export default function CustomerTable({
                 </div>
               </dl>
             </div>
-            <div onClick={(event) => event.stopPropagation()}><CustomerActions customer={customer} onEdit={onEdit} onDelete={onDelete} /></div>
+            <div onClick={(event) => event.stopPropagation()}><CustomerActions customer={customer} onView={onView} onEdit={onEdit} onDelete={onDelete} /></div>
           </article>
         ))}
       </div>

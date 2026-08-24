@@ -6,6 +6,7 @@ import {
 } from "@/features/booking-questionnaire/questionnaire";
 import type { BookingFormValues } from "@/features/booking/types";
 import type { Service, ServiceSelectionSnapshot, ServiceVariant } from "@/features/service/types";
+import { normalizeSocialProfile } from "@/features/qai-page/socialProfiles";
 
 export type PublicPriceMode = "Fixed price" | "Starting from" | "Ask for price";
 export type PublicActionMode = "Booking request" | "Inquiry" | "Instant booking";
@@ -22,6 +23,14 @@ const QAI_PAGE_TYPOGRAPHY_WITH_LEGACY = [...QAI_PAGE_TYPOGRAPHY, "Modern", "Edit
 export const QAI_PAGE_DENSITIES = ["Spacious", "Compact"] as const;
 export const QAI_PAGE_TONES = ["Template default", "Light", "Dark"] as const;
 export const QAI_PAGE_BUTTON_STYLES = ["Soft rounded", "Rounded", "Editorial"] as const;
+export const QAI_PAGE_THEME_PRESETS = {
+  Porcelain: { backgroundColor: "#F7F4F1", surfaceColor: "#FFFEFC", textColor: "#101828", mutedTextColor: "#667085", accentColor: "#8A4B67", buttonBackgroundColor: "#56334F", buttonTextColor: "#FFFFFF", borderColor: "#DED7D2" },
+  Noir: { backgroundColor: "#090D12", surfaceColor: "#121821", textColor: "#F8FAFC", mutedTextColor: "#B6C0CE", accentColor: "#C48AA8", buttonBackgroundColor: "#8A4B67", buttonTextColor: "#FFFFFF", borderColor: "#2A3543" },
+  Sage: { backgroundColor: "#F2F4EF", surfaceColor: "#FBFCF9", textColor: "#1E2923", mutedTextColor: "#657169", accentColor: "#657C69", buttonBackgroundColor: "#405848", buttonTextColor: "#FFFFFF", borderColor: "#D6DDD5" },
+  Sand: { backgroundColor: "#F5F1EA", surfaceColor: "#FFFCF7", textColor: "#241C18", mutedTextColor: "#70635C", accentColor: "#A55D43", buttonBackgroundColor: "#603E32", buttonTextColor: "#FFFFFF", borderColor: "#DED2C7" },
+  Cobalt: { backgroundColor: "#F5F7FB", surfaceColor: "#FFFFFF", textColor: "#0F1B33", mutedTextColor: "#61708A", accentColor: "#4F6BFF", buttonBackgroundColor: "#233B74", buttonTextColor: "#FFFFFF", borderColor: "#D9E0EB" },
+  Mist: { backgroundColor: "#F0F3F5", surfaceColor: "#FAFCFD", textColor: "#17242E", mutedTextColor: "#61707B", accentColor: "#577482", buttonBackgroundColor: "#314C59", buttonTextColor: "#FFFFFF", borderColor: "#D4DDE2" },
+} as const;
 export const QAI_PAGE_SECTIONS = ["about", "portfolio", "services"] as const;
 export const QAI_ATTRIBUTION_HREF = "/?ref=qai-page&utm_source=qai_page&utm_medium=attribution&utm_campaign=powered_by_qai";
 
@@ -114,13 +123,23 @@ export const instantSlotSchema = z.object({
 export const portfolioItemSchema = z.object({
   id: z.string().min(1).max(100), imageUrl: z.string().min(1).max(500), caption: z.string().trim().max(240),
   serviceId: z.string().max(100).nullable(), visible: z.boolean(), position: z.number().int().min(0).max(100),
+  workId: z.string().min(1).max(100).optional(),
+  workTitle: z.string().trim().max(160).optional(),
+  workDescription: z.string().trim().max(1000).optional(),
+  workCategory: z.string().trim().max(100).optional(),
+  isCover: z.boolean().optional(),
 });
+
+const socialProfileSchema = (platform: "instagram" | "tiktok") => z.string().trim().max(200)
+  .refine((value) => normalizeSocialProfile(platform, value) !== null, { message: platform === "tiktok" ? "Enter a TikTok username or profile link." : "Enter an Instagram username or profile link." })
+  .transform((value) => normalizeSocialProfile(platform, value) ?? "")
+  .default("");
 
 export const qaiPageSchema = z.object({
   id: z.string().min(1).max(100), businessId: z.string().min(1).max(100), slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   template: z.enum(QAI_PAGE_TEMPLATES).default("Muse"), style: qaiPageStyleSchema,
   businessName: z.string().trim().min(1).max(160), shortDescription: z.string().trim().max(500), location: z.string().trim().max(200),
-  whatsapp: z.string().trim().max(50), email: z.string().trim().email().or(z.literal("")), instagram: z.string().trim().max(200),
+  whatsapp: z.string().trim().max(50), email: z.string().trim().email().or(z.literal("")), instagram: socialProfileSchema("instagram"), tiktok: socialProfileSchema("tiktok"),
   logo: z.string().max(3_000_000), coverImage: z.string().max(3_000_000), portfolio: z.array(portfolioItemSchema).max(40).default([]), services: z.array(publicServiceSchema).max(100), slots: z.array(instantSlotSchema).max(500),
   timezone: z.string().trim().min(1).max(100).default("Asia/Jakarta"),
   questionnaire: bookingQuestionnaireDefinitionSchema.default(DEFAULT_BOOKING_QUESTIONNAIRE),
@@ -156,6 +175,14 @@ export type PublicSchedule = z.infer<typeof publicScheduleSchema>;
 export type PublicService = z.infer<typeof publicServiceSchema>;
 export type InstantSlot = z.infer<typeof instantSlotSchema>;
 export type PortfolioItem = z.infer<typeof portfolioItemSchema>;
+export type PortfolioWork = {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  serviceId: string | null;
+  images: PortfolioItem[];
+};
 export type QaiPageConfig = z.infer<typeof qaiPageSchema>;
 export type PublicRequest = z.infer<typeof publicRequestSchema>;
 
@@ -193,6 +220,31 @@ export function qaiPageThemeIssues(style: QaiPageConfig["style"]): string[] {
 export function normalizedPageSectionOrder(style: QaiPageConfig["style"]): Array<(typeof QAI_PAGE_SECTIONS)[number]> {
   const ordered = style.sectionOrder.filter((section, index, items) => items.indexOf(section) === index);
   return [...ordered, ...QAI_PAGE_SECTIONS.filter((section) => !ordered.includes(section))];
+}
+
+export function groupPortfolioWorks(items: readonly PortfolioItem[]): PortfolioWork[] {
+  const groups = new Map<string, PortfolioWork>();
+  [...items].sort((left, right) => left.position - right.position).forEach((item, index) => {
+    const id = item.workId ?? item.id;
+    const existing = groups.get(id);
+    if (existing) {
+      existing.images.push(item);
+      if (!existing.serviceId && item.serviceId) existing.serviceId = item.serviceId;
+      return;
+    }
+    groups.set(id, {
+      id,
+      title: item.workTitle?.trim() || item.caption.trim() || `Selected work ${index + 1}`,
+      description: item.workDescription?.trim() || "",
+      category: item.workCategory?.trim() || "",
+      serviceId: item.serviceId,
+      images: [item],
+    });
+  });
+  return [...groups.values()].map((work) => ({
+    ...work,
+    images: [...work.images].sort((left, right) => Number(right.isCover) - Number(left.isCover) || left.position - right.position),
+  }));
 }
 
 export function publicVariantForId(service: PublicService, variantId: string | null): PublicServiceVariant | null {
@@ -269,7 +321,7 @@ export function derivePublicEndTime(startTime: string, durationMinutes: number):
 export function defaultQaiPage(): QaiPageConfig {
   return {
     id: "local-page", businessId: "local-business", slug: "my-business", template: "Muse", style: structuredClone(defaultPageStyle), businessName: "My business", shortDescription: "", location: "",
-    whatsapp: "", email: "", instagram: "", logo: "", coverImage: "", portfolio: [], services: [], slots: [], timezone: "Asia/Jakarta", questionnaire: structuredClone(DEFAULT_BOOKING_QUESTIONNAIRE), messages: { rejectionWhatsappTemplate: DEFAULT_REJECTION_WHATSAPP_TEMPLATE }, updatedAt: Date.now(),
+    whatsapp: "", email: "", instagram: "", tiktok: "", logo: "", coverImage: "", portfolio: [], services: [], slots: [], timezone: "Asia/Jakarta", questionnaire: structuredClone(DEFAULT_BOOKING_QUESTIONNAIRE), messages: { rejectionWhatsappTemplate: DEFAULT_REJECTION_WHATSAPP_TEMPLATE }, updatedAt: Date.now(),
   };
 }
 

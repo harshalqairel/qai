@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ExpenseHeader from "@/features/expense/components/ExpenseHeader";
 import ExpenseToolbar from "@/features/expense/components/ExpenseToolbar";
+import type { ExpenseSort } from "@/features/expense/components/ExpenseToolbar";
 import ExpenseList from "@/features/expense/components/ExpenseList";
 import ExpenseDialog from "@/features/expense/components/ExpenseDialog";
 import type { ExpenseBookingDetails } from "@/features/expense/components/ExpenseCard";
@@ -16,6 +17,7 @@ import { suggestCategoryColor } from "@/features/category/constants";
 import PageSkeleton from "@/components/system/PageSkeleton";
 import DataErrorState from "@/components/system/DataErrorState";
 import { firstBookingSession, instantParts } from "@/features/booking/utils/bookingSessions";
+import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
 
 type BookingOption = ExpenseBookingDetails & {
   id: string;
@@ -60,7 +62,7 @@ export default function ExpensesPage() {
       return () => window.clearTimeout(timer);
     }
   }, [expenseData.isLoading]);
-  const [sort, setSort] = useState("newest");
+  const [sort, setSort] = useState<ExpenseSort>("newest");
 
   const bookingOptions = useMemo<BookingOption[]>(() => {
     return bookings.map((booking) => {
@@ -122,10 +124,18 @@ export default function ExpensesPage() {
     case "amount-desc":
       sorted.sort((a, b) => b.amount - a.amount);
       break;
+    case "category-asc": sorted.sort((a, b) => (categoryNameById.get(a.categoryId) ?? "").localeCompare(categoryNameById.get(b.categoryId) ?? "")); break;
+    case "category-desc": sorted.sort((a, b) => (categoryNameById.get(b.categoryId) ?? "").localeCompare(categoryNameById.get(a.categoryId) ?? "")); break;
+    case "target-asc": sorted.sort((a, b) => (a.bookingId ? bookingDisplayMap.get(a.bookingId)?.customerName ?? "" : a.vendor).localeCompare(b.bookingId ? bookingDisplayMap.get(b.bookingId)?.customerName ?? "" : b.vendor)); break;
+    case "target-desc": sorted.sort((a, b) => (b.bookingId ? bookingDisplayMap.get(b.bookingId)?.customerName ?? "" : b.vendor).localeCompare(a.bookingId ? bookingDisplayMap.get(a.bookingId)?.customerName ?? "" : a.vendor)); break;
+    case "payment-asc": sorted.sort((a, b) => a.paymentMethod.localeCompare(b.paymentMethod)); break;
+    case "payment-desc": sorted.sort((a, b) => b.paymentMethod.localeCompare(a.paymentMethod)); break;
     case "newest":
     default:
       sorted.sort((a, b) => b.createdAt - a.createdAt);
   }
+  const visibleTotal = sorted.reduce((sum, expense) => sum + expense.amount, 0);
+  const bookingExpenseTotal = sorted.filter((expense) => expense.expenseType === "Booking Expense").reduce((sum, expense) => sum + expense.amount, 0);
 
   const dataSources = [expenseData, bookingData, customerData, serviceData, categoryData];
   if (dataSources.some((source) => source.isLoading)) return <main className="min-h-screen"><PageSkeleton variant="list" /></main>;
@@ -154,6 +164,11 @@ export default function ExpensesPage() {
             onSortChange={setSort}
             categories={categories}
           />
+          <section aria-label="Expense summary" className="grid grid-cols-3 divide-x divide-border overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+            <ExpenseMetric label="Visible expenses" value={formatRupiah(visibleTotal)} />
+            <ExpenseMetric label="Booking costs" value={formatRupiah(bookingExpenseTotal)} />
+            <ExpenseMetric label="General costs" value={formatRupiah(visibleTotal - bookingExpenseTotal)} />
+          </section>
           <ExpenseList
             expenses={sorted}
             onAdd={() => {
@@ -168,6 +183,8 @@ export default function ExpensesPage() {
               setDialogOpen(true);
             }}
             onDelete={(expense) => deleteExpense(expense.id)}
+            sort={sort}
+            onSortChange={setSort}
           />
         </div>
       </main>
@@ -190,4 +207,8 @@ export default function ExpensesPage() {
       />
     </>
   );
+}
+
+function ExpenseMetric({ label, value }: { label: string; value: string }) {
+  return <div className="min-w-0 px-3 py-3 sm:px-5 sm:py-4"><p className="truncate text-xs font-medium text-muted-foreground">{label}</p><p className="mt-1 truncate text-sm font-bold tabular-nums sm:text-lg">{value}</p></div>;
 }

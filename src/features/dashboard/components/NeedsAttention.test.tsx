@@ -1,33 +1,27 @@
 // @vitest-environment happy-dom
 
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import NeedsAttention from "./NeedsAttention";
 
 describe("NeedsAttention", () => {
-  it("shows only actionable work and exposes keyboard-safe links", async () => {
-    const user = userEvent.setup();
-    render(<NeedsAttention overdueCount={2} dueSoonCount={0} requestCount={1} todayCount={3} />);
+  it("shows only actionable work and exposes direct links", () => {
+    const { unmount } = render(<NeedsAttention overdueCount={2} overdueAmount={4_500_000} requestCount={1} />);
 
     expect(screen.getByRole("heading", { name: "Needs attention" })).toBeTruthy();
-    expect(screen.getByText("3 scheduled sessions today.")).toBeTruthy();
-    expect(screen.queryByText("Payments due soon")).toBeNull();
+    expect(screen.getByText("2 bookings · Rp 4.500.000")).toBeTruthy();
 
     const overdue = screen.getByRole("link", { name: /Overdue payments/ });
     expect(overdue.getAttribute("href")).toBe("/bookings?payment=outstanding");
-    const toggle = screen.getByRole("button", { name: /Needs attention/ });
-    await user.click(toggle);
-    expect(screen.queryByRole("link", { name: /Overdue payments/ })).toBeNull();
-    expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    await user.tab();
-    expect(document.activeElement).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Booking requests/ }).getAttribute("href")).toBe("/qai-page?tab=Requests");
+    unmount();
   });
 
   it("uses a calm state when nothing needs attention", () => {
-    render(<NeedsAttention overdueCount={0} dueSoonCount={0} requestCount={0} todayCount={0} />);
+    const { unmount } = render(<NeedsAttention overdueCount={0} overdueAmount={0} requestCount={0} />);
 
-    expect(screen.getByRole("heading", { name: "You’re up to date" })).toBeTruthy();
-    expect(screen.getByText("No scheduled sessions today.")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Needs attention" })).toBeTruthy();
+    expect(screen.getByText("You’re up to date.")).toBeTruthy();
+    unmount();
   });
 });

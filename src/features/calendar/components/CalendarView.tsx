@@ -170,7 +170,8 @@ function AgendaView({ bookings, onBookingClick, onDateClick }: Pick<CalendarView
                   key={b.session.id}
                   type="button"
                   onClick={() => onBookingClick(b)}
-                  className={`w-full rounded-2xl border px-4 py-3 text-left shadow-sm transition hover:brightness-95 ${statusClasses(b.bookingStatus)}`}
+                  className="w-full rounded-xl border border-border bg-card px-4 py-3 text-left shadow-sm transition hover:border-primary/35 hover:bg-muted/30"
+                  style={{ borderLeftColor: categoryColorCss(b.categoryColor, b.serviceId), borderLeftWidth: 4 }}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -231,7 +232,7 @@ function MonthView({ activeDate, bookingsByDate, onBookingClick, onDateClick }: 
                     key={booking.session.id}
                     type="button"
                     onClick={(e) => { e.stopPropagation(); onBookingClick(booking); }}
-                    className={`w-full rounded-xl border px-2 py-1 text-left text-[10px] shadow-sm transition hover:brightness-95 lg:rounded-2xl lg:text-xs ${statusClasses(booking.bookingStatus)}`}
+                    className="w-full rounded-md border border-border bg-card px-2 py-1 text-left text-[10px] shadow-sm transition hover:border-primary/35 hover:bg-muted/30 lg:text-xs"
                     style={{ borderLeftColor: categoryColorCss(booking.categoryColor, booking.serviceId), borderLeftWidth: 4 }}
                   >
                     <div className="truncate font-semibold">{booking.customerName}</div>
@@ -264,7 +265,7 @@ function WeekView({ activeDate, bookingsByDate, onBookingClick, onDateClick }: {
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
   return (
-    <div className="grid gap-3 sm:grid-cols-7">
+    <div className="grid gap-3 lg:grid-cols-7">
       {days.map((day) => {
         const dateKey = toDateKey(day);
         const dayBookings = bookingsByDate.get(dateKey) ?? [];
@@ -294,7 +295,7 @@ function WeekView({ activeDate, bookingsByDate, onBookingClick, onDateClick }: {
                     key={booking.session.id}
                     type="button"
                     onClick={() => onBookingClick(booking)}
-                    className={`w-full rounded-2xl border px-3 py-2 text-left shadow-sm transition hover:brightness-95 ${statusClasses(booking.bookingStatus)}`}
+                  className="w-full rounded-lg border border-border bg-card px-3 py-2 text-left shadow-sm transition hover:border-primary/35 hover:bg-muted/30"
                     style={{ borderLeftColor: categoryColorCss(booking.categoryColor, booking.serviceId), borderLeftWidth: 4 }}
                   >
                     <div className="truncate text-xs font-semibold text-slate-900">{booking.customerName}</div>

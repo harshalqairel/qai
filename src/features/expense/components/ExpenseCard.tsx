@@ -1,7 +1,7 @@
 import { Expense } from "@/features/expense/types";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
-import DeleteAction from "@/components/system/DeleteAction";
 import { categoryColorCss } from "@/features/category/constants";
+import ExpenseActions from "./ExpenseActions";
 
 export type ExpenseBookingDetails = {
   customerName: string;
@@ -45,7 +45,7 @@ export default function ExpenseCard({
   const isBookingExpense = expense.expenseType === "Booking Expense";
 
   return (
-    <article className="rounded-xl border border-border bg-card p-4 shadow-sm">
+    <article className="cursor-pointer rounded-xl border border-border bg-card p-4 shadow-sm transition-colors hover:bg-accent/30" role="button" tabIndex={0} onClick={() => onEdit(expense)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onEdit(expense); } }}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-medium text-muted-foreground">{formatDate(expense.date)}</p>
@@ -71,22 +71,11 @@ export default function ExpenseCard({
           : expense.vendor || "General business expense"}
       </p>
 
-      <div className="mt-3 flex items-center gap-2 border-t border-border pt-3">
-        <button
-          type="button"
-          onClick={() => onEdit(expense)}
-          className="min-h-10 rounded-lg border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
-        >
-          View / Edit
-        </button>
-        <DeleteAction
-          itemName="this expense"
-          onConfirm={() => onDelete(expense)}
-          successMessage="Expense deleted."
-          errorMessage="Could not delete the expense. Try again."
-          triggerClassName="h-10 px-3"
-          confirmLabel="Delete expense"
-        />
+      <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-3">
+        <span className="text-xs font-medium text-muted-foreground">{expense.paymentMethod}</span>
+        <div onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+          <ExpenseActions expense={expense} onEdit={onEdit} onDelete={onDelete} />
+        </div>
       </div>
     </article>
   );

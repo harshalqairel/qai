@@ -108,29 +108,40 @@ export function validateServiceVariantConfiguration(
   optionGroups: readonly ServiceOptionGroup[],
   variants: readonly ServiceVariant[],
 ): string | null {
-  if (optionGroups.length > 4) return "A service can have up to four option groups.";
+  if (optionGroups.length > 4) return "A service can have up to four client choices.";
   const normalizedGroupNames = optionGroups.map((group) => group.name.normalize("NFKC").trim().toLowerCase());
-  if (normalizedGroupNames.some((name) => !name)) return "Every option group needs a name.";
-  if (new Set(normalizedGroupNames).size !== normalizedGroupNames.length) return "Option group names must be unique.";
+  const unnamedGroupIndex = normalizedGroupNames.findIndex((name) => !name);
+  if (unnamedGroupIndex >= 0) return `Choice ${unnamedGroupIndex + 1} → Give this choice a name, such as “Instructor”.`;
+  const duplicateGroupIndex = normalizedGroupNames.findIndex((name, index) => normalizedGroupNames.indexOf(name) !== index);
+  if (duplicateGroupIndex >= 0) return `Choice ${duplicateGroupIndex + 1} → “${optionGroups[duplicateGroupIndex].name.trim()}” is already used. Choice names must be unique.`;
   const allValueIds = new Set<string>();
-  for (const group of optionGroups) {
-    if (group.values.length < 1 || group.values.length > 12) return "Each option group needs between one and twelve values.";
+  for (const [groupIndex, group] of optionGroups.entries()) {
+    const groupLabel = group.name.trim() || `Choice ${groupIndex + 1}`;
+    if (group.values.length < 1) return `${groupLabel} → Add at least one value.`;
+    if (group.values.length > 12) return `${groupLabel} → Use no more than twelve values.`;
     const labels = group.values.map((value) => value.label.normalize("NFKC").trim().toLowerCase());
-    if (labels.some((label) => !label) || new Set(labels).size !== labels.length) return "Option values must be named and unique within their group.";
+    const unnamedValueIndex = labels.findIndex((label) => !label);
+    if (unnamedValueIndex >= 0) return `${groupLabel} → Value ${unnamedValueIndex + 1} needs a name.`;
+    const duplicateValueIndex = labels.findIndex((label, index) => labels.indexOf(label) !== index);
+    if (duplicateValueIndex >= 0) return `${groupLabel} → “${group.values[duplicateValueIndex].label.trim()}” is duplicated. Values within one choice must be unique.`;
     for (const value of group.values) {
-      if (allValueIds.has(value.id)) return "Option value IDs must be unique.";
+      if (allValueIds.has(value.id)) return `${groupLabel} → A value has an invalid duplicate identity. Remove it and add the value again.`;
       allValueIds.add(value.id);
     }
   }
-  if (optionGroups.length === 0 && variants.length > 0) return "Add an option group before adding variants.";
+  if (optionGroups.length === 0 && variants.length > 0) return "Add a client choice before adding combinations.";
   const combinations = new Set<string>();
-  for (const variant of variants) {
-    if (variant.price < 0 || variant.duration < 1 || variant.defaultSessionCount < 1) return "Every variant needs a valid price, duration, and schedule count.";
-    if (variant.optionValueIds.length !== optionGroups.length || variant.optionValueIds.some((id) => !allValueIds.has(id))) return "Each variant must choose one value from every option group.";
+  for (const [variantIndex, variant] of variants.entries()) {
+    const selectedLabels = optionGroups.flatMap((group) => group.values.filter((value) => variant.optionValueIds.includes(value.id)).map((value) => value.label.trim())).filter(Boolean);
+    const combinationLabel = selectedLabels.join(" · ") || `Combination ${variantIndex + 1}`;
+    if (!Number.isFinite(variant.price) || variant.price < 0) return `${combinationLabel} → Enter a valid price.`;
+    if (!Number.isFinite(variant.duration) || variant.duration < 1) return `${combinationLabel} → Duration must be at least 1 minute.`;
+    if (!Number.isInteger(variant.defaultSessionCount) || variant.defaultSessionCount < 1) return `${combinationLabel} → Schedules must be a whole number of at least 1.`;
+    if (variant.optionValueIds.length !== optionGroups.length || variant.optionValueIds.some((id) => !allValueIds.has(id))) return `${combinationLabel} → Select one value from every choice.`;
     const hasOnePerGroup = optionGroups.every((group) => variant.optionValueIds.filter((id) => group.values.some((value) => value.id === id)).length === 1);
-    if (!hasOnePerGroup) return "Each variant must choose exactly one value from every option group.";
+    if (!hasOnePerGroup) return `${combinationLabel} → Select exactly one value from every choice.`;
     const key = variantCombinationKey(variant.optionValueIds);
-    if (combinations.has(key)) return "Variant combinations must be unique.";
+    if (combinations.has(key)) return `${combinationLabel} → This combination already exists. Every client-facing combination must be unique.`;
     combinations.add(key);
   }
   return null;

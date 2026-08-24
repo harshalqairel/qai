@@ -1,42 +1,25 @@
-import ReportPeriodSelector from "@/features/reports/ReportPeriodSelector";
-import type { ReportPeriodInput } from "@/features/reports/financialReport";
 import { Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type DashboardHeaderProps = {
-  period: ReportPeriodInput;
-  currentMonth: string;
-  resolvedLabel: string;
-  onPeriodChange: (period: ReportPeriodInput) => void;
   onCustomize: () => void;
 };
 
-export default function DashboardHeader({
-  period,
-  currentMonth,
-  resolvedLabel,
-  onPeriodChange,
-  onCustomize,
-}: DashboardHeaderProps) {
+export default function DashboardHeader({ onCustomize }: DashboardHeaderProps) {
+  const date = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "short" }).format(new Date());
   return (
-    <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <header className="flex items-end justify-between gap-4">
       <div className="min-w-0">
-        <div className="flex items-center justify-between gap-3 sm:justify-start">
-          <h1 className="page-title">Dashboard</h1>
-          <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={onCustomize}>
-            <Settings2 className="size-4" aria-hidden="true" />
-            <span className="sm:hidden">Customize</span>
-            <span className="hidden sm:inline">Customize dashboard</span>
-          </Button>
-        </div>
-        <p className="mt-2 max-w-xl text-sm leading-6 text-[var(--dashboard-muted-text)] sm:text-base">
+        <h1 className="page-title">Dashboard</h1>
+        <p className="mt-1 text-sm font-medium text-[var(--dashboard-muted-text)] lg:hidden">{date}</p>
+        <p className="mt-2 hidden max-w-xl text-sm leading-6 text-[var(--dashboard-muted-text)] lg:block lg:text-base">
           See your income, expenses, payments, and upcoming work.
         </p>
       </div>
-
-      <div className="flex shrink-0 sm:justify-end">
-        <ReportPeriodSelector value={period} currentMonth={currentMonth} resolvedLabel={resolvedLabel} onChange={onPeriodChange} />
-      </div>
+      <Button type="button" variant="ghost" size="sm" className="hidden shrink-0 lg:inline-flex" onClick={onCustomize}>
+        <Settings2 className="size-4" aria-hidden="true" />
+        Customize dashboard
+      </Button>
     </header>
   );
 }

@@ -1,27 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowUpDown, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 
 import DeleteAction from "@/components/system/DeleteAction";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import StatusBadge from "@/components/system/StatusBadge";
+import RowActionsMenu from "@/components/system/RowActionsMenu";
+import SortableTableHeader from "@/components/system/SortableTableHeader";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { categoryColorCss } from "@/features/category/constants";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
 import type { Service } from "@/features/service/types";
 import { formatDuration } from "@/features/service/utils/duration";
+import type { ServiceSort } from "./ServiceToolbar";
 
 type ServiceTableProps = {
   services: Service[];
-  sort: string;
-  onSortChange: (value: string) => void;
+  sort: ServiceSort;
+  onSortChange: (value: ServiceSort) => void;
   getCategoryName: (categoryId: string) => string;
   getCategoryColor: (categoryId: string) => string;
   onEdit: (service: Service) => void;
@@ -33,20 +29,13 @@ function ServiceActions({ service, onEdit, onDelete }: Pick<ServiceTableProps, "
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon" aria-label={`Open actions for ${service.name}`} />}>
-          <MoreHorizontal aria-hidden="true" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-40">
-          <DropdownMenuItem onClick={() => onEdit(service)}>
-            <Pencil aria-hidden="true" /> Edit
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive" onClick={() => setDeleteOpen(true)}>
-            <Trash2 aria-hidden="true" /> Delete
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <RowActionsMenu
+        recordLabel={service.name}
+        actions={[
+          { label: "Edit service", icon: Pencil, onSelect: () => onEdit(service) },
+          { label: "Delete service", icon: Trash2, onSelect: () => setDeleteOpen(true), destructive: true, separatorBefore: true },
+        ]}
+      />
       <DeleteAction
         itemName="this service"
         onConfirm={() => onDelete(service)}
@@ -57,25 +46,6 @@ function ServiceActions({ service, onEdit, onDelete }: Pick<ServiceTableProps, "
         hideTrigger
       />
     </>
-  );
-}
-
-function SortableHead({ label, ascending, descending, sort, onSortChange, className = "" }: {
-  label: string;
-  ascending: string;
-  descending: string;
-  sort: string;
-  onSortChange: (value: string) => void;
-  className?: string;
-}) {
-  const active = sort === ascending || sort === descending;
-  return (
-    <TableHead className={className} aria-sort={sort === ascending ? "ascending" : sort === descending ? "descending" : "none"}>
-      <button type="button" className="inline-flex min-h-10 items-center gap-1.5 font-medium" onClick={() => onSortChange(sort === ascending ? descending : ascending)}>
-        {label}
-        <ArrowUpDown className={`size-3.5 ${active ? "text-foreground" : "text-muted-foreground"}`} aria-hidden="true" />
-      </button>
-    </TableHead>
   );
 }
 
@@ -93,16 +63,17 @@ export default function ServiceTable({ services, sort, onSortChange, getCategory
 
   return (
     <>
-      <div className="hidden overflow-hidden rounded-xl border border-border bg-card shadow-sm lg:block">
+      <div className="hidden overflow-hidden rounded-xl border border-border bg-card shadow-sm xl:block">
         <Table className="min-w-[820px]">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <SortableHead label="Service" ascending="name-asc" descending="name-desc" sort={sort} onSortChange={onSortChange} className="pl-4" />
-              <TableHead>Category</TableHead>
-              <SortableHead label="Price" ascending="price-asc" descending="price-desc" sort={sort} onSortChange={onSortChange} className="text-right" />
-              <SortableHead label="Duration" ascending="duration-asc" descending="duration-desc" sort={sort} onSortChange={onSortChange} />
-              <SortableHead label="Schedules" ascending="sessions-asc" descending="sessions-desc" sort={sort} onSortChange={onSortChange} className="text-center" />
-              <TableHead>Status</TableHead>
+              <SortableTableHeader label="Service" ascending="name-asc" descending="name-desc" sort={sort} onSortChange={onSortChange} className="pl-4" />
+              <SortableTableHeader label="Category" ascending="category-asc" descending="category-desc" sort={sort} onSortChange={onSortChange} />
+              <SortableTableHeader label="Price" ascending="price-asc" descending="price-desc" sort={sort} onSortChange={onSortChange} align="right" />
+              <SortableTableHeader label="Duration" ascending="duration-asc" descending="duration-desc" sort={sort} onSortChange={onSortChange} />
+              <SortableTableHeader label="Schedules" ascending="sessions-asc" descending="sessions-desc" sort={sort} onSortChange={onSortChange} />
+              <SortableTableHeader label="Choices" ascending="choices-asc" descending="choices-desc" sort={sort} onSortChange={onSortChange} />
+              <SortableTableHeader label="Status" ascending="status-asc" descending="status-desc" sort={sort} onSortChange={onSortChange} />
               <TableHead className="pr-4 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -129,10 +100,9 @@ export default function ServiceTable({ services, sort, onSortChange, getCategory
                 <TableCell className="text-right font-semibold tabular-nums">{formatRupiah(service.price)}</TableCell>
                 <TableCell>{formatDuration(service.duration)}</TableCell>
                 <TableCell className="text-center tabular-nums">{service.defaultSessionCount}</TableCell>
+                <TableCell className="text-center tabular-nums">{service.variants?.filter((choice) => choice.active).length || "—"}</TableCell>
                 <TableCell>
-                  <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${service.active ? "bg-emerald-50 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
-                    {service.active ? "Active" : "Inactive"}
-                  </span>
+                  <StatusBadge tone={service.active ? "success" : "neutral"}>{service.active ? "Active" : "Inactive"}</StatusBadge>
                 </TableCell>
                 <TableCell className="pr-4 text-right" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
                   <ServiceActions service={service} onEdit={onEdit} onDelete={onDelete} />
@@ -143,7 +113,7 @@ export default function ServiceTable({ services, sort, onSortChange, getCategory
         </Table>
       </div>
 
-      <div className="space-y-3 lg:hidden">
+      <div className="space-y-3 xl:hidden">
         {services.map((service) => (
           <article key={service.id} className="surface-card p-4" role="button" tabIndex={0} onClick={() => openService(service)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openService(service); } }}>
             <div className="flex items-start justify-between gap-3">
@@ -158,9 +128,9 @@ export default function ServiceTable({ services, sort, onSortChange, getCategory
             <div className="mt-4 flex items-end justify-between gap-4 border-t border-border pt-3">
               <div>
                 <p className="font-semibold tabular-nums text-foreground">{formatRupiah(service.price)}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{formatDuration(service.duration)} · {service.defaultSessionCount} {service.defaultSessionCount === 1 ? "schedule" : "schedules"}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{formatDuration(service.duration)} · {service.defaultSessionCount} {service.defaultSessionCount === 1 ? "schedule" : "schedules"}{service.variants?.some((choice) => choice.active) ? ` · ${service.variants.filter((choice) => choice.active).length} choices` : ""}</p>
               </div>
-              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${service.active ? "bg-emerald-50 text-emerald-700" : "bg-muted text-muted-foreground"}`}>{service.active ? "Active" : "Inactive"}</span>
+              <StatusBadge tone={service.active ? "success" : "neutral"}>{service.active ? "Active" : "Inactive"}</StatusBadge>
             </div>
           </article>
         ))}

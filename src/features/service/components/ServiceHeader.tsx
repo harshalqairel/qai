@@ -1,3 +1,8 @@
+import { Plus } from "lucide-react";
+
+import PageHeader from "@/components/system/PageHeader";
+import { Button } from "@/components/ui/button";
+
 type ServiceHeaderProps = {
   onAdd: () => void;
 };
@@ -6,37 +11,10 @@ export default function ServiceHeader({
   onAdd,
 }: ServiceHeaderProps) {
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-
-      <div>
-
-        <h1 className="page-title">
-          Services
-        </h1>
-
-        <p className="mt-3 text-sm leading-6 text-muted-foreground sm:text-base">
-          Add and update the services you offer.
-        </p>
-
-      </div>
-
-      <button
-        type="button"
-        onClick={onAdd}
-        className="
-        min-h-11 rounded-lg
-        bg-primary
-        px-5
-        py-2.5
-        font-semibold
-        text-white
-        transition
-        shadow-sm hover:bg-[var(--brand-hover)]
-        "
-      >
-        + Add service
-      </button>
-
-    </div>
+    <PageHeader
+      title="Services"
+      description="Manage what clients can book, including prices, schedules, and optional choices."
+      actions={<Button onClick={onAdd} aria-label="+ Add service"><Plus className="size-4" />Add service</Button>}
+    />
   );
 }

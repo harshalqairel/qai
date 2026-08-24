@@ -3,15 +3,19 @@
 import Link from "next/link";
 import { useState } from "react";
 import {
-  MoreHorizontalIcon,
   PencilIcon,
   Trash2Icon,
   CalendarDaysIcon,
   FileTextIcon,
+  DownloadIcon,
+  EyeIcon,
+  SendIcon,
 } from "lucide-react";
 
 import DeleteAction from "@/components/system/DeleteAction";
 import EmptyState from "@/components/system/EmptyState";
+import RowActionsMenu from "@/components/system/RowActionsMenu";
+import SortableTableHeader from "@/components/system/SortableTableHeader";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,13 +27,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   Table,
   TableBody,
@@ -51,6 +49,7 @@ import {
   sortBookingSessions,
 } from "@/features/booking/utils/bookingSessions";
 import type { BookingFinancialDetails } from "./BookingFinancialDetailsDialog";
+import type { BookingSort } from "./BookingToolbar";
 
 type BookingWithNames = BookingFinancialDetails;
 
@@ -63,6 +62,8 @@ type BookingTableProps = {
   onFinancialDetailsClick: (booking: BookingWithNames) => void;
   invoices: Invoice[];
   timezone: string;
+  sort: BookingSort;
+  onSortChange: (sort: BookingSort) => void;
 };
 
 const BOOKING_STATUS_STYLES: Record<BookingStatus, string> = {
@@ -190,46 +191,52 @@ function financialValueClass(value: number | null): string {
   return value !== null && value < 0 ? "text-destructive" : "text-foreground";
 }
 
+function bookingClientTotal(booking: BookingWithNames): number {
+  return booking.servicePrice + (booking.additionalCharges ?? []).reduce((sum, charge) => sum + charge.amount, 0);
+}
+
 type BookingActionsProps = {
   booking: BookingWithNames;
+  invoices: Invoice[];
   onEdit: (booking: BookingWithNames) => void;
   onDelete: (booking: BookingWithNames) => boolean | "blocked" | Promise<boolean | "blocked">;
 };
 
 function BookingActions({
   booking,
+  invoices,
   onEdit,
   onDelete,
 }: BookingActionsProps) {
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const latest = latestInvoiceVersions(invoices.filter((invoice) => invoice.bookingId === booking.id))
+    .sort((left, right) => right.updatedAt - left.updatedAt)[0];
+  const invoiceActions = latest
+    ? latest.lifecycle === "Issued"
+      ? [
+          { label: "View invoice", icon: EyeIcon, href: `/invoices?invoice=${latest.id}` },
+          { label: "Download invoice", icon: DownloadIcon, href: `/invoices?invoice=${latest.id}&action=download` },
+        ]
+      : [
+          { label: "View invoice", icon: EyeIcon, href: `/invoices?invoice=${latest.id}` },
+          { label: "Edit invoice", icon: FileTextIcon, href: `/invoices?invoice=${latest.id}&action=edit` },
+          { label: "Issue invoice", icon: SendIcon, href: `/invoices?invoice=${latest.id}&action=issue` },
+        ]
+    : [
+        { label: "Create invoice draft", icon: FileTextIcon, href: `/invoices?booking=${booking.id}&action=create` },
+        { label: "Issue invoice", icon: SendIcon, href: `/invoices?booking=${booking.id}&action=issue` },
+      ];
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label={`Open actions for ${booking.customerName}`}
-            />
-          }
-        >
-          <MoreHorizontalIcon aria-hidden="true" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-40">
-          <DropdownMenuItem onClick={() => onEdit(booking)}>
-            <PencilIcon aria-hidden="true" />
-            Edit
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive" onClick={() => setDeleteOpen(true)}>
-            <Trash2Icon aria-hidden="true" />
-            Delete
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <RowActionsMenu
+        recordLabel={`${booking.customerName}'s booking`}
+        actions={[
+          { label: "Edit booking", icon: PencilIcon, onSelect: () => onEdit(booking) },
+          ...invoiceActions,
+          { label: "Delete booking", icon: Trash2Icon, onSelect: () => setDeleteOpen(true), destructive: true, separatorBefore: true },
+        ]}
+      />
       <DeleteAction
         itemName="this booking"
         onConfirm={() => onDelete(booking)}
@@ -250,40 +257,21 @@ function InvoiceSummary({ booking, invoices }: { booking: BookingWithNames; invo
   const latest = related[0];
 
   if (!latest) {
-    return (
-      <div className="flex flex-col items-start gap-1">
-        <span className="text-sm text-muted-foreground">No invoice</span>
-        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <Button type="button" variant="link" size="sm" className="h-auto px-0 py-0" render={<Link href={`/invoices?booking=${booking.id}&action=create`} />}>Create draft</Button>
-          <Link href={`/invoices?booking=${booking.id}&action=issue`} className="text-xs font-medium text-primary hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Issue invoice</Link>
-        </span>
-      </div>
-    );
+    return <span className="text-sm text-muted-foreground">No invoice</span>;
   }
 
-  const isIssued = latest.lifecycle === "Issued";
-  const stateLabel = isIssued ? latest.invoiceNumber ?? "Issued" : "Draft";
+  const stateLabel = latest.lifecycle === "Issued" ? latest.invoiceNumber ?? "Issued" : "Draft";
   const summary = related.length > 1
     ? `${related.length} invoices · Latest ${stateLabel}`
     : stateLabel;
 
   return (
-    <div className="flex flex-col items-start gap-1">
-      <Link
-        href={`/invoices?invoice=${latest.id}`}
-        className="max-w-44 text-sm font-semibold text-foreground hover:text-primary hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        {summary}
-      </Link>
-      {isIssued ? (
-        <Link href={`/invoices?invoice=${latest.id}&action=download`} className="text-xs font-medium text-primary hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Download PDF</Link>
-      ) : (
-        <span className="flex items-center gap-2 text-xs font-medium">
-          <Link href={`/invoices?invoice=${latest.id}&action=edit`} className="text-primary hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Edit</Link>
-          <Link href={`/invoices?invoice=${latest.id}&action=issue`} className="text-primary hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Issue</Link>
-        </span>
-      )}
-    </div>
+    <Link
+      href={`/invoices?invoice=${latest.id}`}
+      className="block max-w-44 text-sm font-semibold text-foreground hover:text-primary hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      {summary}
+    </Link>
   );
 }
 
@@ -359,6 +347,8 @@ export default function BookingTable({
   onFinancialDetailsClick,
   invoices,
   timezone,
+  sort,
+  onSortChange,
 }: BookingTableProps) {
   if (bookings.length === 0) {
     return (
@@ -374,17 +364,17 @@ export default function BookingTable({
 
   return (
     <section aria-label="Bookings">
-      <div className="hidden overflow-hidden rounded-xl border border-border bg-card lg:block">
+      <div className="hidden overflow-hidden rounded-xl border border-border bg-card xl:block">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="px-4">Client & service</TableHead>
-              <TableHead>Schedule</TableHead>
-              <TableHead>Booking</TableHead>
-              <TableHead>Payment</TableHead>
-              <TableHead>Invoice</TableHead>
-              <TableHead className="text-right">Est. Profit</TableHead>
-              <TableHead className="w-16 px-4 text-right">Actions</TableHead>
+              <SortableTableHeader className="px-4" label="Client & service" sort={sort} ascending="client-asc" descending="client-desc" onSortChange={onSortChange} />
+              <SortableTableHeader label="Schedule" sort={sort} ascending="date-asc" descending="date-desc" onSortChange={onSortChange} />
+              <SortableTableHeader label="Booking" sort={sort} ascending="booking-status-asc" descending="booking-status-desc" onSortChange={onSortChange} />
+              <SortableTableHeader label="Payment" sort={sort} ascending="payment-status-asc" descending="payment-status-desc" onSortChange={onSortChange} />
+              <SortableTableHeader label="Invoice" sort={sort} ascending="invoice-status-asc" descending="invoice-status-desc" onSortChange={onSortChange} />
+              <SortableTableHeader label="Amount / profit" sort={sort} ascending="amount-asc" descending="amount-desc" onSortChange={onSortChange} align="right" />
+              <TableHead className="w-24 px-4 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -414,24 +404,21 @@ export default function BookingTable({
                   <InvoiceSummary booking={booking} invoices={invoices} />
                 </TableCell>
                 <TableCell className="py-3 text-right">
+                  <span className="block font-bold tabular-nums text-foreground">{formatRupiah(bookingClientTotal(booking))}</span>
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className={`h-auto px-2 py-1 font-semibold ${financialValueClass(booking.estimatedProfit)}`}
+                    className={`mt-1 h-auto px-0 py-0 text-xs font-semibold ${financialValueClass(booking.estimatedProfit)}`}
                     onClick={() => onFinancialDetailsClick(booking)}
                     aria-label={`View financial details for ${booking.customerName}`}
                   >
-                    {formatFinancialValue(booking.estimatedProfit)}
+                    Est. profit {formatFinancialValue(booking.estimatedProfit)}
                   </Button>
-                  {booking.estimatedProfit === null ? (
-                    <span className="mt-1 block text-sm text-muted-foreground">Cancelled</span>
-                  ) : booking.directExpenses > 0 ? (
-                    <span className="mt-1 block text-sm text-muted-foreground">Expenses: {formatRupiah(booking.directExpenses)}</span>
-                  ) : null}
+                  {booking.estimatedProfit === null && <span className="mt-1 block text-xs text-muted-foreground">Cancelled</span>}
                 </TableCell>
                 <TableCell className="px-4 py-2 text-right">
-                  <BookingActions booking={booking} onEdit={onEdit} onDelete={onDelete} />
+                  <BookingActions booking={booking} invoices={invoices} onEdit={onEdit} onDelete={onDelete} />
                 </TableCell>
               </TableRow>
             ))}
@@ -439,13 +426,13 @@ export default function BookingTable({
         </Table>
       </div>
 
-      <div className="space-y-2 lg:hidden">
+      <div className="space-y-2 xl:hidden">
         {bookings.map((booking) => (
           <article
             key={booking.id}
-            className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm"
+            className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
           >
-            <div className="flex items-start gap-3">
+            <div className="flex items-start gap-3 px-4 pb-3 pt-4">
               <div className="min-w-0 flex-1">
                 <h2 className="truncate font-semibold text-foreground">{booking.customerName}</h2>
                 <p className="mt-1 truncate text-sm text-muted-foreground">{booking.serviceName}</p>
@@ -453,20 +440,20 @@ export default function BookingTable({
                   <ScheduleSummary booking={booking} timezone={timezone} />
                 </div>
               </div>
-              <BookingActions booking={booking} onEdit={onEdit} onDelete={onDelete} />
+              <BookingActions booking={booking} invoices={invoices} onEdit={onEdit} onDelete={onDelete} />
             </div>
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 px-4 pb-3">
               <BookingStatusControl booking={booking} onStatusChange={onStatusChange} />
               <PaymentStatusControl booking={booking} onClick={onFinancialDetailsClick} />
             </div>
-            <div className="mt-3 flex items-center gap-3 rounded-lg bg-muted/55 px-3 py-2">
+            <div className="mx-4 flex items-center gap-3 rounded-lg bg-muted/55 px-3 py-2">
               <FileTextIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
               <InvoiceSummary booking={booking} invoices={invoices} />
             </div>
-            <dl className="mt-3 grid grid-cols-3 gap-2 border-t border-border pt-3 text-sm">
+            <dl className="mt-3 grid grid-cols-3 gap-2 border-t border-border bg-muted/25 px-4 py-3 text-sm">
               <div>
-                <dt className="text-xs text-muted-foreground">Paid</dt>
-                <dd className="mt-1 font-semibold text-foreground">{formatRupiah(booking.totalPaid)}</dd>
+                <dt className="text-xs text-muted-foreground">Total</dt>
+                <dd className="mt-1 font-semibold text-foreground">{formatRupiah(bookingClientTotal(booking))}</dd>
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">Remaining</dt>
