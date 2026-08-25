@@ -255,6 +255,15 @@ function ClosingCta({ page, services, onChoose }: RendererProps) {
 export default function QaiPageRenderer({ page, services, portfolio, onChoose, preview = false }: RendererProps) {
   const ordered = useMemo(() => normalizedPageSectionOrder(page.style), [page.style]);
   const first = services.find((service) => service.featured) ?? services[0];
+  const [thumbActionVisible, setThumbActionVisible] = useState(false);
+  useEffect(() => {
+    if (preview || !first || !onChoose) return;
+    function updateThumbAction() {
+      setThumbActionVisible(window.scrollY > Math.min(window.innerHeight * 0.7, 560));
+    }
+    window.addEventListener("scroll", updateThumbAction, { passive: true });
+    return () => window.removeEventListener("scroll", updateThumbAction);
+  }, [first, onChoose, preview]);
   const variables: PageVariables = {
     "--page-accent": page.style.accentColor,
     "--page-bg": page.style.backgroundColor,
@@ -274,5 +283,5 @@ export default function QaiPageRenderer({ page, services, portfolio, onChoose, p
     portfolio: <PortfolioSection key="portfolio" page={page} services={services} portfolio={portfolio} onChoose={onChoose} />,
     services: <ServicesSection key="services" page={page} services={services} portfolio={portfolio} onChoose={onChoose} />,
   };
-  return <div className="min-h-full min-w-0 w-full max-w-none overflow-x-hidden bg-[var(--page-bg)] text-[var(--page-text)]" style={variables} data-template={page.template} data-qai-page-root><Hero page={page} onPrimary={first && onChoose ? () => onChoose(first, first.variants.find((variant) => variant.active)?.id ?? null) : undefined} /><Facts page={page} /><div className={`mx-auto w-full max-w-[86rem] px-4 sm:px-7 lg:px-10 ${sectionClass}`}>{ordered.map((section) => sectionMap[section])}<ClosingCta page={page} services={services} portfolio={portfolio} onChoose={onChoose} /><footer className="border-t border-[var(--page-border)] pt-8 text-center text-xs text-[var(--page-muted)]"><a href={QAI_ATTRIBUTION_HREF} aria-label="Powered by Qai" className="inline-flex min-h-10 items-center gap-1.5 rounded-full px-3 font-medium hover:bg-black/5 hover:text-[var(--page-accent)]"><QaiMark size="sm" tone="monochrome" decorative />Powered by Qai</a>{preview && <p className="mt-1">Preview</p>}</footer></div></div>;
+  return <div className={`min-h-full min-w-0 w-full max-w-none overflow-x-hidden bg-[var(--page-bg)] text-[var(--page-text)] ${onChoose && !preview ? "pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0" : ""}`} style={variables} data-template={page.template} data-qai-page-root><Hero page={page} onPrimary={first && onChoose ? () => onChoose(first, first.variants.find((variant) => variant.active)?.id ?? null) : undefined} /><Facts page={page} /><div className={`mx-auto w-full max-w-[86rem] px-4 sm:px-7 lg:px-10 ${sectionClass}`}>{ordered.map((section) => sectionMap[section])}<ClosingCta page={page} services={services} portfolio={portfolio} onChoose={onChoose} /><footer className="border-t border-[var(--page-border)] pt-8 text-center text-xs text-[var(--page-muted)]"><a href={QAI_ATTRIBUTION_HREF} aria-label="Powered by Qai" className="inline-flex min-h-10 items-center gap-1.5 rounded-full px-3 font-medium hover:bg-black/5 hover:text-[var(--page-accent)]"><QaiMark size="sm" tone="monochrome" decorative />Powered by Qai</a>{preview && <p className="mt-1">Preview</p>}</footer></div>{thumbActionVisible && first && onChoose && <div className="fixed inset-x-4 z-40 md:hidden" style={{ bottom: "max(1rem, calc(env(safe-area-inset-bottom) + .5rem))" }} data-qai-page-thumb-action><button type="button" onClick={() => onChoose(first, first.variants.find((variant) => variant.active)?.id ?? null)} className="mx-auto flex min-h-12 w-full max-w-md items-center justify-center gap-2 border border-[var(--page-button-bg)] bg-[var(--page-button-bg)] px-5 text-sm font-semibold text-[var(--page-button-text)] shadow-[0_14px_36px_rgba(9,17,29,.22)] transition hover:brightness-95" style={{ borderRadius: "var(--page-button-radius)" }}>Book now<ArrowRight className="size-4" aria-hidden="true" /></button></div>}</div>;
 }

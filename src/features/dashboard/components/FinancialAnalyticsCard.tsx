@@ -15,7 +15,7 @@ export default function FinancialAnalyticsCard({
   emptyMessage,
   tone,
 }: {
-  title: "Income" | "Expenses";
+  title: "Income by category" | "Expenses by category";
   total: number;
   period: string;
   categories: AnalyticsCategory[];
@@ -34,8 +34,9 @@ export default function FinancialAnalyticsCard({
       <Link href={href} className="group block rounded-lg focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Open ${title.toLowerCase()} report for ${period}`}>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold text-[var(--dashboard-muted-text)]">{title}</p>
-            <p className="mt-2 break-words text-2xl font-bold tracking-tight text-[var(--dashboard-text)] tabular-nums sm:text-3xl">{formatRupiah(total)}</p>
+            <p className="text-sm font-semibold text-[var(--dashboard-text)]">{title}</p>
+            <p className="mt-3 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--dashboard-muted-text)]">Total</p>
+            <p className="mt-1 break-words text-2xl font-bold tracking-tight text-[var(--dashboard-text)] tabular-nums sm:text-3xl">{formatRupiah(total)}</p>
             <p className="mt-1 text-sm text-[var(--dashboard-muted-text)]">{period}</p>
           </div>
           <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--dashboard-surface-muted)] text-[var(--dashboard-muted-text)] transition group-hover:text-[var(--dashboard-text)]">

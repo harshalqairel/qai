@@ -1,11 +1,13 @@
 // @vitest-environment happy-dom
 
-import { render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import QaiPageRenderer from "./QaiPageRenderer";
 import { defaultQaiPage, QAI_PAGE_TEMPLATES } from "../validation";
+
+afterEach(cleanup);
 
 const service = {
   serviceId: "service-1",
@@ -40,7 +42,7 @@ describe("QaiPageRenderer", () => {
     await user.click(screen.getByRole("button", { name: "Open navigation menu" }));
     expect(screen.getAllByRole("button", { name: "Close navigation menu" })).toHaveLength(2);
     await user.click(screen.getAllByRole("button", { name: "Close navigation menu" })[0]);
-    await user.click(screen.getByRole("button", { name: "Request" }));
+    await user.click(screen.getByRole("button", { name: "Book this service" }));
     expect(onChoose).toHaveBeenCalledWith(service, null);
     expect(page.services).toEqual(before);
     unmount();
@@ -74,8 +76,22 @@ describe("QaiPageRenderer", () => {
     await user.click(screen.getByRole("button", { name: "Mentor" }));
     expect(screen.getByText("Rp 1.500.000")).toBeTruthy();
     expect(screen.getByText("3 hours 20 minutes")).toBeTruthy();
-    await user.click(screen.getByRole("button", { name: "Request" }));
+    await user.click(screen.getByRole("button", { name: "Book this service" }));
     expect(onChoose).toHaveBeenCalledWith(serviceWithVariants, "mentor-two");
+  });
+
+  it("uses client-friendly booking language and reveals a safe-area mobile action after the hero", async () => {
+    const onChoose = vi.fn();
+    const page = { ...defaultQaiPage(), businessName: "Nuyi Studio", services: [service] };
+    const { container } = render(<QaiPageRenderer page={page} services={page.services} portfolio={[]} onChoose={onChoose} />);
+    expect(screen.queryByText(/^Request$/)).toBeNull();
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 700 });
+    fireEvent.scroll(window);
+    const thumbAction = await screen.findByText("Book now", { selector: "[data-qai-page-thumb-action] button" });
+    expect(thumbAction).toBeTruthy();
+    fireEvent.click(thumbAction);
+    expect(onChoose).toHaveBeenCalledWith(service, null);
+    expect(container.querySelector("[data-qai-page-root]")?.className).toContain("safe-area-inset-bottom");
   });
 
   it("opens a multi-image work gallery with navigation and a counter", async () => {

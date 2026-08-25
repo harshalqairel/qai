@@ -1,9 +1,11 @@
 // @vitest-environment happy-dom
 
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { SearchableSelect } from "./searchable-select";
+
+afterEach(cleanup);
 
 describe("SearchableSelect", () => {
   it("filters, supports keyboard selection, and exposes secondary identity", async () => {
@@ -27,6 +29,16 @@ describe("SearchableSelect", () => {
     await user.click(screen.getByRole("combobox", { name: "Service" }));
     expect(screen.getByText("No matching options.")).toBeTruthy();
     await user.keyboard("{Escape}");
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
+  it("keeps record creation inside the selector menu", async () => {
+    const user = userEvent.setup();
+    const onCreate = vi.fn();
+    render(<SearchableSelect label="Client" value="" onValueChange={() => undefined} items={[]} createAction={{ label: "Add new client", onSelect: onCreate }} />);
+    await user.click(screen.getByRole("combobox", { name: "Client" }));
+    await user.click(screen.getByRole("button", { name: "Add new client" }));
+    expect(onCreate).toHaveBeenCalledOnce();
     expect(screen.queryByRole("listbox")).toBeNull();
   });
 });

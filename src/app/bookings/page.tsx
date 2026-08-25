@@ -34,6 +34,11 @@ import { notify } from "@/lib/notifications";
 import { useServiceCategories } from "@/features/service-category/hooks/useServiceCategories";
 import { invoiceRepository, latestInvoiceVersions } from "@/features/invoice/invoice";
 import type { BookingFormValues } from "@/features/booking/schema";
+import BulkActionBar from "@/components/system/BulkActionBar";
+import { toggleSelectedId, toggleVisibleSelection } from "@/components/system/selection";
+import BulkServiceChangeDialog, { type BulkServiceNamedBooking } from "@/features/booking/components/BulkServiceChangeDialog";
+import { buildBulkServiceChangeInput } from "@/features/booking/domain/serviceChange";
+import type { Service } from "@/features/service/types";
 
 export default function BookingsPage() {
   const bookingData = useBookings();
@@ -63,6 +68,9 @@ export default function BookingsPage() {
   const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
   const [selectedBookingIdForExpense, setSelectedBookingIdForExpense] = useState<string | null>(null);
   const [initialBookingValues, setInitialBookingValues] = useState<Partial<BookingFormValues> | undefined>();
+  const [selectedBookingIds, setSelectedBookingIds] = useState<Set<string>>(() => new Set());
+  const [mobileSelectionMode, setMobileSelectionMode] = useState(false);
+  const [bulkServiceOpen, setBulkServiceOpen] = useState(false);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -146,6 +154,7 @@ export default function BookingsPage() {
 
   const sortedBookings = [...filteredBookings];
   const allInvoices = invoiceRepository.getAll();
+  const selectedBookings = bookingsWithNames.filter((booking) => selectedBookingIds.has(booking.id));
   const invoiceState = (bookingId: string) => {
     const latest = latestInvoiceVersions(allInvoices.filter((invoice) => invoice.bookingId === bookingId))
       .sort((left, right) => right.updatedAt - left.updatedAt)[0];
@@ -186,6 +195,49 @@ export default function BookingsPage() {
     setEditingPayment(payment ?? null);
     setPaymentDefaultAmount(defaultAmount);
     setPaymentDialogOpen(true);
+  }
+
+  function clearSelection() {
+    setSelectedBookingIds(new Set());
+    setMobileSelectionMode(false);
+  }
+
+  function changeSearch(value: string) {
+    setSearch(value);
+    setSelectedBookingIds(new Set());
+  }
+
+  function changeStatusFilter(value: string) {
+    setStatusFilter(value);
+    setSelectedBookingIds(new Set());
+  }
+
+  function changePaymentStatusFilter(value: string) {
+    setPaymentStatusFilter(value);
+    setSelectedBookingIds(new Set());
+  }
+
+  async function applyBulkServiceChange(
+    service: Service,
+    eligible: BulkServiceNamedBooking[],
+    skipped: Array<{ booking: BulkServiceNamedBooking; reason: string }>,
+  ) {
+    const failed: BulkServiceNamedBooking[] = [];
+    let updated = 0;
+    for (const booking of eligible) {
+      const succeeded = await updateBooking(buildBulkServiceChangeInput(booking, service, bookingData.timezone));
+      if (succeeded) updated += 1;
+      else failed.push(booking);
+    }
+    const notChangedIds = new Set([...skipped.map(({ booking }) => booking.id), ...failed.map((booking) => booking.id)]);
+    setSelectedBookingIds(notChangedIds);
+    setBulkServiceOpen(false);
+    if (notChangedIds.size === 0) {
+      setMobileSelectionMode(false);
+      notify.success(`${updated} ${updated === 1 ? "booking" : "bookings"} changed to ${service.name}.`);
+      return;
+    }
+    notify.warning(`${updated} updated. ${notChangedIds.size} not changed and still selected for review.`);
   }
 
   function closePaymentDialog() {
@@ -241,15 +293,20 @@ export default function BookingsPage() {
               setSelectedBooking(null);
               setDialogOpen(true);
             }}
+            selectionMode={mobileSelectionMode}
+            onToggleSelectionMode={() => {
+              if (mobileSelectionMode) clearSelection();
+              else setMobileSelectionMode(true);
+            }}
           />
 
           <BookingToolbar
             search={search}
-            onSearchChange={setSearch}
+            onSearchChange={changeSearch}
             status={statusFilter}
-            onStatusChange={setStatusFilter}
+            onStatusChange={changeStatusFilter}
             paymentStatus={paymentStatusFilter}
-            onPaymentStatusChange={setPaymentStatusFilter}
+            onPaymentStatusChange={changePaymentStatusFilter}
             sort={sort}
             onSortChange={setSort}
           />
@@ -276,7 +333,14 @@ export default function BookingsPage() {
             timezone={bookingData.timezone}
             sort={sort}
             onSortChange={setSort}
+            selection={{
+              selectedIds: selectedBookingIds,
+              mobileMode: mobileSelectionMode,
+              onToggle: (id) => setSelectedBookingIds((current) => toggleSelectedId(current, id)),
+              onToggleAllVisible: () => setSelectedBookingIds((current) => toggleVisibleSelection(current, sortedBookings.map((booking) => booking.id))),
+            }}
           />
+          <BulkActionBar count={selectedBookingIds.size} actionLabel="Change service" onAction={() => setBulkServiceOpen(true)} onClear={clearSelection} />
         </div>
       </main>
 
@@ -289,6 +353,7 @@ export default function BookingsPage() {
         serviceCategories={serviceCategories}
         payments={payments}
         expenses={expenses}
+        invoices={allInvoices}
         timezone={bookingData.timezone}
         onClose={() => {
           setDialogOpen(false);
@@ -309,6 +374,15 @@ export default function BookingsPage() {
         onQuickCreateCustomer={customerData.createCustomerAndReturn}
         onQuickCreateService={serviceData.createServiceAndReturn}
         onQuickCreateServiceCategory={(name) => serviceCategoryData.createCategoryAndReturn({ name, color: suggestCategoryColor(serviceCategories.map((category) => category.color)) })}
+      />
+
+      <BulkServiceChangeDialog
+        open={bulkServiceOpen}
+        bookings={selectedBookings}
+        services={services}
+        invoices={allInvoices}
+        onClose={() => setBulkServiceOpen(false)}
+        onApply={applyBulkServiceChange}
       />
 
       <PaymentDialog

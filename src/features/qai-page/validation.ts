@@ -35,7 +35,7 @@ export const QAI_PAGE_THEME_PRESETS = {
 export const QAI_PAGE_SECTIONS = ["about", "portfolio", "services"] as const;
 export const QAI_ATTRIBUTION_HREF = "/?ref=qai-page&utm_source=qai_page&utm_medium=attribution&utm_campaign=powered_by_qai";
 
-export const DEFAULT_REJECTION_WHATSAPP_TEMPLATE = "Hi {client_name}, thank you for your interest in {service_name}. Unfortunately, we are unable to accept your booking request at this time. Thank you for your understanding.\n\n— {business_name}";
+export const DEFAULT_REJECTION_WHATSAPP_TEMPLATE = "Hi {client_name}, thank you for your interest in {service_name}. Unfortunately, we are unable to accept your booking at this time. Thank you for your understanding.\n\n— {business_name}";
 
 const defaultPageStyle = {
   accentColor: "#4F6BFF",
@@ -281,9 +281,9 @@ export function publicPriceLabel(service: PublicService): string {
 }
 
 export function publicActionLabel(mode: PublicActionMode): string {
-  if (mode === "Instant booking") return "Book";
+  if (mode === "Instant booking") return "Book now";
   if (mode === "Inquiry") return "Ask about this service";
-  return "Request";
+  return "Book this service";
 }
 
 export function requiresClientServiceLocation(service: Pick<PublicService, "locationPolicy">, choice: "Business/studio" | "Client location"): boolean {

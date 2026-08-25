@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { canShowBookedThroughQai, defaultQaiPage, normalizeContactPhone, normalizeSlug, publicPriceLabel, qaiPageSchema, requestToBookingValues, requiresClientServiceLocation, resolvePublicServiceLocation, type QaiPageConfig } from "./validation";
+import { canShowBookedThroughQai, defaultQaiPage, normalizeContactPhone, normalizeSlug, publicActionLabel, publicPriceLabel, qaiPageSchema, requestToBookingValues, requiresClientServiceLocation, resolvePublicServiceLocation, type QaiPageConfig } from "./validation";
 import { createValidationStoreRepository, ValidationStoreError, type ValidationRequestInput } from "./validationStore";
 
 const temporaryDirectories: string[] = [];
@@ -43,6 +43,12 @@ describe("Qai Page domain", () => {
     expect(normalizeContactPhone("0812-3456")).toBe("628123456");
     expect(publicPriceLabel(page().services[0])).toBe("Starting from Rp 7.500.000");
     expect(publicPriceLabel({ ...page().services[0], priceMode: "Ask for price" })).toBe("Ask for price");
+  });
+
+  it("uses natural client-facing booking actions without changing internal action modes", () => {
+    expect(publicActionLabel("Booking request")).toBe("Book this service");
+    expect(publicActionLabel("Instant booking")).toBe("Book now");
+    expect(publicActionLabel("Inquiry")).toBe("Ask about this service");
   });
 
   it("groups legacy images and multi-image work without changing stored media URLs", async () => {

@@ -23,7 +23,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { QaiLogo } from "@/components/brand/QaiLogo";
+import { QaiLogo, QaiMark } from "@/components/brand/QaiLogo";
 import AuthControls from "@/components/auth/AuthControls";
 import useOperationalAttention from "@/features/dashboard/hooks/useOperationalAttention";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
@@ -110,11 +110,12 @@ export default function Sidebar() {
     <>
       <header className="fixed inset-x-0 top-0 z-30 flex h-14 items-center justify-between border-b border-border/80 bg-card/95 px-3.5 backdrop-blur-xl lg:hidden">
         <Link
-          href="/dashboard"
-          aria-label="Go to Dashboard"
-          className="inline-flex min-h-10 items-center rounded-lg px-2 py-1 transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+          href="/qai-page"
+          aria-label="Manage Qai Page"
+          className="inline-flex min-h-11 min-w-0 items-center gap-2 rounded-lg px-1.5 pr-2.5 text-sm font-semibold tracking-tight text-foreground transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
         >
-          <QaiLogo size="sm" decorative />
+          <QaiMark size="sm" decorative />
+          <span className="truncate">Qai Page</span>
         </Link>
         <div className="flex items-center gap-1">
           <button

@@ -46,6 +46,8 @@ import { loadBookingQuestionnaire } from "@/features/booking-questionnaire/quest
 import { validationClient } from "@/features/qai-page/validation";
 import { clientSearchText, clientSecondaryIdentity, findClientMatches } from "@/features/customer/domain/clientIdentity";
 import { defaultServiceVariant, snapshotServiceSelection } from "@/features/service/domain/serviceVariants";
+import type { Invoice } from "@/features/invoice/invoice";
+import { recommendedServiceChangePriceMode, serviceUsesManagedAvailability } from "@/features/booking/domain/serviceChange";
 
 type BookingDialogProps = {
   open: boolean;
@@ -56,6 +58,7 @@ type BookingDialogProps = {
   serviceCategories?: ServiceCategory[];
   payments: Payment[];
   expenses: Expense[];
+  invoices?: Invoice[];
   timezone: string;
   onQuickCreateCustomer?: (input: CreateCustomerInput) => Promise<Customer | null>;
   onQuickCreateService?: (input: CreateServiceInput) => Promise<Service | null>;
@@ -115,6 +118,7 @@ export default function BookingDialog({
   serviceCategories = [],
   payments,
   expenses,
+  invoices = [],
   timezone,
   onQuickCreateCustomer,
   onQuickCreateService,
@@ -173,6 +177,7 @@ export default function BookingDialog({
   const [questionnaireErrors, setQuestionnaireErrors] = useState<Record<string, string>>({});
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const [allowSeparateClient, setAllowSeparateClient] = useState(false);
+  const [serviceChangePriceMode, setServiceChangePriceMode] = useState<"keep-current" | "use-new-default">("keep-current");
 
   useEffect(() => {
     if (!open) return;
@@ -193,6 +198,7 @@ export default function BookingDialog({
       setQuestionnaireResponses(booking.questionnaireResponses ?? []);
       setQuestionnaireErrors({});
       setSelectedVariantId(booking.serviceSnapshot?.variantId ?? null);
+      setServiceChangePriceMode("keep-current");
       reset(withSessionIds({
         customerId: booking.customerId,
         serviceId: booking.serviceId,
@@ -223,6 +229,7 @@ export default function BookingDialog({
     setQuestionnaireResponses(initialValues?.questionnaireResponses ?? []);
     setQuestionnaireErrors({});
     setSelectedVariantId(initialValues?.serviceSnapshot?.variantId ?? null);
+    setServiceChangePriceMode("keep-current");
     setAllowSeparateClient(false);
     reset(withSessionIds({
       ...defaultValues,
@@ -258,6 +265,15 @@ export default function BookingDialog({
   const activeQuestionIds = new Set(activeQuestions.map((question) => question.id));
   const historicalResponses = questionnaireResponses.filter((response) => !activeQuestionIds.has(response.questionId));
   const bookingPayments = booking ? payments.filter((payment) => payment.bookingId === booking.id) : [];
+  const bookingHasIssuedInvoice = booking ? invoices.some((invoice) => invoice.bookingId === booking.id && invoice.lifecycle === "Issued") : false;
+  const serviceChanged = Boolean(booking && selectedServiceId && selectedServiceId !== booking.serviceId);
+  const originalService = booking ? services.find((service) => service.id === booking.serviceId) : null;
+  const originalDefaultPrice = booking?.serviceSnapshot?.price ?? originalService?.price ?? booking?.servicePrice ?? 0;
+  const nextServiceDefaultPrice = selectedServiceSnapshot?.price ?? selectedService?.price ?? 0;
+  const serviceChangePriceDiffers = Boolean(booking && serviceChanged && booking.servicePrice !== nextServiceDefaultPrice);
+  const serviceChangeDurationDiffers = Boolean(booking && serviceChanged && (booking.serviceSnapshot?.duration ?? originalService?.duration) !== selectedServiceSnapshot?.duration);
+  const serviceChangeReleasesCapacity = Boolean(serviceChanged && booking?.capacitySlotKeys?.length);
+  const serviceChangeNeedsManagedSlot = Boolean(serviceChanged && selectedService && serviceUsesManagedAvailability(selectedService));
   const quickCustomerMatches = useMemo(() => findClientMatches(quickCustomer, customers).slice(0, 4), [quickCustomer, customers]);
   const clientItems = useMemo(() => customers.map((customer) => ({
     value: customer.id,
@@ -386,6 +402,28 @@ export default function BookingDialog({
     lastDefaultedServiceId.current = service.id;
     setSelectedVariantId(variant?.id ?? null);
     setValue("serviceSnapshot", snapshot, { shouldDirty: true });
+    if (booking && service.id === booking.serviceId) {
+      setServiceChangePriceMode("keep-current");
+      setValue("serviceSnapshot", booking.serviceSnapshot ?? snapshot, { shouldDirty: true });
+      setSelectedVariantId(booking.serviceSnapshot?.variantId ?? variant?.id ?? null);
+      setValue("servicePrice", booking.servicePrice, { shouldDirty: true, shouldValidate: true });
+      setValue("capacitySourceRequestId", booking.capacitySourceRequestId ?? null, { shouldDirty: true });
+      setValue("capacitySlotKeys", booking.capacitySlotKeys ?? [], { shouldDirty: true });
+      return;
+    }
+    if (booking) {
+      const priceMode = recommendedServiceChangePriceMode({
+        currentPrice: booking.servicePrice,
+        originalDefaultPrice,
+        hasPayments: bookingPayments.length > 0,
+        hasIssuedInvoice: bookingHasIssuedInvoice,
+      });
+      setServiceChangePriceMode(priceMode);
+      setValue("servicePrice", priceMode === "use-new-default" ? snapshot.price : booking.servicePrice, { shouldDirty: true, shouldValidate: true });
+      setValue("capacitySourceRequestId", null, { shouldDirty: true });
+      setValue("capacitySlotKeys", [], { shouldDirty: true });
+      return;
+    }
     setValue("servicePrice", snapshot.price, { shouldDirty: true, shouldValidate: true });
     if (!booking) {
       const current = watchedSessions ?? [];
@@ -400,7 +438,9 @@ export default function BookingDialog({
     const snapshot = snapshotServiceSelection(selectedService, variant);
     setSelectedVariantId(variant?.id ?? null);
     setValue("serviceSnapshot", snapshot, { shouldDirty: true });
-    setValue("servicePrice", snapshot.price, { shouldDirty: true, shouldValidate: true });
+    if (!booking || !serviceChanged || serviceChangePriceMode === "use-new-default") {
+      setValue("servicePrice", snapshot.price, { shouldDirty: true, shouldValidate: true });
+    }
     if (!booking) {
       const current = watchedSessions ?? [];
       const untouched = current.every((session) => !session.date && !session.startTime && !session.endTime && !session.location && !session.label && !session.notes);
@@ -538,6 +578,7 @@ export default function BookingDialog({
     setQuestionnaireResponses([]);
     setQuestionnaireErrors({});
     setSelectedVariantId(null);
+    setServiceChangePriceMode("keep-current");
     setAllowSeparateClient(false);
     onClose();
   }
@@ -556,6 +597,10 @@ export default function BookingDialog({
   }
 
   async function onSubmit(values: BookingFormValues) {
+    if (booking && serviceChanged && selectedService && serviceUsesManagedAvailability(selectedService)) {
+      notify.error("Choose a flexible service. Services with managed booking times need a compatible session assignment before they can replace this booking.");
+      return;
+    }
     const responseErrors = validateQuestionnaireResponses(questionnaire, values.serviceId, questionnaireResponses);
     setQuestionnaireErrors(responseErrors);
     if (Object.keys(responseErrors).length > 0) {
@@ -645,18 +690,18 @@ export default function BookingDialog({
                   placeholder="Select a client"
                   searchPlaceholder="Search name, phone, Instagram, or email…"
                   emptyMessage="No matching clients."
+                  clearable={false}
+                  createAction={onQuickCreateCustomer ? {
+                    label: "Add new client",
+                    onSelect: () => { setQuickCustomerOpen(true); setQuickError(""); },
+                  } : undefined}
                 />
               )}
             />
             {errors.customerId && <p className="mt-2 text-sm text-destructive">{errors.customerId.message}</p>}
-            {onQuickCreateCustomer && (
-              <div className="mt-3">
-                <Button type="button" variant="outline" size="sm" onClick={() => { setQuickCustomerOpen((value) => !value); setQuickError(""); }}>
-                  <Plus className="size-4" aria-hidden="true" /> Add new client
-                </Button>
-                {quickCustomerOpen && (
+            {onQuickCreateCustomer && quickCustomerOpen && (
                   <div className="mt-3 space-y-3 rounded-xl border border-border bg-muted/30 p-4">
-                    <div><Label className="mb-2 block">Client name</Label><Input value={quickCustomer.name} onChange={(event) => setQuickCustomer((value) => ({ ...value, name: event.target.value }))} /></div>
+                    <div><Label className="mb-2 block">Client name</Label><Input autoFocus value={quickCustomer.name} onChange={(event) => setQuickCustomer((value) => ({ ...value, name: event.target.value }))} /></div>
                     <div><Label className="mb-2 block">Phone</Label><Input inputMode="tel" value={quickCustomer.phone} onChange={(event) => setQuickCustomer((value) => ({ ...value, phone: event.target.value }))} /></div>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div><Label className="mb-2 block">Instagram</Label><Input value={quickCustomer.instagram} onChange={(event) => setQuickCustomer((value) => ({ ...value, instagram: event.target.value }))} placeholder="@username" /></div>
@@ -676,8 +721,6 @@ export default function BookingDialog({
                     {quickError && <p className="text-sm text-destructive">{quickError}</p>}
                     <div className="flex gap-2"><Button type="button" size="sm" disabled={quickPending} onClick={createCustomerInline}>{quickPending ? "Adding…" : "Add and select"}</Button><Button type="button" size="sm" variant="ghost" onClick={() => setQuickCustomerOpen(false)}>Cancel</Button></div>
                   </div>
-                )}
-              </div>
             )}
           </div>
 
@@ -695,6 +738,15 @@ export default function BookingDialog({
                   placeholder="Select a service"
                   searchPlaceholder="Search service, category, or option…"
                   emptyMessage="No matching services."
+                  clearable={false}
+                  createAction={onQuickCreateService ? {
+                    label: "Add new service",
+                    onSelect: () => {
+                      setQuickServiceOpen(true);
+                      setQuickError("");
+                      setQuickService((value) => ({ ...value, categoryId: value.categoryId || serviceCategories.find((category) => category.active)?.id || "" }));
+                    },
+                  } : undefined}
                 />
               )}
             />
@@ -711,18 +763,34 @@ export default function BookingDialog({
                 <p className="mt-2 text-xs text-muted-foreground">Price, duration, and suggested schedule count follow this valid combination.</p>
               </div>
             )}
-            {onQuickCreateService && (
-              <div className="mt-3">
-                <Button type="button" variant="outline" size="sm" onClick={() => {
-                  setQuickServiceOpen((value) => !value);
-                  setQuickError("");
-                  setQuickService((value) => ({ ...value, categoryId: value.categoryId || serviceCategories.find((category) => category.active)?.id || "" }));
-                }}>
-                  <Plus className="size-4" aria-hidden="true" /> Add new service
-                </Button>
-                {quickServiceOpen && (
+            {serviceChanged && (serviceChangePriceDiffers || serviceChangeDurationDiffers || bookingPayments.length > 0 || bookingHasIssuedInvoice || serviceChangeReleasesCapacity || serviceChangeNeedsManagedSlot) && (
+              <section className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-4" aria-label="Service change review">
+                <h3 className="font-semibold text-foreground">Review service change</h3>
+                {serviceChangePriceDiffers && booking && (
+                  <fieldset className="mt-3 space-y-2">
+                    <legend className="text-sm text-muted-foreground">Choose the booking amount to keep after this change.</legend>
+                    <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-border bg-background px-3 py-2 text-sm">
+                      <input type="radio" name="service-change-price" checked={serviceChangePriceMode === "keep-current"} onChange={() => { setServiceChangePriceMode("keep-current"); setValue("servicePrice", booking.servicePrice, { shouldDirty: true, shouldValidate: true }); }} />
+                      <span><span className="block font-semibold">Keep current amount</span><span className="block text-xs text-muted-foreground">{formatRupiah(booking.servicePrice)}</span></span>
+                    </label>
+                    <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-border bg-background px-3 py-2 text-sm">
+                      <input type="radio" name="service-change-price" checked={serviceChangePriceMode === "use-new-default"} onChange={() => { setServiceChangePriceMode("use-new-default"); setValue("servicePrice", nextServiceDefaultPrice, { shouldDirty: true, shouldValidate: true }); }} />
+                      <span><span className="block font-semibold">Use new service price</span><span className="block text-xs text-muted-foreground">{formatRupiah(nextServiceDefaultPrice)}</span></span>
+                    </label>
+                  </fieldset>
+                )}
+                <div className="mt-3 space-y-1.5 text-xs leading-5 text-muted-foreground">
+                  {serviceChangeDurationDiffers && <p>Existing schedule times stay unchanged. The new service duration is not applied automatically.</p>}
+                  {(bookingPayments.length > 0 || bookingHasIssuedInvoice) && <p>Payments and invoice records stay unchanged. Issued invoices are never rewritten.</p>}
+                  <p>Existing expenses and additional charges stay linked to this booking.</p>
+                  {serviceChangeReleasesCapacity && <p className="font-medium text-amber-800">The current capacity-session link will be removed when you save. Assign a compatible slot separately if needed.</p>}
+                  {serviceChangeNeedsManagedSlot && <p className="font-medium text-amber-800">This service uses managed booking times. Choose a flexible service here; a managed service needs a compatible session assignment before it can replace this booking.</p>}
+                </div>
+              </section>
+            )}
+            {onQuickCreateService && quickServiceOpen && (
                   <div className="mt-3 space-y-3 rounded-xl border border-border bg-muted/30 p-4">
-                    <div><Label className="mb-2 block">Service name</Label><Input value={quickService.name} onChange={(event) => setQuickService((value) => ({ ...value, name: event.target.value }))} /></div>
+                    <div><Label className="mb-2 block">Service name</Label><Input autoFocus value={quickService.name} onChange={(event) => setQuickService((value) => ({ ...value, name: event.target.value }))} /></div>
                     <div>
                       <Label className="mb-2 block">Category</Label>
                       <Select value={quickService.categoryId} onValueChange={(categoryId) => setQuickService((value) => ({ ...value, categoryId: categoryId ?? "" }))}>
@@ -753,8 +821,6 @@ export default function BookingDialog({
                     {quickError && <p className="text-sm text-destructive">{quickError}</p>}
                     <div className="flex gap-2"><Button type="button" size="sm" disabled={quickPending} onClick={createServiceInline}>{quickPending ? "Adding…" : "Add and select"}</Button><Button type="button" size="sm" variant="ghost" onClick={() => setQuickServiceOpen(false)}>Cancel</Button></div>
                   </div>
-                )}
-              </div>
             )}
           </div>
 

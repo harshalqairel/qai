@@ -16,6 +16,7 @@ import DeleteAction from "@/components/system/DeleteAction";
 import EmptyState from "@/components/system/EmptyState";
 import RowActionsMenu from "@/components/system/RowActionsMenu";
 import SortableTableHeader from "@/components/system/SortableTableHeader";
+import SelectionCheckbox from "@/components/system/SelectionCheckbox";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -64,6 +65,19 @@ type BookingTableProps = {
   timezone: string;
   sort: BookingSort;
   onSortChange: (sort: BookingSort) => void;
+  selection?: {
+    selectedIds: ReadonlySet<string>;
+    mobileMode: boolean;
+    onToggle: (id: string) => void;
+    onToggleAllVisible: () => void;
+  };
+};
+
+const DEFAULT_SELECTION = {
+  selectedIds: new Set<string>(),
+  mobileMode: false,
+  onToggle: () => undefined,
+  onToggleAllVisible: () => undefined,
 };
 
 const BOOKING_STATUS_STYLES: Record<BookingStatus, string> = {
@@ -349,6 +363,7 @@ export default function BookingTable({
   timezone,
   sort,
   onSortChange,
+  selection = DEFAULT_SELECTION,
 }: BookingTableProps) {
   if (bookings.length === 0) {
     return (
@@ -368,6 +383,7 @@ export default function BookingTable({
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-12 px-1"><SelectionCheckbox checked={bookings.length > 0 && bookings.every((booking) => selection.selectedIds.has(booking.id))} onChange={selection.onToggleAllVisible} label="Select all visible bookings" /></TableHead>
               <SortableTableHeader className="px-4" label="Client & service" sort={sort} ascending="client-asc" descending="client-desc" onSortChange={onSortChange} />
               <SortableTableHeader label="Schedule" sort={sort} ascending="date-asc" descending="date-desc" onSortChange={onSortChange} />
               <SortableTableHeader label="Booking" sort={sort} ascending="booking-status-asc" descending="booking-status-desc" onSortChange={onSortChange} />
@@ -379,7 +395,8 @@ export default function BookingTable({
           </TableHeader>
           <TableBody>
             {bookings.map((booking) => (
-              <TableRow key={booking.id}>
+              <TableRow key={booking.id} data-state={selection.selectedIds.has(booking.id) ? "selected" : undefined}>
+                <TableCell className="w-12 px-1 py-2"><SelectionCheckbox checked={selection.selectedIds.has(booking.id)} onChange={() => selection.onToggle(booking.id)} label={`Select ${booking.customerName}'s booking`} /></TableCell>
                 <TableCell className="px-4 py-3 font-semibold whitespace-normal">
                   <span className="block">{booking.customerName}</span>
                   <span className="mt-1 block text-sm font-normal text-muted-foreground">
@@ -430,9 +447,10 @@ export default function BookingTable({
         {bookings.map((booking) => (
           <article
             key={booking.id}
-            className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+            className={`overflow-hidden rounded-xl border bg-card shadow-sm ${selection.selectedIds.has(booking.id) ? "border-primary/45 ring-1 ring-primary/20" : "border-border"}`}
           >
             <div className="flex items-start gap-3 px-4 pb-3 pt-4">
+              {selection.mobileMode && <SelectionCheckbox checked={selection.selectedIds.has(booking.id)} onChange={() => selection.onToggle(booking.id)} label={`Select ${booking.customerName}'s booking`} className="-ml-2 -mt-2" />}
               <div className="min-w-0 flex-1">
                 <h2 className="truncate font-semibold text-foreground">{booking.customerName}</h2>
                 <p className="mt-1 truncate text-sm text-muted-foreground">{booking.serviceName}</p>
@@ -440,7 +458,7 @@ export default function BookingTable({
                   <ScheduleSummary booking={booking} timezone={timezone} />
                 </div>
               </div>
-              <BookingActions booking={booking} invoices={invoices} onEdit={onEdit} onDelete={onDelete} />
+              {!selection.mobileMode && <BookingActions booking={booking} invoices={invoices} onEdit={onEdit} onDelete={onDelete} />}
             </div>
             <div className="flex flex-wrap gap-2 px-4 pb-3">
               <BookingStatusControl booking={booking} onStatusChange={onStatusChange} />

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Search, X } from "lucide-react";
+import { Check, ChevronDown, Plus, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type SearchableSelectItem = {
@@ -23,6 +23,10 @@ type SearchableSelectProps = {
   clearable?: boolean;
   disabled?: boolean;
   className?: string;
+  createAction?: {
+    label: string;
+    onSelect: () => void;
+  };
 };
 
 export function SearchableSelect({
@@ -36,6 +40,7 @@ export function SearchableSelect({
   clearable = true,
   disabled = false,
   className,
+  createAction,
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -61,6 +66,12 @@ export function SearchableSelect({
     onValueChange(item.value);
     setQuery("");
     setOpen(false);
+  }
+
+  function chooseCreateAction() {
+    setQuery("");
+    setOpen(false);
+    createAction?.onSelect();
   }
 
   return (
@@ -138,6 +149,18 @@ export function SearchableSelect({
               );
             })}
           </div>
+          {createAction && (
+            <div className="border-t border-border p-1.5">
+              <button
+                type="button"
+                onClick={chooseCreateAction}
+                className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold text-primary transition hover:bg-accent hover:text-accent-foreground"
+              >
+                <Plus className="size-4 shrink-0" aria-hidden="true" />
+                {createAction.label}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
