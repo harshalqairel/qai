@@ -16,6 +16,7 @@ import {
 } from "@/features/booking/utils/bookingSessions";
 import { prepareBookingCreation } from "@/features/booking/domain/bookingCreation";
 import { prepareBookingAdditionalCharges } from "@/features/booking/domain/bookingAdditionalCharges";
+import { reconcileBookingCapacitySlotKeys } from "@/features/booking/domain/bookingCapacity";
 import { calendarRelevantSessionIds, synchronizeAffectedCalendarSessions } from "@/features/calendar/calendarIncrementalSync";
 
 export function useBookings() {
@@ -104,6 +105,12 @@ export function useBookings() {
         ? current.serviceSnapshot ?? null
         : input.serviceSnapshot,
       questionnaireResponses: input.questionnaireResponses ?? current.questionnaireResponses ?? [],
+      capacitySourceRequestId: input.capacitySourceRequestId === undefined
+        ? current.capacitySourceRequestId ?? null
+        : input.capacitySourceRequestId,
+      capacitySlotKeys: input.capacitySlotKeys && JSON.stringify(input.capacitySlotKeys) !== JSON.stringify(current.capacitySlotKeys ?? [])
+        ? input.capacitySlotKeys
+        : reconcileBookingCapacitySlotKeys(current, sessions),
       bookingStatus: input.bookingStatus,
       fullPaymentDueDate: input.fullPaymentDueDate,
       notes: input.notes,

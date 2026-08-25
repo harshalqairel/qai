@@ -24,6 +24,39 @@ const serviceVariantSchema = z.object({
   active: z.boolean(),
 });
 
+const timeSchema = z.string().regex(/^\d{2}:\d{2}$/);
+const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+export const serviceAvailabilitySchema = z.object({
+  mode: z.enum(["Flexible", "Recurring times", "Dated sessions"]),
+  capacityMode: z.enum(["One booking", "Multiple bookings"]),
+  defaultCapacity: z.number().int().min(1).max(10000),
+  recurringTimes: z.array(z.object({
+    id: z.string().min(1).max(100), weekday: z.number().int().min(0).max(6), startTime: timeSchema,
+    capacity: z.number().int().min(1).max(10000).nullable(), manualBlocked: z.number().int().min(0).max(10000),
+  })).max(100),
+  datedSessions: z.array(z.object({
+    id: z.string().min(1).max(100), date: dateSchema, startTime: timeSchema, endTime: timeSchema,
+    location: z.string().trim().max(300), capacity: z.number().int().min(1).max(10000).nullable(),
+    manualBlocked: z.number().int().min(0).max(10000), active: z.boolean(),
+  })).max(500),
+  overrides: z.array(z.object({
+    id: z.string().min(1).max(100), date: dateSchema, startTime: timeSchema,
+    capacity: z.number().int().min(1).max(10000).nullable(), manualBlocked: z.number().int().min(0).max(10000), unavailable: z.boolean(),
+  })).max(500),
+}).superRefine((availability, context) => {
+  const duplicate = <T>(items: readonly T[], keyFor: (item: T) => string, path: string) => {
+    const seen = new Set<string>();
+    items.forEach((item, index) => {
+      const key = keyFor(item);
+      if (seen.has(key)) context.addIssue({ code: "custom", path: [path, index], message: "Each available time must be unique." });
+      seen.add(key);
+    });
+  };
+  duplicate(availability.recurringTimes, (slot) => `${slot.weekday}:${slot.startTime}`, "recurringTimes");
+  duplicate(availability.datedSessions, (slot) => `${slot.date}:${slot.startTime}`, "datedSessions");
+  duplicate(availability.overrides, (slot) => `${slot.date}:${slot.startTime}`, "overrides");
+});
+
 export const serviceSchema = z.object({
   name: z
     .string()
@@ -52,6 +85,8 @@ export const serviceSchema = z.object({
 
   variants: z.array(serviceVariantSchema).max(200).default([]),
 
+  availability: serviceAvailabilitySchema.default({ mode: "Flexible", capacityMode: "One booking", defaultCapacity: 1, recurringTimes: [], datedSessions: [], overrides: [] }),
+
   description: z.string().trim(),
 
   active: z.boolean(),
@@ -70,6 +105,7 @@ export const serviceRecordSchema = z
     locationPolicy: z.enum(["Business/studio only", "Client location only", "Client can choose", "Online"]).default("Client can choose"),
     optionGroups: z.array(serviceOptionGroupSchema).max(4).default([]),
     variants: z.array(serviceVariantSchema).max(200).default([]),
+    availability: serviceAvailabilitySchema.default({ mode: "Flexible", capacityMode: "One booking", defaultCapacity: 1, recurringTimes: [], datedSessions: [], overrides: [] }),
     description: z.string(),
     active: z.boolean(),
   })

@@ -8,7 +8,7 @@ import type { PublicRequest } from "@/features/qai-page/validation";
 import BookingRequestList from "./BookingRequestList";
 
 const request: PublicRequest = {
-  id: "request-1",
+  id: "9fabd108-f02f-4143-b24c-983107d3d61e",
   pageId: "page-1",
   slug: "atelier-luma",
   serviceId: "service-1",
@@ -44,6 +44,7 @@ describe("BookingRequestList", () => {
     render(<BookingRequestList requests={[request]} filter="Pending" onFilterChange={vi.fn()} onRefresh={vi.fn()} onAccept={vi.fn()} onReview={onReview} onDecline={vi.fn()} />);
 
     expect(screen.getByRole("button", { name: "Sort by Submitted, ascending" })).toBeTruthy();
+    expect(screen.queryByText(request.id)).toBeNull();
     const menus = screen.getAllByRole("button", { name: "Actions for Alya's request" });
     await user.click(menus[0]);
     expect(screen.getByRole("menuitem", { name: "Review & accept" })).toBeTruthy();

@@ -36,6 +36,7 @@ function migrateServices(
         locationPolicy: service.locationPolicy ?? "Client can choose",
         optionGroups: service.optionGroups ?? [],
         variants: service.variants ?? [],
+        availability: service.availability ?? { mode: "Flexible", capacityMode: "One booking", defaultCapacity: 1, recurringTimes: [], datedSessions: [], overrides: [] },
         active: service.active ?? true,
       };
     }
@@ -54,6 +55,7 @@ function migrateServices(
       locationPolicy: service.locationPolicy ?? "Client can choose",
       optionGroups: service.optionGroups ?? [],
       variants: service.variants ?? [],
+      availability: service.availability ?? { mode: "Flexible", capacityMode: "One booking", defaultCapacity: 1, recurringTimes: [], datedSessions: [], overrides: [] },
       active: service.active ?? true,
     };
   });

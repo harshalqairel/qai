@@ -6,6 +6,7 @@ import {
 } from "@/features/booking-questionnaire/questionnaire";
 import type { BookingFormValues } from "@/features/booking/types";
 import type { Service, ServiceSelectionSnapshot, ServiceVariant } from "@/features/service/types";
+import { serviceAvailabilitySchema } from "@/features/service/schema";
 import { normalizeSocialProfile } from "@/features/qai-page/socialProfiles";
 
 export type PublicPriceMode = "Fixed price" | "Starting from" | "Ask for price";
@@ -111,6 +112,7 @@ export const publicServiceSchema = z.object({
     defaultSessionCount: z.number().int().min(1).max(50),
     active: z.boolean(),
   })).max(200).default([]),
+  availability: serviceAvailabilitySchema.optional(),
   position: z.number().int().min(0).max(1000).default(0),
   featured: z.boolean().default(false),
 });
@@ -169,6 +171,8 @@ export const publicRequestSchema = z.object({
   questionnaireResponses: z.array(bookingQuestionResponseSchema).max(50).default([]),
   notes: z.string().trim().max(2000), status: z.enum(["Pending", "Accepted", "Declined"]), submittedAt: z.number().int().nonnegative(),
   updatedAt: z.number().int().nonnegative(), bookingId: z.string().nullable(), instantSlotId: z.string().nullable(),
+  availabilityKey: z.string().max(2048).nullable().optional(),
+  availabilityKeys: z.array(z.string().max(2048)).max(50).optional(),
 });
 
 export type PublicSchedule = z.infer<typeof publicScheduleSchema>;
@@ -189,6 +193,7 @@ export type PublicRequest = z.infer<typeof publicRequestSchema>;
 export type PublicServiceVariant = ServiceVariant;
 
 export type ValidationStore = { pages: QaiPageConfig[]; requests: PublicRequest[] };
+export type PublicServiceSlotAvailability = import("@/features/service/domain/serviceAvailability").ServiceSlotAvailability;
 
 export function normalizeSlug(value: string): string {
   return value.normalize("NFKD").replace(/\p{M}+/gu, "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
@@ -307,6 +312,10 @@ export function requestToBookingValues(request: PublicRequest, service: Service,
     customerId, serviceId: service.id, sessions, servicePrice: request.serviceSnapshot?.price ?? service.price, serviceSnapshot: request.serviceSnapshot,
     bookingStatus: "Scheduled", fullPaymentDueDate: finalDate,
     questionnaireResponses: request.questionnaireResponses,
+    capacitySourceRequestId: request.id,
+    capacitySlotKeys: request.availabilityKeys?.length
+      ? request.availabilityKeys
+      : request.availabilityKey ? [request.availabilityKey] : [],
     notes: [request.need, request.notes, "Source: Qai Page"].filter(Boolean).join("\n\n"),
   };
 }
@@ -335,8 +344,10 @@ async function api<T>(url: string, options?: RequestInit): Promise<T> {
 export const validationClient = {
   owner(): Promise<ValidationStore> { return api("/api/validation?scope=owner"); },
   page(slug: string): Promise<QaiPageConfig> { return api(`/api/validation?scope=page&slug=${encodeURIComponent(slug)}`); },
+  availability(slug: string, serviceId: string, date: string, variantId: string | null): Promise<PublicServiceSlotAvailability[]> { const params = new URLSearchParams({ scope: "availability", slug, serviceId, date, ...(variantId ? { variantId } : {}) }); return api(`/api/validation?${params}`); },
   savePage(page: QaiPageConfig): Promise<QaiPageConfig> { return api("/api/validation", { method: "POST", body: JSON.stringify({ action: "save-page", page }) }); },
-  submitRequest(request: Omit<PublicRequest, "id" | "status" | "submittedAt" | "updatedAt" | "bookingId" | "clientId" | "serviceSnapshot">): Promise<PublicRequest> { return api("/api/validation", { method: "POST", body: JSON.stringify({ action: "submit-request", request }) }); },
+  submitRequest(request: Omit<PublicRequest, "id" | "status" | "submittedAt" | "updatedAt" | "bookingId" | "clientId" | "serviceSnapshot" | "availabilityKey" | "availabilityKeys">): Promise<PublicRequest> { return api("/api/validation", { method: "POST", body: JSON.stringify({ action: "submit-request", request }) }); },
+  claimRequest(requestId: string): Promise<PublicRequest> { return api("/api/validation", { method: "POST", body: JSON.stringify({ action: "claim-request", requestId }) }); },
   updateRequest(requestId: string, status: PublicRequestStatus, bookingId: string | null, clientId: string | null = null): Promise<PublicRequest> { return api("/api/validation", { method: "POST", body: JSON.stringify({ action: "update-request", requestId, status, bookingId, clientId }) }); },
   async uploadMedia(file: File, kind: "page-logo" | "page-cover" | "portfolio" | "invoice-logo" | "invoice-signature" | "invoice-stamp" | "invoice-watermark" | "booking-response"): Promise<{ id: string; url: string }> {
     const body = new FormData(); body.set("file", file); body.set("kind", kind);

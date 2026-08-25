@@ -89,6 +89,10 @@ export default function DashboardPage() {
             <ReportPeriodSelector value={period} currentMonth={dashboard.currentMonth} resolvedLabel={dashboard.financialReport.period.label} onChange={setPeriod} className="h-10 w-36 border-0 bg-transparent px-2 shadow-none" />
           </div>
           <MobileMoneySnapshot metrics={dashboard.metrics.filter((metric) => isVisible(METRIC_SECTION_IDS[metric.label]))} periodQuery={periodQuery} />
+          <div className="mt-4 grid min-w-0 gap-4 sm:grid-cols-2 lg:hidden">
+            {isVisible("income") && <FinancialAnalyticsCard title="Income" total={dashboard.financialReport.summary.moneyReceived} period={dashboard.financialReport.period.label} categories={dashboard.incomeByCategory.map((entry) => ({ id: entry.categoryId, name: entry.categoryName, amount: entry.revenue, color: entry.categoryColor }))} href={`/reports?${periodQuery}#income`} emptyMessage="No income recorded in this period." tone="income" />}
+            {isVisible("expenses") && <FinancialAnalyticsCard title="Expenses" total={dashboard.financialReport.summary.expenses} period={dashboard.financialReport.period.label} categories={dashboard.expenseByCategory.map((entry) => ({ id: entry.categoryId, name: entry.category, amount: entry.amount, color: entry.categoryColor }))} href={`/reports?${periodQuery}#expenses`} emptyMessage="No expenses recorded in this period." tone="expenses" />}
+          </div>
           <div className="hidden min-w-0 gap-5 lg:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(17rem,.62fr)]">
             {isVisible("income") && <FinancialAnalyticsCard title="Income" total={dashboard.financialReport.summary.moneyReceived} period={dashboard.financialReport.period.label} categories={dashboard.incomeByCategory.map((entry) => ({ id: entry.categoryId, name: entry.categoryName, amount: entry.revenue, color: entry.categoryColor }))} href={`/reports?${periodQuery}#income`} emptyMessage="No income recorded in this period." tone="income" />}
             {isVisible("expenses") && <FinancialAnalyticsCard title="Expenses" total={dashboard.financialReport.summary.expenses} period={dashboard.financialReport.period.label} categories={dashboard.expenseByCategory.map((entry) => ({ id: entry.categoryId, name: entry.category, amount: entry.amount, color: entry.categoryColor }))} href={`/reports?${periodQuery}#expenses`} emptyMessage="No expenses recorded in this period." tone="expenses" />}
@@ -114,7 +118,7 @@ export default function DashboardPage() {
           </div>
         </section>}
 
-        <div className={`hidden lg:block ${CARD_CLASS}`}><RevenueChart data={dashboard.revenueSeries} /></div>
+        {isVisible("yearly") && <div className={CARD_CLASS}><RevenueChart data={dashboard.revenueSeries} /></div>}
 
       </div>
       <CustomizeDashboardDialog open={customizeOpen} value={preferences} onChange={updatePreferences} onClose={() => setCustomizeOpen(false)} />

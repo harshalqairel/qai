@@ -89,6 +89,14 @@ describe("booking creation with optional initial payment", () => {
     expect(result.booking.questionnaireResponses).toEqual([{ questionId: "look", labelSnapshot: "Desired look", typeSnapshot: "Short text", answer: "Natural glow" }]);
   });
 
+  it("persists capacity identity snapshots without changing legacy Booking defaults", () => {
+    const base = command(null);
+    const keyed = prepareBookingCreation({ ...base, booking: { ...base.booking, capacitySourceRequestId: "request-1", capacitySlotKeys: ["service-1|slot-1|2026-09-05T09:00"] } }, "Asia/Jakarta", { bookingId: "booking-1", paymentId: null }, 1_786_000_000_000);
+    expect(keyed.booking).toMatchObject({ capacitySourceRequestId: "request-1", capacitySlotKeys: ["service-1|slot-1|2026-09-05T09:00"] });
+    const legacy = prepareBookingCreation(base, "Asia/Jakarta", { bookingId: "booking-2", paymentId: null }, 1_786_000_000_000);
+    expect(legacy.booking).toMatchObject({ capacitySourceRequestId: null, capacitySlotKeys: [] });
+  });
+
   it("derives unpaid, partial, and fully paid outcomes from real Payment records", () => {
     const unpaid = prepared(null);
     const partial = prepared(2_000_000);

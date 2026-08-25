@@ -19,6 +19,8 @@ const DEFAULT_BOOKING_VALUES: BookingFormValues = {
   sessions: [{ label: "", date: "", startTime: "", endTime: "", location: "", notes: "" }],
   servicePrice: 0,
   questionnaireResponses: [],
+  capacitySourceRequestId: null,
+  capacitySlotKeys: [],
   bookingStatus: "Scheduled",
   fullPaymentDueDate: "",
   notes: "",

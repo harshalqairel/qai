@@ -10,7 +10,7 @@ import type { ExpenseCategory } from "@/features/expense-category/types";
 import { createInvoiceRevision, DEFAULT_INVOICE_SETTINGS, issueInvoice, type Invoice } from "@/features/invoice/invoice";
 import { buildFinancialReport } from "./financialReport";
 import { buildFinancialReportWorkbook } from "./excelExport";
-import { uploadFinancialReportWorkbookToGoogleSheets } from "./googleSheetsExport";
+import { uploadFinancialReportWorkbookToGoogleDrive, uploadFinancialReportWorkbookToGoogleSheets } from "./googleSheetsExport";
 
 const customers: Customer[] = [
   { id: "customer-1", name: "Ayu", phone: "", instagram: "", email: "", notes: "", createdAt: 1 },
@@ -200,6 +200,10 @@ describe("Excel export", () => {
 });
 
 describe("Google Sheets snapshot export", () => {
+  it("uses only the app-created-file Google Drive scope", async () => {
+    const { GOOGLE_REPORT_SCOPE } = await import("./googleSheetsExport");
+    expect(GOOGLE_REPORT_SCOPE).toBe("https://www.googleapis.com/auth/drive.file");
+  });
   it("uploads the same real workbook as a newly created spreadsheet on every export", async () => {
     const requests: Array<{ url: string; options?: RequestInit }> = [];
     const fakeFetch = (async (url: string | URL | Request, options?: RequestInit) => {
@@ -224,5 +228,17 @@ describe("Google Sheets snapshot export", () => {
       expect(request.options?.headers).toMatchObject({ Authorization: "Bearer test-token" });
       expect(await (request.options?.body as Blob).text()).toContain("application/vnd.google-apps.spreadsheet");
     }
+  });
+
+  it("uploads the identical numeric XLSX workbook to Drive without converting it", async () => {
+    let body: Blob | null = null;
+    const fakeFetch = (async (_url: string | URL | Request, options?: RequestInit) => {
+      body = options?.body as Blob;
+      return new Response(JSON.stringify({ id: "drive-file" }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }) as typeof fetch;
+    const url = await uploadFinancialReportWorkbookToGoogleDrive(report(), "test-token", fakeFetch);
+    expect(url).toContain("/drive-file/view");
+    expect(await body!.text()).toContain("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    expect(await body!.text()).not.toContain("application/vnd.google-apps.spreadsheet");
   });
 });

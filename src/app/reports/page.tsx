@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Download, ExternalLink, FileSpreadsheet } from "lucide-react";
+import { Download, ExternalLink, FileSpreadsheet, FolderUp } from "lucide-react";
 
 import DataErrorState from "@/components/system/DataErrorState";
 import PageSkeleton from "@/components/system/PageSkeleton";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { instantParts } from "@/features/booking/utils/bookingSessions";
@@ -21,7 +22,7 @@ import {
   type FinancialReport,
   type ReportPeriodPreset,
 } from "@/features/reports/financialReport";
-import { exportFinancialReportToGoogleSheets } from "@/features/reports/googleSheetsExport";
+import { exportFinancialReportToGoogleDrive, exportFinancialReportToGoogleSheets } from "@/features/reports/googleSheetsExport";
 import { buildFinancialReportInsights } from "@/features/reports/reportInsights";
 import ReportPeriodSelector from "@/features/reports/ReportPeriodSelector";
 import { useServices } from "@/features/service/hooks/useServices";
@@ -73,8 +74,8 @@ export default function ReportsPage() {
   const [customFrom, setCustomFrom] = useState(() => `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-01`);
   const [customTo, setCustomTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [cloudBusiness, setCloudBusiness] = useState<ActiveBusinessContext | null>(null);
-  const [exporting, setExporting] = useState<"excel" | "sheets" | null>(null);
-  const [sheetsExport, setSheetsExport] = useState<{ url: string; periodLabel: string } | null>(null);
+  const [exporting, setExporting] = useState<"excel" | "sheets" | "drive" | null>(null);
+  const [googleExport, setGoogleExport] = useState<{ url: string; periodLabel: string; kind: "Sheets" | "Drive" } | null>(null);
   const cloudMode = isCloudModeEnabled();
   const business = useMemo<ActiveBusinessContext | null>(() => cloudMode ? cloudBusiness : ({ businessId: "local", businessName: getInvoiceSettings().businessName, currency: "IDR", timezone: bookingData.timezone }), [cloudMode, cloudBusiness, bookingData.timezone]);
 
@@ -94,11 +95,6 @@ export default function ReportsPage() {
     }
   }, [business, preset, selectedMonth, customFrom, customTo, bookingData.bookings, customerData.customers, serviceData.services, paymentData.payments, expenseData.expenses, categoryData.categories]);
 
-  const paymentMethods = useMemo(() => {
-    const totals = new Map<string, number>();
-    for (const payment of report?.moneyReceived ?? []) totals.set(payment.method, (totals.get(payment.method) ?? 0) + payment.amount);
-    return [...totals].map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
-  }, [report]);
   const expenseCategories = useMemo(() => {
     const totals = new Map<string, number>();
     for (const expense of report?.expenses ?? []) totals.set(expense.category, (totals.get(expense.category) ?? 0) + expense.amount);
@@ -130,8 +126,17 @@ export default function ReportsPage() {
     if (!report) return;
     if (!cloudMode) return notify.info("Sign in and enable Qai Cloud before exporting to Google Sheets.");
     setExporting("sheets");
-    try { const url = await exportFinancialReportToGoogleSheets(report); setSheetsExport({ url, periodLabel: report.period.label }); notify.success("Google Sheets report created."); }
+    try { const url = await exportFinancialReportToGoogleSheets(report); setGoogleExport({ url, periodLabel: report.period.label, kind: "Sheets" }); notify.success("Google Sheets report created."); }
     catch (error) { notify.error(error instanceof Error ? error.message : "Could not create the Google Sheets report."); }
+    finally { setExporting(null); }
+  }
+
+  async function exportDrive() {
+    if (!report) return;
+    if (!cloudMode) return notify.info("Sign in and enable Qai Cloud before saving a report to Google Drive.");
+    setExporting("drive");
+    try { const url = await exportFinancialReportToGoogleDrive(report); setGoogleExport({ url, periodLabel: report.period.label, kind: "Drive" }); notify.success("Excel report saved to Google Drive."); }
+    catch (error) { notify.error(error instanceof Error ? error.message : "Could not save the report to Google Drive."); }
     finally { setExporting(null); }
   }
 
@@ -141,12 +146,12 @@ export default function ReportsPage() {
 
   return <main className="min-h-screen overflow-x-hidden"><div className="page-shell space-y-5">
     <header><h1 className="page-title">Financial reports</h1><p className="mt-2 max-w-2xl text-sm text-muted-foreground sm:text-base">A concise view of business performance. Detailed records remain available in your exports.</p></header>
-    <section className="surface-card grid gap-4 p-4 sm:p-6 lg:grid-cols-[1fr_auto] lg:items-end"><div className="grid gap-4 sm:grid-cols-3"><div><Label className="mb-2 block">Report period</Label><ReportPeriodSelector value={{ preset, selectedMonth, customFrom, customTo }} currentMonth={instantParts(new Date().toISOString(), business.timezone).date.slice(0, 7)} resolvedLabel={report?.period.label} includeCustom className="w-full" onChange={(next) => { setPreset(next.preset); setSelectedMonth(next.selectedMonth ?? ""); }} /></div>{preset === "custom" && <><div><Label className="mb-2 block">From</Label><Input type="date" value={customFrom} onChange={(event) => setCustomFrom(event.target.value)} /></div><div><Label className="mb-2 block">To</Label><Input type="date" value={customTo} onChange={(event) => setCustomTo(event.target.value)} /></div></>}</div><div className={`grid gap-2 ${cloudMode ? "sm:grid-cols-2" : ""}`}><Button variant="outline" disabled={!report || exporting !== null} onClick={exportExcel}><Download className="size-4" />{exporting === "excel" ? "Creating…" : "Excel"}</Button>{cloudMode && <Button disabled={!report || exporting !== null} onClick={exportSheets}><FileSpreadsheet className="size-4" />{exporting === "sheets" ? "Creating…" : "Google Sheets"}</Button>}</div>{sheetsExport && sheetsExport.periodLabel === report?.period.label && <a className="font-semibold text-primary hover:underline lg:col-span-2" href={sheetsExport.url} target="_blank" rel="noreferrer">Open in Google Sheets <ExternalLink className="ml-1 inline size-4" /></a>}</section>
+    <section className="surface-card grid gap-4 p-4 sm:p-6 lg:grid-cols-[1fr_auto] lg:items-end"><div className="grid gap-4 sm:grid-cols-3"><div><Label className="mb-2 block">Report period</Label><ReportPeriodSelector value={{ preset, selectedMonth, customFrom, customTo }} currentMonth={instantParts(new Date().toISOString(), business.timezone).date.slice(0, 7)} resolvedLabel={report?.period.label} includeCustom className="w-full" onChange={(next) => { setPreset(next.preset); setSelectedMonth(next.selectedMonth ?? ""); }} /></div>{preset === "custom" && <><div><Label className="mb-2 block">From</Label><Input type="date" value={customFrom} onChange={(event) => setCustomFrom(event.target.value)} /></div><div><Label className="mb-2 block">To</Label><Input type="date" value={customTo} onChange={(event) => setCustomTo(event.target.value)} /></div></>}</div><DropdownMenu><DropdownMenuTrigger render={<Button variant="outline" disabled={!report || exporting !== null} />}><Download className="size-4" />{exporting ? "Exporting…" : "Export"}</DropdownMenuTrigger><DropdownMenuContent align="end" className="w-52"><DropdownMenuItem onClick={() => void exportExcel()}><Download className="size-4" />Excel (.xlsx)</DropdownMenuItem><DropdownMenuItem onClick={() => void exportSheets()}><FileSpreadsheet className="size-4" />Google Sheets</DropdownMenuItem><DropdownMenuItem onClick={() => void exportDrive()}><FolderUp className="size-4" />Google Drive</DropdownMenuItem></DropdownMenuContent></DropdownMenu>{googleExport && googleExport.periodLabel === report?.period.label && <a className="font-semibold text-primary hover:underline lg:col-span-2" href={googleExport.url} target="_blank" rel="noreferrer">Open in Google {googleExport.kind} <ExternalLink className="ml-1 inline size-4" /></a>}</section>
     {!report ? <p className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">Choose a valid custom date range.</p> : <>
       <MoneyOverview report={report} />
       <OperationalSummary report={report} />
       {insights && <section aria-labelledby="report-insights-heading"><div className="mb-3 flex flex-wrap items-end justify-between gap-2"><div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Business insights</p><h2 id="report-insights-heading" className="mt-1 text-lg font-bold">What to act on</h2></div><p className="text-xs text-muted-foreground">Period cards use {report.period.label}; upcoming payments use a separate forward window.</p></div><div className="grid grid-cols-2 gap-3 lg:grid-cols-4"><SummaryCard label="Upcoming payments" value={formatMoney(insights.upcomingPayments.amount, report.currency)} detail={`Next 7 days through ${insights.upcomingPayments.throughDate} · ${insights.upcomingPayments.bookings} bookings`} tone="warning" /><SummaryCard label="Average booking value" value={formatMoney(insights.averageBookingValue, report.currency)} detail={`${insights.financiallyActiveBookings} active bookings in ${report.period.label}`} /><SummaryCard label="Top service" value={insights.topService?.name ?? "—"} detail={insights.topService ? `${formatMoney(insights.topService.amount, report.currency)} received in ${report.period.label}` : `No received payments in ${report.period.label}`} /><SummaryCard label="Busiest schedule day" value={insights.busiestScheduleDay?.label ?? "—"} detail={insights.busiestScheduleDay ? `${insights.busiestScheduleDay.schedules} schedules in ${report.period.label}` : `No schedules in ${report.period.label}`} /></div></section>}
-      <div className="grid gap-5 lg:grid-cols-3"><Breakdown title="Money received" subtitle="Recorded payments by method" rows={paymentMethods} currency={report.currency} /><Breakdown title="Expenses" subtitle="Expenses by category" rows={expenseCategories} currency={report.currency} /><Breakdown title="Booking volume" subtitle="Bookings by current status" rows={bookingStatuses} currency={report.currency} money={false} /></div>
+      <div className="grid gap-5 lg:grid-cols-2"><Breakdown title="Expenses" subtitle="Expenses by category" rows={expenseCategories} currency={report.currency} /><Breakdown title="Booking volume" subtitle="Bookings by current status" rows={bookingStatuses} currency={report.currency} money={false} /></div>
       <p className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">Exports include transaction-level sheets for Income, Expenses, Job Profit, Outstanding, Bookings, Schedule, and Invoices. Multi-session bookings remain one financial row; each schedule is exported separately.</p>
     </>}
   </div></main>;

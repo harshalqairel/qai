@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CalendarCheck2, ExternalLink, LoaderCircle, MoreHorizontal, RefreshCw, Unplug } from "lucide-react";
+import { CalendarCheck2, ChevronRight, ExternalLink, LoaderCircle, MoreHorizontal, RefreshCw, Unplug } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -100,8 +100,28 @@ export default function GoogleCalendarSyncCard() {
 
   const connected = status?.status === "connected";
 
-  return (
-    <section className="surface-card overflow-hidden" aria-labelledby="google-calendar-heading">
+  const identity = connected ? status?.google_account_email || "Connected Google account" : "One Google event for each Qai schedule.";
+  const destination = status?.calendars.find((calendar) => calendar.id === status.target_calendar_id);
+  const statusControls = connected ? <div className="flex items-center gap-2">
+    <Button variant="outline" size="sm" disabled={busy !== null} onClick={() => void sync()}>
+      {busy === "sync" ? <LoaderCircle className="size-4 animate-spin" /> : <RefreshCw className="size-4" />} Sync now
+    </Button>
+    <DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Google Calendar options" />}><MoreHorizontal className="size-5" aria-hidden="true" /></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-48"><DropdownMenuItem variant="destructive" disabled={busy !== null} onClick={() => void disconnect()}><Unplug className="size-4" aria-hidden="true" />Disconnect</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
+  </div> : status?.configured ? <Button size="sm" render={<a href="/api/integrations/google-calendar/connect" />}><ExternalLink className="size-4" aria-hidden="true" />{status.status === "reconnect_required" ? "Reconnect" : "Connect"}</Button> : <p className="text-xs text-muted-foreground">Not configured</p>;
+
+  return <>
+    <details className="group border-y border-border bg-card md:hidden">
+      <summary className="flex min-h-16 cursor-pointer list-none touch-manipulation items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><CalendarCheck2 className="size-4" aria-hidden="true" /></span>
+        <span className="min-w-0 flex-1"><span className="flex items-center gap-2 text-sm font-semibold">Google Calendar{connected && <span className="text-xs font-medium text-emerald-700">Connected</span>}</span><span className="mt-0.5 block truncate text-xs text-muted-foreground">{connected ? `${destination?.name ?? "Primary calendar"} · ${identity}` : identity}</span></span>
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground transition group-open:rotate-90" aria-hidden="true" />
+      </summary>
+      <div className="space-y-4 border-t border-border px-4 py-4">
+        {connected && <div><Label htmlFor="target-google-calendar-mobile">Send schedules to</Label><select id="target-google-calendar-mobile" className="native-control mt-2" value={status.target_calendar_id ?? ""} disabled={busy !== null} onChange={(event) => void select(event.target.value)}>{status.calendars.map((calendar) => <option key={calendar.id} value={calendar.id}>{calendar.name}{calendar.primary ? " (Primary)" : ""}</option>)}</select></div>}
+        <div className="flex items-center justify-between gap-3"><p className="text-xs leading-5 text-muted-foreground">{status?.last_sync_at ? `Last synced ${new Date(status.last_sync_at).toLocaleString()}` : "Qai remains the source of truth."}</p>{busy === "load" || !status ? <LoaderCircle className="size-5 animate-spin" aria-label="Loading Calendar connection" /> : statusControls}</div>
+      </div>
+    </details>
+    <section className="surface-card hidden overflow-hidden md:block" aria-labelledby="google-calendar-heading">
       <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -113,7 +133,7 @@ export default function GoogleCalendarSyncCard() {
               {connected && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">Connected</span>}
             </div>
             <p className="mt-1 truncate text-sm text-muted-foreground">
-              {connected ? status.google_account_email || "Connected Google account" : "One Google event for each Qai schedule."}
+              {identity}
             </p>
           </div>
         </div>
@@ -170,5 +190,5 @@ export default function GoogleCalendarSyncCard() {
         </div>
       )}
     </section>
-  );
+  </>;
 }

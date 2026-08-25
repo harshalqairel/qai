@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupAnalyticsCategories } from "./analytics";
+import { changeTone, comparableChange, groupAnalyticsCategories } from "./analytics";
 import { getOverdueAgeDays } from "./utils";
 
 describe("dashboard category analytics", () => {
@@ -15,6 +15,19 @@ describe("dashboard category analytics", () => {
 
   it("returns a graceful empty result", () => {
     expect(groupAnalyticsCategories([{ id: "empty", name: "Empty", amount: 0 }])).toEqual([]);
+  });
+
+  it("calculates comparable change without Infinity and reverses expense semantics", () => {
+    expect(comparableChange(10, 0)).toEqual({ state: "new" });
+    expect(comparableChange(0, 0)).toEqual({ state: "neutral" });
+    expect(comparableChange(120, 100)).toMatchObject({ state: "change", percentage: 20, direction: "up" });
+    expect(changeTone(comparableChange(120, 100), "revenue")).toBe("positive");
+    expect(changeTone(comparableChange(120, 100), "expenses")).toBe("negative");
+    expect(changeTone(comparableChange(80, 100), "expenses")).toBe("positive");
+    expect(comparableChange(-50, -100)).toMatchObject({ state: "change", percentage: 50, direction: "up" });
+    expect(changeTone(comparableChange(-50, -100), "profit")).toBe("positive");
+    expect(comparableChange(50, -50)).toMatchObject({ state: "change", percentage: 200, direction: "up" });
+    expect(comparableChange(-50, 50)).toMatchObject({ state: "change", percentage: -200, direction: "down" });
   });
 });
 

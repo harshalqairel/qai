@@ -1,57 +1,33 @@
 "use client";
 
+import { useState } from "react";
+import { ArrowRight, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import type { ScheduledSessionItem } from "@/features/dashboard/hooks/useDashboard";
+import type { GroupUpcomingJob, UpcomingJob } from "@/features/dashboard/upcomingJobs";
 import { formatSessionDate, formatSessionTime } from "@/features/booking/utils/bookingSessions";
+import { Button } from "@/components/ui/button";
 import { BookingStatusBadge, PaymentStatusBadge } from "./DashboardStatusBadge";
 
-type UpcomingJobsProps = {
-  items: ScheduledSessionItem[];
-  timezone: string;
-};
+type UpcomingJobsProps = { items: UpcomingJob[]; timezone: string };
+
+function participantPreview(participants: string[]) {
+  return participants.length <= 2 ? participants.join(", ") : `${participants.slice(0, 2).join(", ")} +${participants.length - 2}`;
+}
+
+function CapacitySummary({ job }: { job: GroupUpcomingJob }) {
+  if (job.capacity.total === null) return <p className="mt-2 text-sm text-[var(--dashboard-muted-text)]">{job.bookings.length} bookings</p>;
+  return <p className="mt-2 text-sm text-[var(--dashboard-muted-text)]">{job.bookings.length} bookings · {job.capacity.booked} / {job.capacity.total} spots booked · {job.capacity.available} {job.capacity.available === 1 ? "spot" : "spots"} available</p>;
+}
+
+function GroupSessionDialog({ job, timezone, onClose, onOpenBooking }: { job: GroupUpcomingJob; timezone: string; onClose: () => void; onOpenBooking: (id: string) => void }) {
+  return <div className="fixed inset-0 z-[70] flex items-end bg-black/45 p-0 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4" role="presentation" onClick={onClose}><section role="dialog" aria-modal="true" aria-labelledby="upcoming-session-title" className="w-full rounded-t-2xl bg-background p-5 shadow-2xl sm:max-w-xl sm:rounded-2xl" onClick={(event) => event.stopPropagation()}><div className="flex items-start justify-between gap-4"><div className="min-w-0"><p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">Scheduled session</p><h3 id="upcoming-session-title" className="mt-1 truncate text-xl font-semibold">{job.serviceName}</h3><p className="mt-2 text-sm text-muted-foreground">{formatSessionDate(job.session, timezone)} · {formatSessionTime(job.session, timezone)}{job.session.location.trim() ? ` · ${job.session.location}` : ""}</p></div><Button type="button" variant="ghost" size="icon" aria-label="Close session details" onClick={onClose}><X className="size-5" /></Button></div><div className="mt-5 grid grid-cols-3 divide-x divide-border rounded-xl border border-border bg-muted/35"><Metric label="Bookings" value={String(job.bookings.length)} /><Metric label="Reserved" value={String(job.capacity.reserved)} /><Metric label="Available" value={job.capacity.available === null ? "—" : String(job.capacity.available)} /></div><div className="mt-5"><div className="flex items-center justify-between gap-3"><h4 className="font-semibold">Bookings</h4><p className="text-sm text-muted-foreground">{job.payment.label}</p></div><div className="mt-2 max-h-[45dvh] divide-y divide-border overflow-y-auto rounded-xl border border-border">{job.bookings.map((item) => <button key={`${item.id}:${item.session.id}`} type="button" className="flex min-h-14 w-full items-center justify-between gap-3 px-3 text-left transition hover:bg-muted" onClick={() => onOpenBooking(item.id)}><span className="min-w-0"><span className="block truncate font-medium">{item.customerName}</span><span className="block truncate text-xs text-muted-foreground">{item.serviceName}</span></span><PaymentStatusBadge status={item.paymentStatus} /></button>)}</div></div></section></div>;
+}
+
+function Metric({ label, value }: { label: string; value: string }) { return <div className="min-w-0 px-3 py-3 text-center"><p className="truncate text-[11px] font-medium text-muted-foreground">{label}</p><p className="mt-1 text-lg font-bold tabular-nums">{value}</p></div>; }
 
 export default function UpcomingJobs({ items, timezone }: UpcomingJobsProps) {
   const router = useRouter();
+  const [selectedSession, setSelectedSession] = useState<GroupUpcomingJob | null>(null);
   const openBooking = (id: string) => router.push(`/bookings?booking=${encodeURIComponent(id)}`);
-  return (
-    <section>
-      <div>
-        <h2 className="text-lg font-semibold text-[var(--dashboard-text)]">Upcoming jobs</h2>
-        <p className="mt-1 text-sm text-[var(--dashboard-muted-text)]">Your next scheduled jobs.</p>
-      </div>
-
-      {items.length === 0 ? (
-        <div className="mt-5 rounded-xl border border-dashed border-[var(--dashboard-border)] bg-[var(--dashboard-surface-muted)] p-6 text-center text-sm text-[var(--dashboard-muted-text)]">
-          No upcoming jobs.
-        </div>
-      ) : (
-        <div className="mt-5 divide-y divide-[var(--dashboard-border)]">
-          {items.map((booking) => (
-            <article key={booking.session.id} role="link" tabIndex={0} onClick={() => openBooking(booking.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openBooking(booking.id); } }} className="cursor-pointer rounded-xl py-4 transition hover:bg-[var(--dashboard-surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring first:pt-0 last:pb-0 sm:px-2">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0">
-                  <p className="font-semibold text-[var(--dashboard-text)]">{booking.customerName}</p>
-                  <p className="mt-0.5 text-sm text-[var(--dashboard-muted-text)]">
-                    {booking.serviceName}{booking.session.label ? ` · ${booking.session.label}` : ""}
-                  </p>
-                  <p className="mt-2 text-sm font-medium text-[var(--dashboard-text)]">
-                    {formatSessionDate(booking.session, timezone)} {"\u00b7"}{" "}
-                    {formatSessionTime(booking.session, timezone)}
-                  </p>
-                  {booking.session.location.trim() && (
-                    <p className="mt-1 text-sm text-[var(--dashboard-muted-text)]">{booking.session.location}</p>
-                  )}
-                  {booking.sessions.length > 1 && <p className="mt-2 text-xs font-medium text-[var(--dashboard-muted-text)]">{booking.sessions.length}-schedule booking</p>}
-                </div>
-                <div className="flex flex-wrap gap-2 sm:justify-end">
-                  <BookingStatusBadge status={booking.bookingStatus} />
-                  <PaymentStatusBadge status={booking.paymentStatus} />
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
-    </section>
-  );
+  return <section><div><h2 className="text-lg font-semibold text-[var(--dashboard-text)]">Upcoming jobs</h2><p className="mt-1 text-sm text-[var(--dashboard-muted-text)]">Your next scheduled work.</p></div>{items.length === 0 ? <div className="mt-5 rounded-xl border border-dashed border-[var(--dashboard-border)] bg-[var(--dashboard-surface-muted)] p-6 text-center text-sm text-[var(--dashboard-muted-text)]">No upcoming jobs.</div> : <div className="mt-5 divide-y divide-[var(--dashboard-border)]">{items.map((job) => job.kind === "individual" ? <article key={job.item.session.id} role="link" tabIndex={0} onClick={() => openBooking(job.item.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openBooking(job.item.id); } }} className="cursor-pointer rounded-xl py-4 transition hover:bg-[var(--dashboard-surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring first:pt-0 last:pb-0 sm:px-2"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><p className="font-semibold text-[var(--dashboard-text)]">{job.item.customerName}</p><p className="mt-0.5 text-sm text-[var(--dashboard-muted-text)]">{job.item.serviceName}{job.item.session.label ? ` · ${job.item.session.label}` : ""}</p><p className="mt-2 text-sm font-medium text-[var(--dashboard-text)]">{formatSessionDate(job.item.session, timezone)} · {formatSessionTime(job.item.session, timezone)}</p>{job.item.session.location.trim() && <p className="mt-1 text-sm text-[var(--dashboard-muted-text)]">{job.item.session.location}</p>}{job.item.sessions.length > 1 && <p className="mt-2 text-xs font-medium text-[var(--dashboard-muted-text)]">{job.item.sessions.length}-schedule booking</p>}</div><div className="flex flex-wrap gap-2 sm:justify-end"><BookingStatusBadge status={job.item.bookingStatus} /><PaymentStatusBadge status={job.item.paymentStatus} /></div></div></article> : <article key={job.key} className="rounded-xl py-4 first:pt-0 last:pb-0 sm:px-2"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><p className="font-semibold text-[var(--dashboard-text)]">{job.serviceName}</p><p className="mt-2 text-sm font-medium text-[var(--dashboard-text)]">{formatSessionDate(job.session, timezone)} · {formatSessionTime(job.session, timezone)}</p>{job.session.location.trim() && <p className="mt-1 text-sm text-[var(--dashboard-muted-text)]">{job.session.location}</p>}<CapacitySummary job={job} /><p className="mt-1 truncate text-sm text-[var(--dashboard-muted-text)]">{job.payment.label}{job.participants.length ? ` · ${participantPreview(job.participants)}` : ""}</p></div><Button type="button" variant="ghost" size="sm" className="self-start text-primary" onClick={() => setSelectedSession(job)}>View session <ArrowRight className="size-4" /></Button></div></article>)}</div>}{selectedSession && <GroupSessionDialog job={selectedSession} timezone={timezone} onClose={() => setSelectedSession(null)} onOpenBooking={openBooking} />}</section>;
 }

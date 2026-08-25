@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import AppFrame from "@/components/system/AppFrame";
 import { Toaster } from "@/components/ui/sonner";
 import { AppearanceThemeProvider } from "@/features/appearance/AppearanceThemeProvider";
+import ServiceWorkerRegistration from "@/components/system/ServiceWorkerRegistration";
 
 export const metadata: Metadata = {
   title: "Qai",
@@ -43,6 +44,7 @@ export default function RootLayout({
       <body className="flex min-h-full bg-background">
         <AppearanceThemeProvider>
           <AppFrame>{children}</AppFrame>
+          <ServiceWorkerRegistration />
           <Toaster position="top-right" closeButton />
         </AppearanceThemeProvider>
       </body>

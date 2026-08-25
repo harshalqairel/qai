@@ -56,6 +56,8 @@ export type Booking = {
   serviceSnapshot?: ServiceSelectionSnapshot | null;
   additionalCharges?: BookingAdditionalCharge[];
   questionnaireResponses?: BookingQuestionResponse[];
+  capacitySourceRequestId?: string | null;
+  capacitySlotKeys?: string[];
   bookingStatus: BookingStatus;
   fullPaymentDueDate: string;
   notes: string;
@@ -70,6 +72,8 @@ export type CreateBookingInput = {
   servicePrice: number;
   serviceSnapshot?: ServiceSelectionSnapshot | null;
   questionnaireResponses?: BookingQuestionResponse[];
+  capacitySourceRequestId?: string | null;
+  capacitySlotKeys?: string[];
   bookingStatus: BookingStatus;
   fullPaymentDueDate: string;
   notes: string;

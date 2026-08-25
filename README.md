@@ -44,11 +44,20 @@ review a forward migration before enabling cloud mode.
 
 The Reports area uses the same financial calculation module as the dashboard.
 Excel exports are genuine `.xlsx` workbooks with numeric currency cells and
-spreadsheet date values. Google Sheets export is an explicit, user-initiated
-snapshot: configure `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, enable the Google Drive API,
-and allow the `drive.file` scope. Each export creates a new spreadsheet and does
-not overwrite a prior report. Calendar credentials are separate server-side
-settings.
+spreadsheet date values. Google Sheets and Google Drive exports are explicit,
+user-initiated snapshots: configure `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, enable the
+Google Drive API, and allow the least-privilege `drive.file` scope. Sheets creates
+a new native spreadsheet; Drive saves a new Excel workbook. Neither action
+overwrites a prior report. Calendar credentials are separate server-side settings.
+
+## Web Push
+
+Qai uses standards-based Web Push rather than foreground-only browser alerts.
+Configure `NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY`, the server-only
+`WEB_PUSH_PRIVATE_KEY`, and a `WEB_PUSH_SUBJECT` beginning with `mailto:` or
+`https://`. The service-worker subscription is device-specific. On iPhone, the
+user must open Qai from an installed Home Screen web app and enable notifications
+from Settings through an explicit tap.
 
 Never expose `SUPABASE_SERVICE_ROLE_KEY` to client code. It is reserved for
 verified server jobs and webhooks in later launch phases.

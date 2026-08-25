@@ -58,6 +58,7 @@ export function useServices(): {
       locationPolicy: input.locationPolicy ?? "Client can choose",
       optionGroups: input.optionGroups ?? [],
       variants: input.variants ?? [],
+      availability: input.availability,
       description: input.description,
     };
 

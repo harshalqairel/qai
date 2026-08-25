@@ -9,9 +9,9 @@ export function getMonthlyRealizedRevenue(payments: Payment[], year: number): nu
   const monthly = Array.from({ length: 12 }, () => 0);
 
   for (const payment of payments) {
-    const d = new Date(`${payment.date}T00:00:00`);
-    if (d.getFullYear() !== year) continue;
-    monthly[d.getMonth()] += payment.amount;
+    const [recordYear, recordMonth] = payment.date.split("-").map(Number);
+    if (recordYear !== year || recordMonth < 1 || recordMonth > 12) continue;
+    monthly[recordMonth - 1] += payment.amount;
   }
 
   return monthly;

@@ -35,6 +35,8 @@ import { normalizeCategoryName } from "@/features/category/utils";
 import { formatDuration } from "@/features/service/utils/duration";
 import { validateServiceVariantConfiguration } from "@/features/service/domain/serviceVariants";
 import ServiceVariantEditor from "@/features/service/components/ServiceVariantEditor";
+import ServiceAvailabilityEditor from "@/features/service/components/ServiceAvailabilityEditor";
+import { DEFAULT_SERVICE_AVAILABILITY } from "@/features/service/domain/serviceAvailability";
 import {
   serviceSchema,
   ServiceFormValues,
@@ -59,6 +61,7 @@ const defaultValues: ServiceFormValues = {
   locationPolicy: "Client can choose",
   optionGroups: [],
   variants: [],
+  availability: structuredClone(DEFAULT_SERVICE_AVAILABILITY),
   description: "",
   active: true,
 };
@@ -128,6 +131,7 @@ export default function ServiceDialog({
         locationPolicy: service.locationPolicy ?? "Client can choose",
         optionGroups: service.optionGroups ?? [],
         variants: service.variants ?? [],
+        availability: service.availability ?? structuredClone(DEFAULT_SERVICE_AVAILABILITY),
         description: service.description,
         active: service.active,
       });
@@ -202,6 +206,7 @@ export default function ServiceDialog({
       locationPolicy: values.locationPolicy,
       optionGroups: values.optionGroups,
       variants: values.variants,
+      availability: values.availability,
       description: values.description.trim(),
       active: service?.active ?? true,
     };
@@ -491,6 +496,8 @@ export default function ServiceDialog({
               />
             )}
           />
+
+          <Controller control={control} name="availability" render={({ field }) => <ServiceAvailabilityEditor value={field.value} onChange={field.onChange} />} />
 
           <div>
             <Label className="mb-2 block font-semibold">

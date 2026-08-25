@@ -75,6 +75,8 @@ const defaultValues: BookingFormValues = {
   sessions: [{ label: "", date: "", startTime: "", endTime: "", location: "", notes: "" }],
   servicePrice: 0,
   questionnaireResponses: [],
+  capacitySourceRequestId: null,
+  capacitySlotKeys: [],
   bookingStatus: "Scheduled",
   fullPaymentDueDate: "",
   notes: "",
@@ -198,6 +200,8 @@ export default function BookingDialog({
         sessions: booking.sessions.map((session) => sessionToFormValues(session, timezone)),
         servicePrice: booking.servicePrice,
         questionnaireResponses: booking.questionnaireResponses ?? [],
+        capacitySourceRequestId: booking.capacitySourceRequestId ?? null,
+        capacitySlotKeys: booking.capacitySlotKeys ?? [],
         bookingStatus: booking.bookingStatus,
         fullPaymentDueDate: booking.fullPaymentDueDate,
         notes: booking.notes,
@@ -560,7 +564,9 @@ export default function BookingDialog({
     }
     const bookingValues: BookingFormValues = {
       ...values,
-      serviceSnapshot: selectedService ? snapshotServiceSelection(selectedService, selectedVariant) : values.serviceSnapshot,
+      serviceSnapshot: !booking && values.capacitySourceRequestId && values.serviceSnapshot
+        ? values.serviceSnapshot
+        : selectedService ? snapshotServiceSelection(selectedService, selectedVariant) : values.serviceSnapshot,
       questionnaireResponses,
     };
     let createCommand: CreateBookingCommand | null = null;
@@ -625,7 +631,7 @@ export default function BookingDialog({
           className="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-y-auto p-5 sm:p-8 lg:grid-cols-12 lg:items-start"
         >
           {!booking && <div className="lg:col-span-12"><Button type="button" variant="ghost" size="sm" onClick={() => setStartMode("choose")}><ArrowLeft className="size-4" /> Booking options</Button>{parsedReviewNotice && <p className="mt-3 rounded-xl border border-primary/15 bg-primary/5 p-3 text-sm text-primary">{parsedReviewNotice}</p>}</div>}
-          <div className="lg:col-span-6">
+          <div className="min-w-0 lg:col-span-6">
             <Label className="mb-2 block font-semibold">Client</Label>
             <Controller
               control={control}
@@ -675,7 +681,7 @@ export default function BookingDialog({
             )}
           </div>
 
-          <div className="lg:col-span-6">
+          <div className="min-w-0 lg:col-span-6">
             <Label className="mb-2 block font-semibold">Service</Label>
             <Controller
               control={control}

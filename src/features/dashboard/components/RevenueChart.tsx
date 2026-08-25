@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { RevenuePoint } from "@/features/dashboard/hooks/useDashboard";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
+import { changeTone, comparableChange, type ComparableChange } from "@/features/dashboard/analytics";
 
 type RevenueChartProps = {
   data: RevenuePoint[];
@@ -93,7 +94,7 @@ function formatRupiahAxis(value: number): string {
 }
 
 export default function RevenueChart({ data }: RevenueChartProps) {
-  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const [activeIndex, setActiveIndex] = useState<number | null>(() => data.length > 0 ? Math.min(new Date().getMonth(), data.length - 1) : null);
 
   const hasData = useMemo(
     () => data.some((month) => month.realized !== 0 || month.expenses !== 0 || month.net !== 0),
@@ -157,12 +158,13 @@ export default function RevenueChart({ data }: RevenueChartProps) {
   }, [data]);
 
   const activeItem = activeIndex === null ? null : chart.points[activeIndex];
+  const previousMonth = activeItem && activeItem.index > 0 ? data[activeItem.index - 1] : null;
 
   return (
     <section>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-[var(--dashboard-text)]">Income, expenses, and profit</h2>
+          <h2 className="text-lg font-semibold text-[var(--dashboard-text)]">Revenue, expenses, and profit</h2>
           <p className="mt-1 text-sm text-[var(--dashboard-muted-text)]">
             Income, expenses, and profit from January to December.
           </p>
@@ -175,7 +177,7 @@ export default function RevenueChart({ data }: RevenueChartProps) {
               style={{ backgroundColor: CHART_COLORS.received }}
               aria-hidden="true"
             />
-            Income
+            Revenue
           </span>
           <span className="flex items-center gap-2">
             <span
@@ -206,41 +208,26 @@ export default function RevenueChart({ data }: RevenueChartProps) {
           No income or expenses recorded for this year.
         </p>
       ) : (
-        <div className="mt-5 overflow-x-auto overscroll-x-contain rounded-xl bg-white">
-          <div className="relative min-w-[720px] p-2 sm:p-3">
+        <div className="mt-5 min-w-0 rounded-xl bg-white">
+          <div className="relative min-w-0 p-1 sm:p-3">
             {activeItem && (
               <div
-                className="pointer-events-none absolute top-2 z-10 rounded-lg border border-[var(--dashboard-chart-tooltip-border)] bg-[var(--dashboard-chart-tooltip-bg)] px-3 py-2 text-xs shadow-sm"
+                className="pointer-events-none absolute top-2 z-10 hidden rounded-lg border border-[var(--dashboard-chart-tooltip-border)] bg-[var(--dashboard-chart-tooltip-bg)] px-3 py-2 text-xs shadow-sm sm:block"
                 style={{
                   left: `${Math.max(12, Math.min(88, ((activeItem.index + 0.5) / chart.points.length) * 100))}%`,
                   transform: "translateX(-50%)",
                 }}
               >
                 <p className="font-semibold text-[var(--dashboard-text)]">{activeItem.month.label}</p>
-                <p className="mt-1 text-[var(--dashboard-muted-text)]">
-                  Income:{" "}
-                  <span className="font-medium text-[var(--dashboard-text)]">
-                    {formatRupiah(activeItem.month.realized)}
-                  </span>
-                </p>
-                <p className="text-[var(--dashboard-muted-text)]">
-                  Expenses:{" "}
-                  <span className="font-medium text-[var(--dashboard-text)]">
-                    {formatRupiah(activeItem.month.expenses)}
-                  </span>
-                </p>
-                <p className="text-[var(--dashboard-muted-text)]">
-                  Profit:{" "}
-                  <span className="font-medium text-[var(--dashboard-text)]">
-                    {formatRupiah(activeItem.month.net)}
-                  </span>
-                </p>
+                <MetricChangeLine label="Income" value={activeItem.month.realized} previous={previousMonth?.realized ?? 0} metric="revenue" />
+                <MetricChangeLine label="Expenses" value={activeItem.month.expenses} previous={previousMonth?.expenses ?? 0} metric="expenses" />
+                <MetricChangeLine label="Profit" value={activeItem.month.net} previous={previousMonth?.net ?? 0} metric="profit" />
               </div>
             )}
 
             <svg
               viewBox={`0 0 ${chart.width} ${chart.height}`}
-              className="h-64 w-full sm:h-72"
+              className="h-48 w-full sm:h-72"
               role="img"
               aria-label="Monthly money flow: Income and Expenses bars with a Profit line"
             >
@@ -262,6 +249,7 @@ export default function RevenueChart({ data }: RevenueChartProps) {
                       textAnchor="end"
                       fontSize="14"
                       fill={CHART_COLORS.axisLabel}
+                      className="hidden sm:block"
                     >
                       {formatRupiahAxis(tick)}
                     </text>
@@ -289,16 +277,6 @@ export default function RevenueChart({ data }: RevenueChartProps) {
                     rx="3"
                     ry="3"
                   />
-                  <text
-                    x={point.xCenter}
-                    y={chart.margin.top + chart.plotHeight + 22}
-                    textAnchor="middle"
-                    fontSize="12"
-                    fill={CHART_COLORS.axisLabel}
-                    className="sm:hidden"
-                  >
-                    {MONTH_SHORT[point.index] ?? point.month.label.slice(0, 3)}
-                  </text>
                   <text
                     x={point.xCenter}
                     y={chart.margin.top + chart.plotHeight + 22}
@@ -341,14 +319,37 @@ export default function RevenueChart({ data }: RevenueChartProps) {
                   height={chart.plotHeight}
                   fill="transparent"
                   onPointerEnter={() => setActiveIndex(point.index)}
-                  onPointerLeave={() => setActiveIndex(null)}
                   onClick={() => setActiveIndex(point.index)}
                 />
               ))}
             </svg>
+            <div className="grid grid-cols-6 gap-1 px-1 sm:hidden" aria-label="Select month">{data.map((month, index) => <button key={month.label} type="button" aria-pressed={activeIndex === index} onClick={() => setActiveIndex(index)} className="min-h-9 rounded-md text-[11px] font-semibold text-muted-foreground aria-pressed:bg-primary/10 aria-pressed:text-primary">{MONTH_SHORT[index]}</button>)}</div>
           </div>
+          {activeItem && <div className="mx-2 mb-2 grid grid-cols-3 gap-2 rounded-xl border border-[var(--dashboard-chart-tooltip-border)] bg-[var(--dashboard-chart-tooltip-bg)] p-3 sm:mx-3 sm:mb-3"><div className="col-span-3 flex items-center justify-between gap-3"><p className="text-sm font-semibold text-[var(--dashboard-text)]">{activeItem.month.label}</p><p className="text-[11px] text-[var(--dashboard-muted-text)]">vs {previousMonth?.label ?? "previous month"}</p></div><MetricChangeSummary label="Income" value={activeItem.month.realized} previous={previousMonth?.realized ?? 0} metric="revenue" /><MetricChangeSummary label="Expenses" value={activeItem.month.expenses} previous={previousMonth?.expenses ?? 0} metric="expenses" /><MetricChangeSummary label="Profit" value={activeItem.month.net} previous={previousMonth?.net ?? 0} metric="profit" /></div>}
         </div>
       )}
     </section>
   );
+}
+
+function changeLabel(change: ComparableChange): string {
+  if (change.state === "new") return "New";
+  if (change.state === "neutral") return "—";
+  const symbol = change.direction === "up" ? "↑" : change.direction === "down" ? "↓" : "—";
+  return change.direction === "flat" ? symbol : `${symbol} ${Math.abs(change.percentage).toFixed(1)}%`;
+}
+
+function changeClass(change: ComparableChange, metric: "revenue" | "expenses" | "profit") {
+  const tone = changeTone(change, metric);
+  return tone === "positive" ? "text-emerald-700" : tone === "negative" ? "text-rose-700" : "text-[var(--dashboard-muted-text)]";
+}
+
+function MetricChangeLine({ label, value, previous, metric }: { label: string; value: number; previous: number; metric: "revenue" | "expenses" | "profit" }) {
+  const change = comparableChange(value, previous);
+  return <p className="mt-1 flex items-center justify-between gap-3 text-[var(--dashboard-muted-text)]"><span>{label}: <strong className="font-medium text-[var(--dashboard-text)]">{formatRupiah(value)}</strong></span><span className={changeClass(change, metric)}>{changeLabel(change)}</span></p>;
+}
+
+function MetricChangeSummary({ label, value, previous, metric }: { label: string; value: number; previous: number; metric: "revenue" | "expenses" | "profit" }) {
+  const change = comparableChange(value, previous);
+  return <div className="min-w-0"><p className="text-[10px] font-medium text-[var(--dashboard-muted-text)] sm:text-xs">{label}</p><p className="mt-1 truncate text-xs font-bold tabular-nums text-[var(--dashboard-text)] sm:text-sm">{formatRupiah(value)}</p><p className={`mt-1 text-[10px] font-semibold sm:text-xs ${changeClass(change, metric)}`}>{changeLabel(change)}</p></div>;
 }

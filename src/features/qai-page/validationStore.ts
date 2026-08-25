@@ -4,6 +4,8 @@ import { z } from "zod";
 import { validateQuestionnaireResponses } from "@/features/booking-questionnaire/questionnaire";
 
 import { publicRequestSchema, qaiPageSchema, snapshotPublicServiceSelection, type PublicRequest, type QaiPageConfig, type ValidationStore } from "./validation";
+import { availableServiceSlotsForDate } from "./serviceCapacity";
+import { normalizeServiceAvailability } from "@/features/service/domain/serviceAvailability";
 
 const storeSchema = z.object({ pages: z.array(qaiPageSchema), requests: z.array(publicRequestSchema) });
 export const validationRequestInputSchema = publicRequestSchema.omit({ id: true, status: true, submittedAt: true, updatedAt: true, bookingId: true, clientId: true, serviceSnapshot: true });
@@ -69,6 +71,12 @@ export function createValidationStoreRepository(directory: string) {
         if (duplicate) return duplicate;
         const activeVariants = service.variants.filter((variant) => variant.active);
         if (activeVariants.length > 0 && !activeVariants.some((variant) => variant.id === input.serviceVariantId)) throw new ValidationStoreError("SERVICE_VARIANT_REQUIRED");
+        const availabilityKeys = input.type === "Booking request" && normalizeServiceAvailability(service.availability).mode !== "Flexible" ? input.schedules.map((schedule) => {
+          const slot = availableServiceSlotsForDate({ service, variantId: input.serviceVariantId, date: schedule.date, timezone: page.timezone, requests: store.requests }).find((candidate) => candidate.startTime === schedule.startTime);
+          if (!slot || slot.endTime !== schedule.endTime) throw new ValidationStoreError("SCHEDULE_NOT_AVAILABLE");
+          if (slot.full) throw new ValidationStoreError("SESSION_FULL");
+          return slot.key;
+        }) : [];
         const id = crypto.randomUUID(); let schedules = input.schedules; let status: PublicRequest["status"] = "Pending";
         if (input.type === "Instant booking") {
           const slot = page.slots.find((item) => item.id === input.instantSlotId && item.serviceId === service.serviceId);
@@ -77,7 +85,7 @@ export function createValidationStoreRepository(directory: string) {
           const start = localSchedulePart(slot.startAt, page.timezone); const end = localSchedulePart(slot.endAt, page.timezone);
           schedules = [{ id: crypto.randomUUID(), label: "", date: start.date, startTime: start.time, endTime: end.time, location: slot.location }]; page.updatedAt = Date.now();
         }
-        const now = Date.now(); const created = publicRequestSchema.parse({ ...input, id, serviceName: service.title, serviceSnapshot, clientId: null, schedules, status, submittedAt: now, updatedAt: now, bookingId: null });
+        const now = Date.now(); const created = publicRequestSchema.parse({ ...input, id, serviceName: service.title, serviceSnapshot, clientId: null, schedules, availabilityKeys, availabilityKey: availabilityKeys[0] ?? null, status, submittedAt: now, updatedAt: now, bookingId: null });
         store.requests.push(created); return created;
       });
     },
@@ -86,7 +94,26 @@ export function createValidationStoreRepository(directory: string) {
         const item = store.requests.find((candidate) => candidate.id === requestId); if (!item) throw new ValidationStoreError("REQUEST_NOT_FOUND");
         if (item.status === "Accepted" && item.bookingId && status === "Accepted") return item;
         if (item.status === "Declined" && status === "Accepted") throw new ValidationStoreError("REQUEST_DECLINED");
+        if (item.status !== "Accepted" && status === "Accepted") throw new ValidationStoreError("CAPACITY_CLAIM_REQUIRED");
         item.status = status; item.bookingId = bookingId; item.clientId = clientId ?? item.clientId; item.updatedAt = Date.now(); return publicRequestSchema.parse(item);
+      });
+    },
+    async claimRequest(requestId: string) {
+      return mutate((store) => {
+        const item = store.requests.find((candidate) => candidate.id === requestId); if (!item) throw new ValidationStoreError("REQUEST_NOT_FOUND");
+        if (item.status === "Accepted") return item;
+        if (item.status === "Declined") throw new ValidationStoreError("REQUEST_DECLINED");
+        const page = store.pages.find((candidate) => candidate.id === item.pageId); const service = page?.services.find((candidate) => candidate.serviceId === item.serviceId);
+        if (!page || !service) throw new ValidationStoreError("SERVICE_NOT_AVAILABLE");
+        if (item.type === "Booking request" && normalizeServiceAvailability(service.availability).mode !== "Flexible") {
+          for (const schedule of item.schedules) {
+            const slot = availableServiceSlotsForDate({ service, variantId: item.serviceVariantId, date: schedule.date, timezone: page.timezone, requests: store.requests, durationMinutes: item.serviceSnapshot?.duration }).find((candidate) => candidate.startTime === schedule.startTime && candidate.endTime === schedule.endTime);
+            if (!slot) throw new ValidationStoreError("SCHEDULE_NOT_AVAILABLE");
+            if (slot.full) throw new ValidationStoreError("SESSION_FULL");
+          }
+        }
+        item.status = "Accepted"; item.updatedAt = Date.now();
+        return publicRequestSchema.parse(item);
       });
     },
   };

@@ -244,6 +244,9 @@ function serviceFromRow(row: DbRow): Service {
     locationPolicy: (valueAsString(row, "location_policy") || "Client can choose") as Service["locationPolicy"],
     optionGroups: valueAsArray<NonNullable<Service["optionGroups"]>[number]>(row, "option_groups"),
     variants: valueAsArray<NonNullable<Service["variants"]>[number]>(row, "variants"),
+    availability: row.availability && typeof row.availability === "object" && !Array.isArray(row.availability)
+      ? row.availability as NonNullable<Service["availability"]>
+      : undefined,
     description: valueAsString(row, "description"),
     active: valueAsBoolean(row, "active"),
   };
@@ -260,6 +263,7 @@ function serviceToRow(service: Service): DbRow {
     location_policy: service.locationPolicy ?? "Client can choose",
     option_groups: service.optionGroups ?? [],
     variants: service.variants ?? [],
+    availability: service.availability ?? { mode: "Flexible", capacityMode: "One booking", defaultCapacity: 1, recurringTimes: [], datedSessions: [], overrides: [] },
     description: service.description,
     active: service.active,
   };
@@ -310,6 +314,8 @@ function bookingFromRow(row: DbRow, sessions: BookingSession[], additionalCharge
     sessions,
     additionalCharges,
     questionnaireResponses: Array.isArray(row.questionnaire_responses) ? row.questionnaire_responses as Booking["questionnaireResponses"] : [],
+    capacitySourceRequestId: typeof row.capacity_source_request_id === "string" ? row.capacity_source_request_id : null,
+    capacitySlotKeys: Array.isArray(row.capacity_slot_keys) ? row.capacity_slot_keys.filter((value): value is string => typeof value === "string") : [],
     servicePrice: valueAsNumber(row, "service_price"),
     serviceSnapshot: row.service_snapshot && typeof row.service_snapshot === "object" && !Array.isArray(row.service_snapshot)
       ? row.service_snapshot as NonNullable<Booking["serviceSnapshot"]>
@@ -333,6 +339,8 @@ function bookingToPayload(booking: Booking): DbRow {
     full_payment_due_date: booking.fullPaymentDueDate,
     notes: booking.notes,
     questionnaire_responses: booking.questionnaireResponses ?? [],
+    capacity_source_request_id: booking.capacitySourceRequestId ?? null,
+    capacity_slot_keys: booking.capacitySlotKeys ?? [],
     created_at: isoTimestamp(booking.createdAt),
     updated_at: isoTimestamp(booking.updatedAt),
     sessions: booking.sessions.map((session) => ({

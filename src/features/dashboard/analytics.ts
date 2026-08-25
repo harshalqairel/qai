@@ -9,6 +9,20 @@ import { categoryColorCss } from "@/features/category/constants";
 
 export type DisplayAnalyticsCategory = AnalyticsCategory & { percentage: number };
 
+export type ComparableChange = { state: "change"; percentage: number; direction: "up" | "down" | "flat" } | { state: "new" } | { state: "neutral" };
+
+export function comparableChange(current: number, previous: number): ComparableChange {
+  if (previous === 0) return current === 0 ? { state: "neutral" } : { state: "new" };
+  const percentage = ((current - previous) / Math.abs(previous)) * 100;
+  return { state: "change", percentage, direction: percentage > 0 ? "up" : percentage < 0 ? "down" : "flat" };
+}
+
+export function changeTone(change: ComparableChange, metric: "revenue" | "expenses" | "profit"): "positive" | "negative" | "neutral" {
+  if (change.state !== "change" || change.direction === "flat") return "neutral";
+  const favorable = metric === "expenses" ? change.direction === "down" : change.direction === "up";
+  return favorable ? "positive" : "negative";
+}
+
 export function groupAnalyticsCategories(
   categories: AnalyticsCategory[],
   maximumVisible = 5,

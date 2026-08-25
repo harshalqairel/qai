@@ -14,9 +14,9 @@ export function getMonthlyExpenses(expenses: Expense[], year: number): number[] 
   const monthly = Array.from({ length: 12 }, () => 0);
 
   for (const expense of expenses) {
-    const d = new Date(`${expense.date}T00:00:00`);
-    if (d.getFullYear() !== year) continue;
-    monthly[d.getMonth()] += expense.amount;
+    const [recordYear, recordMonth] = expense.date.split("-").map(Number);
+    if (recordYear !== year || recordMonth < 1 || recordMonth > 12) continue;
+    monthly[recordMonth - 1] += expense.amount;
   }
 
   return monthly;

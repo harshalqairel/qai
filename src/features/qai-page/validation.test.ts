@@ -94,6 +94,7 @@ describe("Qai Page domain", () => {
     const values = requestToBookingValues(source, { id: "request-service", name: "Wedding Package", categoryId: "cat", price: 7_500_000, duration: 120, defaultSessionCount: 1, description: "", active: true }, "client-1", "2026-09-01");
     expect(values.customerId).toBe("client-1"); expect(values.sessions).toHaveLength(3); expect(values.sessions.map((item) => item.date)).toEqual(["2026-09-12", "2026-09-15", "2026-09-20"]);
     expect(values.fullPaymentDueDate).toBe("2026-09-20"); expect(values.servicePrice).toBe(7_500_000);
+    expect(values.capacitySourceRequestId).toBe("r1"); expect(values.capacitySlotKeys).toEqual([]);
   });
 });
 
@@ -131,13 +132,45 @@ describe("shared validation store", () => {
     const saved = await store.read(); expect(saved.pages[0].slots[0].status).toBe("Reserved"); expect(saved.requests).toHaveLength(1);
   });
 
+  it("keeps requests pending without consuming capacity and serializes the final place on acceptance", async () => {
+    const { repository: store } = await repository();
+    const configured = page();
+    configured.services[0] = { ...configured.services[0], defaultSessionCount: 1, availability: { mode: "Recurring times", capacityMode: "One booking", defaultCapacity: 1, recurringTimes: [{ id: "monday", weekday: 0, startTime: "10:00", capacity: null, manualBlocked: 0 }], datedSessions: [], overrides: [] } };
+    await store.savePage(configured);
+    const schedule = [{ id: "one", label: "", date: "2026-08-31", startTime: "10:00", endTime: "12:00", location: "" }];
+    const first = await store.submitRequest(request({ schedules: schedule, submissionId: "capacity-a" }));
+    const second = await store.submitRequest(request({ schedules: schedule, submissionId: "capacity-b", whatsapp: "081299999999" }));
+    expect(first.status).toBe("Pending"); expect(second.status).toBe("Pending");
+    const claims = await Promise.allSettled([store.claimRequest(first.id), store.claimRequest(second.id)]);
+    expect(claims.filter((claim) => claim.status === "fulfilled")).toHaveLength(1);
+    const rejection = claims.find((claim): claim is PromiseRejectedResult => claim.status === "rejected");
+    expect(rejection?.reason).toMatchObject({ code: "SESSION_FULL" });
+  });
+
+  it("uses the submitted duration snapshot when service defaults change before acceptance", async () => {
+    const { repository: store } = await repository();
+    const configured = page();
+    configured.services[0] = { ...configured.services[0], defaultSessionCount: 1, availability: { mode: "Recurring times", capacityMode: "One booking", defaultCapacity: 1, recurringTimes: [{ id: "monday", weekday: 0, startTime: "10:00", capacity: null, manualBlocked: 0 }], datedSessions: [], overrides: [] } };
+    await store.savePage(configured);
+    const pending = await store.submitRequest(request({ schedules: [{ id: "one", label: "", date: "2026-08-31", startTime: "10:00", endTime: "12:00", location: "" }] }));
+    await store.savePage({ ...configured, services: configured.services.map((service) => service.serviceId === "request-service" ? { ...service, durationMinutes: 60 } : service) });
+    await expect(store.claimRequest(pending.id)).resolves.toMatchObject({ status: "Accepted", serviceSnapshot: { duration: 120 } });
+  });
+
   it("prevents duplicate submissions and duplicate accepted-booking links", async () => {
     const { repository: store } = await repository(); await store.savePage(page());
     const first = await store.submitRequest(request()); const duplicate = await store.submitRequest(request());
     expect(duplicate.id).toBe(first.id); expect((await store.read()).requests).toHaveLength(1);
+    await store.claimRequest(first.id);
     const accepted = await store.updateRequest(first.id, "Accepted", "booking-1");
     const repeated = await store.updateRequest(first.id, "Accepted", "booking-2");
     expect(accepted.bookingId).toBe("booking-1"); expect(repeated.bookingId).toBe("booking-1");
+  });
+
+  it("does not allow the generic update path to bypass capacity-checked acceptance", async () => {
+    const { repository: store } = await repository(); await store.savePage(page());
+    const pending = await store.submitRequest(request());
+    await expect(store.updateRequest(pending.id, "Accepted", null)).rejects.toMatchObject({ code: "CAPACITY_CLAIM_REQUIRED" });
   });
 
   it("keeps separate requests from the same phone when each form has a new submission ID", async () => {

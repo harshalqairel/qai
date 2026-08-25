@@ -41,6 +41,8 @@ export function prepareBookingCreation(
     serviceSnapshot: bookingInput.serviceSnapshot ?? null,
     additionalCharges: prepareBookingAdditionalCharges(ids.bookingId, command.additionalCharges ?? [], sessions, [], now),
     questionnaireResponses: bookingInput.questionnaireResponses,
+    capacitySourceRequestId: bookingInput.capacitySourceRequestId,
+    capacitySlotKeys: bookingInput.capacitySlotKeys,
     bookingStatus: bookingInput.bookingStatus,
     fullPaymentDueDate: bookingInput.fullPaymentDueDate,
     notes: bookingInput.notes,

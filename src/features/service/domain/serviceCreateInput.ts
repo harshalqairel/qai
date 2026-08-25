@@ -10,6 +10,7 @@ export function serviceCreateInputFromRecord(service: Service): CreateServiceInp
     locationPolicy: service.locationPolicy,
     optionGroups: service.optionGroups,
     variants: service.variants,
+    availability: service.availability,
     description: service.description,
   };
 }

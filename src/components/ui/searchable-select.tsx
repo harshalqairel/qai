@@ -82,7 +82,7 @@ export function SearchableSelect({
         aria-controls={`${label.replace(/\W+/g, "-").toLowerCase()}-options`}
         disabled={disabled}
         onClick={() => { setHighlighted(0); setOpen((current) => !current); }}
-        className="flex min-h-11 w-full min-w-0 items-center gap-3 rounded-lg border border-input bg-transparent px-3 py-2 pr-10 text-left text-sm shadow-xs outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+        className={cn("flex min-h-11 w-full min-w-0 items-center gap-3 rounded-lg border border-input bg-transparent px-3 py-2 text-left text-sm shadow-xs outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50", value && clearable && !disabled ? "pr-[4.75rem]" : "pr-10")}
       >
         <span className="min-w-0 flex-1">
           <span className={cn("block truncate", !selected && "text-muted-foreground")}>{selected?.label ?? placeholder}</span>
@@ -94,7 +94,7 @@ export function SearchableSelect({
         <button
           type="button"
           aria-label={`Clear ${label}`}
-          className="absolute right-8 top-2 z-10 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="absolute right-9 top-2 z-10 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
           onClick={() => { onValueChange(""); setQuery(""); setOpen(false); }}
         ><X className="size-4" /></button>
       )}

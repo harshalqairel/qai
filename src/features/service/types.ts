@@ -1,5 +1,45 @@
 export type ServiceLocationPolicy = "Business/studio only" | "Client location only" | "Client can choose" | "Online";
 
+export type ServiceBookingTimeMode = "Flexible" | "Recurring times" | "Dated sessions";
+export type ServiceCapacityMode = "One booking" | "Multiple bookings";
+
+export type ServiceRecurringTime = {
+  id: string;
+  weekday: number;
+  startTime: string;
+  capacity: number | null;
+  manualBlocked: number;
+};
+
+export type ServiceDatedSession = {
+  id: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  location: string;
+  capacity: number | null;
+  manualBlocked: number;
+  active: boolean;
+};
+
+export type ServiceAvailabilityOverride = {
+  id: string;
+  date: string;
+  startTime: string;
+  capacity: number | null;
+  manualBlocked: number;
+  unavailable: boolean;
+};
+
+export type ServiceAvailability = {
+  mode: ServiceBookingTimeMode;
+  capacityMode: ServiceCapacityMode;
+  defaultCapacity: number;
+  recurringTimes: ServiceRecurringTime[];
+  datedSessions: ServiceDatedSession[];
+  overrides: ServiceAvailabilityOverride[];
+};
+
 export type ServiceOptionValue = {
   id: string;
   label: string;
@@ -51,6 +91,7 @@ export type Service = {
   locationPolicy?: ServiceLocationPolicy;
   optionGroups?: ServiceOptionGroup[];
   variants?: ServiceVariant[];
+  availability?: ServiceAvailability;
   description: string;
   active: boolean;
 };
@@ -64,5 +105,6 @@ export type CreateServiceInput = {
   locationPolicy?: ServiceLocationPolicy;
   optionGroups?: ServiceOptionGroup[];
   variants?: ServiceVariant[];
+  availability?: ServiceAvailability;
   description: string;
 };

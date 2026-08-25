@@ -33,6 +33,9 @@ import {
 import { isPaymentReminderEligible } from "@/features/reminder/reminderTransport";
 import { getActiveBusinessContext } from "@/lib/supabase/cloudRepositories";
 import { isCloudModeEnabled, isValidationModeEnabled } from "@/lib/supabase/config";
+import { buildUpcomingJobs, type ScheduledSessionItem } from "@/features/dashboard/upcomingJobs";
+
+export type { ScheduledSessionItem } from "@/features/dashboard/upcomingJobs";
 
 export type KPITone = "received" | "unpaid" | "expenses" | "profit";
 
@@ -69,10 +72,6 @@ export type EnrichedBooking = Booking & {
   paymentStatus: "Outstanding" | "Partial Paid" | "Fully Paid" | "Cancelled";
 };
 
-export type ScheduledSessionItem = EnrichedBooking & {
-  session: BookingSession;
-};
-
 export type SetupGuideProgress = {
   servicesComplete: boolean;
   customersComplete: boolean;
@@ -100,7 +99,7 @@ export function useDashboard({ period }: UseDashboardArgs) {
   const { payments } = paymentData;
   const { expenses } = expenseData;
   const { categories: expenseCategories } = expenseCategoryData;
-  const selectedYear = new Date().getFullYear();
+  const selectedYear = Number(instantParts(new Date().toISOString(), bookingData.timezone).date.slice(0, 4));
 
   useEffect(() => {
     if (isValidationModeEnabled()) { const timer = window.setTimeout(() => { try { const metadata = JSON.parse(window.localStorage.getItem("qai:validation-workspace") ?? "null") as { label?: string } | null; if (metadata?.label) setBusinessName(metadata.label); } catch { /* Keep fallback. */ } }, 0); return () => window.clearTimeout(timer); }
@@ -171,15 +170,16 @@ export function useDashboard({ period }: UseDashboardArgs) {
       .sort((left, right) => left.session.startAt.localeCompare(right.session.startAt));
   }, [enrichedBookings, todayContext]);
 
-  const upcomingJobs = useMemo(() => {
-    return enrichedBookings
-      .filter((booking) => booking.bookingStatus !== "Cancelled")
-      .flatMap((booking) => booking.sessions
-        .filter((session) => Date.parse(session.startAt) > todayContext.now.getTime())
-        .map((session): ScheduledSessionItem => ({ ...booking, session })))
-      .sort((left, right) => left.session.startAt.localeCompare(right.session.startAt))
-      .slice(0, 6);
-  }, [enrichedBookings, todayContext.now]);
+  const upcomingJobs = useMemo(
+    () => buildUpcomingJobs({
+      bookings: enrichedBookings,
+      services,
+      timezone: bookingData.timezone,
+      now: todayContext.now,
+      limit: 6,
+    }),
+    [enrichedBookings, services, bookingData.timezone, todayContext.now],
+  );
 
   const allPaymentsDueSoon = useMemo(() => {
     return enrichedBookings

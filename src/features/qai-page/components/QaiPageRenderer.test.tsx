@@ -37,6 +37,9 @@ describe("QaiPageRenderer", () => {
     expect(container.querySelector("[data-qai-page-root]")?.className).toContain("max-w-none");
     expect(screen.getAllByText("Nuyi Studio").length).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: "Powered by Qai" }).getAttribute("href")).toContain("utm_source=qai_page");
+    await user.click(screen.getByRole("button", { name: "Open navigation menu" }));
+    expect(screen.getAllByRole("button", { name: "Close navigation menu" })).toHaveLength(2);
+    await user.click(screen.getAllByRole("button", { name: "Close navigation menu" })[0]);
     await user.click(screen.getByRole("button", { name: "Request" }));
     expect(onChoose).toHaveBeenCalledWith(service, null);
     expect(page.services).toEqual(before);

@@ -91,7 +91,7 @@ export default function BookingRequestList({ requests, filter, onFilterChange, o
               <TableHead className="w-20 px-4 text-right">Actions</TableHead>
             </TableRow></TableHeader>
             <TableBody>{rows.map((request) => <TableRow key={request.id}>
-              <TableCell className="px-4 py-3"><p className="font-medium">{submittedLabel(request.submittedAt)}</p><p className="mt-1 font-mono text-[10px] text-muted-foreground">{request.id}</p></TableCell>
+              <TableCell className="px-4 py-3"><p className="font-medium">{submittedLabel(request.submittedAt)}</p></TableCell>
               <TableCell className="py-3 whitespace-normal"><p className="font-semibold">{request.clientName}</p><p className="mt-1 text-xs text-muted-foreground">{request.whatsapp}</p></TableCell>
               <TableCell className="py-3 whitespace-normal"><p className="font-medium">{request.serviceName}</p>{request.serviceSnapshot?.variantLabel && <p className="mt-1 text-xs text-muted-foreground">{request.serviceSnapshot.variantLabel}</p>}</TableCell>
               <TableCell className="py-3">{requestedDate(request) || "—"}<p className="mt-1 text-xs text-muted-foreground">{request.schedules.length ? `${request.schedules.length} ${request.schedules.length === 1 ? "schedule" : "schedules"}` : "Not provided"}</p></TableCell>
