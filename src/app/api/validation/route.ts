@@ -10,6 +10,8 @@ import { publicRequestSchema, defaultQaiPage, snapshotPublicServiceSelection, ty
 import { createValidationStoreRepository, ValidationStoreError, validationRequestInputSchema } from "@/features/qai-page/validationStore";
 import { availableServiceSlotsForDate, bookingCapacitySourceRequestIds, directBookingSlotCounts } from "@/features/qai-page/serviceCapacity";
 import { findServiceSlot, normalizeServiceAvailability } from "@/features/service/domain/serviceAvailability";
+import { serviceRecordSchema } from "@/features/service/schema";
+import { mergePublicServices } from "@/features/qai-page/publicServiceSync";
 import { isValidationModeEnabled } from "@/lib/supabase/config";
 import { createValidationAdminClient } from "@/lib/validation/admin";
 import { requireValidationSession } from "@/lib/validation/session";
@@ -34,12 +36,25 @@ const MESSAGES: Record<string, string> = {
   SESSION_FULL: "That time is full. Choose another available time.",
   SCHEDULE_NOT_AVAILABLE: "Choose one of the available service times.",
   CAPACITY_CLAIM_REQUIRED: "Accept this request through the capacity-checked action.",
+  CAPACITY_BACKEND_UNAVAILABLE: "Capacity checking is not ready in this workspace. Apply the pending validation migration before accepting this scheduled service.",
 };
 function failure(message: string, status = 400) { return NextResponse.json({ error: message }, { status }); }
 
 function bookingsFromDocument(value: unknown): Booking[] {
   const parsed = z.object({ data: z.array(bookingRecordSchema) }).safeParse(value);
   return parsed.success ? parsed.data.data : [];
+}
+
+function servicesFromDocument(value: unknown) {
+  const parsed = z.object({ data: z.array(serviceRecordSchema) }).safeParse(value);
+  return parsed.success ? parsed.data.data : null;
+}
+
+function materializePageServices(page: QaiPageConfig, serviceDocument: unknown, includeInactive = false): QaiPageConfig {
+  const operational = servicesFromDocument(serviceDocument);
+  return operational
+    ? { ...page, services: mergePublicServices(page.services, operational, { includeInactive }) }
+    : page;
 }
 
 function validatedAvailabilityKeys(input: {
@@ -94,33 +109,39 @@ async function remoteGet(request: NextRequest) {
   try {
     if (scope === "page") {
       const slug = request.nextUrl.searchParams.get("slug") ?? "";
-      const { data } = await admin.from("validation_public_pages").select("payload").eq("slug", slug).maybeSingle();
-      return data ? NextResponse.json({ data: qaiPageSchema.parse(data.payload) }, { headers: { "Cache-Control": "no-store" } }) : failure("This Qai Page is not available.", 404);
+      const { data } = await admin.from("validation_public_pages").select("workspace_id, payload").eq("slug", slug).maybeSingle();
+      if (!data) return failure("This Qai Page is not available.", 404);
+      const { data: serviceDocument } = await admin.from("validation_workspace_documents").select("value").eq("workspace_id", data.workspace_id).eq("storage_key", "qai:services").maybeSingle();
+      const page = materializePageServices(qaiPageSchema.parse(data.payload), serviceDocument?.value);
+      return NextResponse.json({ data: page }, { headers: { "Cache-Control": "no-store" } });
     }
     if (scope === "availability") {
       const slug = request.nextUrl.searchParams.get("slug") ?? ""; const serviceId = request.nextUrl.searchParams.get("serviceId") ?? ""; const date = request.nextUrl.searchParams.get("date") ?? ""; const variantId = request.nextUrl.searchParams.get("variantId");
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return failure("Availability could not be loaded.", 400);
       const { data: pageRow } = await admin.from("validation_public_pages").select("workspace_id, payload").eq("slug", slug).maybeSingle();
       if (!pageRow) return failure("This Qai Page is not available.", 404);
-      const page = qaiPageSchema.parse(pageRow.payload); const service = page.services.find((item) => item.serviceId === serviceId && item.visible);
-      if (!service) return failure("This service is not available.", 404);
-      const [{ data: rows }, { data: bookingDocument }] = await Promise.all([
+      const [{ data: rows }, { data: bookingDocument }, { data: serviceDocument }] = await Promise.all([
         admin.from("validation_public_requests").select("payload").eq("workspace_id", pageRow.workspace_id),
         admin.from("validation_workspace_documents").select("value").eq("workspace_id", pageRow.workspace_id).eq("storage_key", "qai:bookings").maybeSingle(),
+        admin.from("validation_workspace_documents").select("value").eq("workspace_id", pageRow.workspace_id).eq("storage_key", "qai:services").maybeSingle(),
       ]);
+      const page = materializePageServices(qaiPageSchema.parse(pageRow.payload), serviceDocument?.value);
+      const service = page.services.find((item) => item.serviceId === serviceId && item.visible);
+      if (!service) return failure("This service is not available.", 404);
       const requests = (rows ?? []).map((row) => publicRequestSchema.parse(row.payload));
       return NextResponse.json({ data: availableServiceSlotsForDate({ service, variantId, date, timezone: page.timezone, requests, bookings: bookingsFromDocument(bookingDocument?.value) }) }, { headers: { "Cache-Control": "no-store" } });
     }
     if (scope !== "owner") return failure("Unknown validation request.", 404);
     const session = await requireValidationSession();
-    const [{ data: workspace }, { data: pageRow }, { data: requestRows }] = await Promise.all([
+    const [{ data: workspace }, { data: pageRow }, { data: requestRows }, { data: serviceDocument }] = await Promise.all([
       admin.from("validation_workspaces").select("label, public_slug").eq("id", session.workspaceId).single(),
       admin.from("validation_public_pages").select("payload").eq("workspace_id", session.workspaceId).maybeSingle(),
       admin.from("validation_public_requests").select("payload").eq("workspace_id", session.workspaceId).order("created_at", { ascending: false }),
+      admin.from("validation_workspace_documents").select("value").eq("workspace_id", session.workspaceId).eq("storage_key", "qai:services").maybeSingle(),
     ]);
     if (!workspace) throw new Error("Workspace unavailable.");
     const initial: QaiPageConfig = { ...defaultQaiPage(), id: `page-${workspace.public_slug}`, slug: workspace.public_slug, businessName: workspace.label };
-    const page = pageRow ? qaiPageSchema.parse(pageRow.payload) : initial;
+    const page = materializePageServices(pageRow ? qaiPageSchema.parse(pageRow.payload) : initial, serviceDocument?.value, true);
     const requests = (requestRows ?? []).map((row) => publicRequestSchema.parse(row.payload));
     return NextResponse.json({ data: { pages: [page], requests } }, { headers: { "Cache-Control": "no-store" } });
   } catch {
@@ -140,17 +161,18 @@ async function remotePost(input: z.infer<typeof actionSchema>) {
     }
     if (input.action === "claim-request") {
       const session = await requireValidationSession();
-      const [{ data: row }, { data: pageRow }, { data: bookingDocument }] = await Promise.all([
+      const [{ data: row }, { data: pageRow }, { data: bookingDocument }, { data: serviceDocument }] = await Promise.all([
         admin.from("validation_public_requests").select("payload").eq("workspace_id", session.workspaceId).eq("id", input.requestId).maybeSingle(),
         admin.from("validation_public_pages").select("payload").eq("workspace_id", session.workspaceId).maybeSingle(),
         admin.from("validation_workspace_documents").select("value").eq("workspace_id", session.workspaceId).eq("storage_key", "qai:bookings").maybeSingle(),
+        admin.from("validation_workspace_documents").select("value").eq("workspace_id", session.workspaceId).eq("storage_key", "qai:services").maybeSingle(),
       ]);
       if (!row) throw new ValidationStoreError("REQUEST_NOT_FOUND");
       const current = publicRequestSchema.parse(row.payload);
       if (current.status === "Accepted") return NextResponse.json({ data: current });
       if (current.status === "Declined") throw new ValidationStoreError("REQUEST_DECLINED");
       if (!pageRow) throw new ValidationStoreError("PAGE_NOT_FOUND");
-      const page = qaiPageSchema.parse(pageRow.payload);
+      const page = materializePageServices(qaiPageSchema.parse(pageRow.payload), serviceDocument?.value);
       const service = page.services.find((candidate) => candidate.serviceId === current.serviceId);
       if (!service) throw new ValidationStoreError("SERVICE_NOT_AVAILABLE");
       const bookings = bookingsFromDocument(bookingDocument?.value);
@@ -162,8 +184,18 @@ async function remotePost(input: z.infer<typeof actionSchema>) {
         if (!slot || slot.endTime !== schedule.endTime) throw new ValidationStoreError("SCHEDULE_NOT_AVAILABLE");
         return { serviceId: service.serviceId, key: slot.key, date: slot.date, startTime: slot.startTime, capacity: slot.capacity, manualBlocked: slot.manualBlocked, existingBookings: directCounts.get(slot.key) ?? 0, replacedRequestIds };
       }) : [];
+      if (targetSlots.length === 0) {
+        const claimed = publicRequestSchema.parse({ ...current, status: "Accepted", updatedAt: Date.now() });
+        const { data: updatedRow, error } = await admin.from("validation_public_requests").update({ payload: claimed, updated_at: new Date().toISOString() }).eq("workspace_id", session.workspaceId).eq("id", input.requestId).select("id").maybeSingle();
+        if (error || !updatedRow) throw new ValidationStoreError("REQUEST_NOT_FOUND");
+        return NextResponse.json({ data: claimed });
+      }
       const { data: claimed, error } = await admin.rpc("claim_validation_request_capacity", { target_workspace_id: session.workspaceId, target_request_id: input.requestId, target_slots: targetSlots }).maybeSingle();
-      if (error) throw new ValidationStoreError(error.message.includes("SESSION_FULL") ? "SESSION_FULL" : "REQUEST_NOT_FOUND");
+      if (error) {
+        if (error.message.includes("SESSION_FULL")) throw new ValidationStoreError("SESSION_FULL");
+        if (error.message.includes("REQUEST_NOT_FOUND")) throw new ValidationStoreError("REQUEST_NOT_FOUND");
+        throw new ValidationStoreError("CAPACITY_BACKEND_UNAVAILABLE");
+      }
       return NextResponse.json({ data: publicRequestSchema.parse(claimed) });
     }
     if (input.action === "update-request") {
@@ -174,13 +206,15 @@ async function remotePost(input: z.infer<typeof actionSchema>) {
       if (current.status === "Declined" && input.status === "Accepted") throw new ValidationStoreError("REQUEST_DECLINED");
       if (current.status !== "Accepted" && input.status === "Accepted") throw new ValidationStoreError("CAPACITY_CLAIM_REQUIRED");
       const updated = publicRequestSchema.parse({ ...current, status: input.status, bookingId: input.bookingId, clientId: input.clientId ?? current.clientId, updatedAt: Date.now() });
-      await admin.from("validation_public_requests").update({ payload: updated, updated_at: new Date().toISOString() }).eq("workspace_id", session.workspaceId).eq("id", input.requestId);
+      const { data: updatedRow, error } = await admin.from("validation_public_requests").update({ payload: updated, updated_at: new Date().toISOString() }).eq("workspace_id", session.workspaceId).eq("id", input.requestId).select("id").maybeSingle();
+      if (error || !updatedRow) throw new ValidationStoreError("REQUEST_NOT_FOUND");
       return NextResponse.json({ data: updated });
     }
 
     const { data: pageRow } = await admin.from("validation_public_pages").select("workspace_id, payload").eq("slug", input.request.slug).maybeSingle();
     if (!pageRow) throw new ValidationStoreError("PAGE_NOT_FOUND");
-    const page = qaiPageSchema.parse(pageRow.payload);
+    const { data: serviceDocument } = await admin.from("validation_workspace_documents").select("value").eq("workspace_id", pageRow.workspace_id).eq("storage_key", "qai:services").maybeSingle();
+    const page = materializePageServices(qaiPageSchema.parse(pageRow.payload), serviceDocument?.value);
     const service = page.services.find((item) => item.serviceId === input.request.serviceId && item.visible && item.actionMode === input.request.type);
     if (!service) throw new ValidationStoreError("SERVICE_NOT_AVAILABLE");
     const activeVariants = service.variants.filter((variant) => variant.active);

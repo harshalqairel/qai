@@ -74,7 +74,7 @@ describe("operational attention", () => {
 
   it("recognizes the same actionable request states used by the owner review flow", () => {
     expect(isPendingPublicRequest(request())).toBe(true);
-    expect(isPendingPublicRequest(request({ status: "Accepted" }))).toBe(false);
+    expect(isPendingPublicRequest(request({ status: "Accepted" }))).toBe(true);
     expect(isPendingPublicRequest(request({ status: "Accepted", type: "Instant booking", bookingId: null }))).toBe(true);
     expect(isPendingPublicRequest(request({ status: "Accepted", type: "Instant booking", bookingId: "booking-1" }))).toBe(false);
   });

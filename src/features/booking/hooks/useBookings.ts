@@ -53,35 +53,48 @@ export function useBookings() {
     };
   }, [retry]);
 
-  const createBookingAndReturn = useCallback(async (command: CreateBookingCommand): Promise<Booking | null> => {
-    try {
-      const prepared = prepareBookingCreation(
-        command,
-        timezone,
-        {
-          bookingId: crypto.randomUUID(),
-          paymentId: command.initialPayment ? crypto.randomUUID() : null,
-        },
-      );
-      let savedBooking = prepared.booking;
-      if (isCloudModeEnabled()) {
-        if (prepared.initialPayment) {
-          throw new Error("Cloud booking transaction is not enabled yet.");
+  const createBookingAndReturnOrThrow = useCallback(async (command: CreateBookingCommand): Promise<Booking> => {
+    const prepared = prepareBookingCreation(
+      command,
+      timezone,
+      {
+        bookingId: crypto.randomUUID(),
+        paymentId: command.initialPayment ? crypto.randomUUID() : null,
+      },
+    );
+    let savedBooking = prepared.booking;
+    if (isCloudModeEnabled()) {
+      if (prepared.initialPayment) throw new Error("Cloud booking transaction is not enabled yet.");
+      const sourceRequestId = prepared.booking.capacitySourceRequestId;
+      const existing = sourceRequestId
+        ? (await cloudBookingRepository.getAll()).find((booking) => booking.capacitySourceRequestId === sourceRequestId)
+        : null;
+      if (existing) savedBooking = existing;
+      else {
+        try { await cloudBookingRepository.create(prepared.booking); }
+        catch (error) {
+          const concurrent = sourceRequestId
+            ? (await cloudBookingRepository.getAll()).find((booking) => booking.capacitySourceRequestId === sourceRequestId)
+            : null;
+          if (!concurrent) throw error;
+          savedBooking = concurrent;
         }
-        await cloudBookingRepository.create(prepared.booking);
-      } else {
-        savedBooking = bookingCreationRepository.create(prepared).booking;
       }
-      setBookings((prev) => prev.some((booking) => booking.id === savedBooking.id)
-        ? prev
-        : [...prev, savedBooking]);
-      emitDataRefresh();
-      void synchronizeAffectedCalendarSessions(savedBooking.sessions.map((session) => session.id));
-      return savedBooking;
-    } catch {
-      return null;
+    } else {
+      savedBooking = (await bookingCreationRepository.createAndConfirm(prepared)).booking;
     }
+    setBookings((prev) => prev.some((booking) => booking.id === savedBooking.id)
+      ? prev
+      : [...prev, savedBooking]);
+    emitDataRefresh();
+    void synchronizeAffectedCalendarSessions(savedBooking.sessions.map((session) => session.id));
+    return savedBooking;
   }, [timezone]);
+
+  const createBookingAndReturn = useCallback(async (command: CreateBookingCommand): Promise<Booking | null> => {
+    try { return await createBookingAndReturnOrThrow(command); }
+    catch { return null; }
+  }, [createBookingAndReturnOrThrow]);
 
   const createBooking = useCallback(async (command: CreateBookingCommand): Promise<boolean> => {
     return Boolean(await createBookingAndReturn(command));
@@ -168,6 +181,7 @@ export function useBookings() {
     bookings,
     createBooking,
     createBookingAndReturn,
+    createBookingAndReturnOrThrow,
     updateBooking,
     deleteBooking,
     updateAdditionalCharges,

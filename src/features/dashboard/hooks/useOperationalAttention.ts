@@ -13,7 +13,7 @@ import { validationClient, type PublicRequest } from "@/features/qai-page/valida
 import { isPaymentReminderEligible } from "@/features/reminder/reminderTransport";
 
 export function isPendingPublicRequest(request: PublicRequest): boolean {
-  return request.status === "Pending" || (request.type === "Instant booking" && !request.bookingId);
+  return request.status === "Pending" || (request.status === "Accepted" && !request.bookingId);
 }
 
 export function buildOperationalAttention(

@@ -36,6 +36,8 @@ import {
 } from "@/features/qai-page/validation";
 import { isValidationModeEnabled } from "@/lib/supabase/config";
 import { normalizeServiceAvailability } from "@/features/service/domain/serviceAvailability";
+import { useServices } from "@/features/service/hooks/useServices";
+import { mergePublicServices } from "@/features/qai-page/publicServiceSync";
 
 type FormState = {
   submissionId: string;
@@ -88,6 +90,7 @@ function PoweredByQai() {
 
 export default function PublicQaiPage() {
   const params = useParams<{ slug: string }>();
+  const operationalServices = useServices();
   const [page, setPage] = useState<QaiPageConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -120,7 +123,19 @@ export default function PublicQaiPage() {
     return () => { document.body.style.overflow = previous; };
   }, [selected]);
 
-  const services = useMemo(() => page?.services.filter((item) => item.visible).sort((left, right) => left.position - right.position) ?? [], [page]);
+  const synchronizedPageServices = useMemo(() => {
+    if (!page) return [];
+    return !isValidationModeEnabled() && !operationalServices.isLoading
+      ? mergePublicServices(page.services, operationalServices.services)
+      : page.services;
+  }, [operationalServices.isLoading, operationalServices.services, page]);
+  useEffect(() => {
+    if (!page || isValidationModeEnabled() || operationalServices.isLoading) return;
+    if (JSON.stringify(page.services) === JSON.stringify(synchronizedPageServices)) return;
+    const synchronizedPage = { ...page, services: synchronizedPageServices, updatedAt: Date.now() };
+    void validationClient.savePage(synchronizedPage).then(setPage).catch(() => undefined);
+  }, [operationalServices.isLoading, page, synchronizedPageServices]);
+  const services = useMemo(() => synchronizedPageServices.filter((item) => item.visible).sort((left, right) => left.position - right.position), [synchronizedPageServices]);
   const portfolio = useMemo(() => [...(page?.portfolio ?? [])].filter((item) => item.visible).sort((left, right) => left.position - right.position), [page]);
 
   function choose(service: PublicService, variantId: string | null) {

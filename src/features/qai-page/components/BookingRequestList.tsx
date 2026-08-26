@@ -35,10 +35,21 @@ function requestStatusTone(status: PublicRequest["status"]): "success" | "warnin
   return status === "Accepted" ? "success" : status === "Declined" ? "danger" : "warning";
 }
 
+function awaitingBooking(request: PublicRequest): boolean {
+  return request.status === "Pending" || (request.status === "Accepted" && !request.bookingId);
+}
+
+function displayedStatus(request: PublicRequest): { label: string; tone: "success" | "warning" | "danger" } {
+  return request.status === "Accepted" && !request.bookingId
+    ? { label: "Needs completion", tone: "warning" }
+    : { label: request.status, tone: requestStatusTone(request.status) };
+}
+
 export default function BookingRequestList({ requests, filter, onFilterChange, onRefresh, onAccept, onReview, onDecline }: Props) {
   const [sort, setSort] = useState<RequestSort>("submitted-desc");
   const rows = useMemo(() => {
-    const visible = requests.filter((request) => filter === "All" || request.status === filter);
+    const visible = requests.filter((request) => filter === "All"
+      || (filter === "Pending" ? awaitingBooking(request) : filter === "Accepted" ? request.status === "Accepted" && Boolean(request.bookingId) : request.status === filter));
     switch (sort) {
       case "submitted-asc": return visible.sort((a, b) => a.submittedAt - b.submittedAt);
       case "client-asc": return visible.sort((a, b) => a.clientName.localeCompare(b.clientName));
@@ -74,7 +85,7 @@ export default function BookingRequestList({ requests, filter, onFilterChange, o
       </div>
       <div className="filter-bar flex-col lg:flex-row lg:items-center">
         <div className="grid w-full grid-cols-4 gap-1 lg:flex lg:flex-1 lg:gap-2" role="group" aria-label="Request status filter">
-          {(["Pending", "Accepted", "Declined", "All"] as const).map((status) => <button key={status} type="button" onClick={() => onFilterChange(status)} className={`min-h-10 min-w-0 rounded-lg px-1 text-xs font-semibold sm:px-3 sm:text-sm ${filter === status ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-muted"}`}>{status} <span className="ml-0.5 tabular-nums sm:ml-1">{status === "All" ? requests.length : requests.filter((request) => request.status === status).length}</span></button>)}
+          {(["Pending", "Accepted", "Declined", "All"] as const).map((status) => <button key={status} type="button" onClick={() => onFilterChange(status)} className={`min-h-10 min-w-0 rounded-lg px-1 text-xs font-semibold sm:px-3 sm:text-sm ${filter === status ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-muted"}`}>{status} <span className="ml-0.5 tabular-nums sm:ml-1">{status === "All" ? requests.length : status === "Pending" ? requests.filter(awaitingBooking).length : status === "Accepted" ? requests.filter((request) => request.status === "Accepted" && Boolean(request.bookingId)).length : requests.filter((request) => request.status === status).length}</span></button>)}
         </div>
         <ListSortControl className="w-full lg:w-56" value={sort} onChange={setSort} options={[{ value: "submitted-desc", label: "Submitted · latest" }, { value: "submitted-asc", label: "Submitted · earliest" }, { value: "client-asc", label: "Client · A–Z" }, { value: "service-asc", label: "Service · A–Z" }, { value: "date-asc", label: "Requested date · earliest" }, { value: "status-asc", label: "Status · A–Z" }]} />
       </div>
@@ -90,17 +101,17 @@ export default function BookingRequestList({ requests, filter, onFilterChange, o
               <SortableTableHeader label="Status" sort={sort} ascending="status-asc" descending="status-desc" onSortChange={setSort} />
               <TableHead className="w-20 px-4 text-right">Actions</TableHead>
             </TableRow></TableHeader>
-            <TableBody>{rows.map((request) => <TableRow key={request.id}>
+            <TableBody>{rows.map((request) => { const status = displayedStatus(request); return <TableRow key={request.id}>
               <TableCell className="px-4 py-3"><p className="font-medium">{submittedLabel(request.submittedAt)}</p></TableCell>
               <TableCell className="py-3 whitespace-normal"><p className="font-semibold">{request.clientName}</p><p className="mt-1 text-xs text-muted-foreground">{request.whatsapp}</p></TableCell>
               <TableCell className="py-3 whitespace-normal"><p className="font-medium">{request.serviceName}</p>{request.serviceSnapshot?.variantLabel && <p className="mt-1 text-xs text-muted-foreground">{request.serviceSnapshot.variantLabel}</p>}</TableCell>
               <TableCell className="py-3">{requestedDate(request) || "—"}<p className="mt-1 text-xs text-muted-foreground">{request.schedules.length ? `${request.schedules.length} ${request.schedules.length === 1 ? "schedule" : "schedules"}` : "Not provided"}</p></TableCell>
-              <TableCell className="py-3"><StatusBadge tone={requestStatusTone(request.status)}>{request.status}</StatusBadge><p className="mt-1 text-xs text-muted-foreground">{request.type}</p></TableCell>
+              <TableCell className="py-3"><StatusBadge tone={status.tone}>{status.label}</StatusBadge><p className="mt-1 text-xs text-muted-foreground">{request.type}</p></TableCell>
               <TableCell className="px-4 py-2 text-right"><RowActionsMenu recordLabel={`${request.clientName}'s request`} actions={actions(request)} /></TableCell>
-            </TableRow>)}</TableBody>
+            </TableRow>; })}</TableBody>
           </Table>
         </div>
-        <div className="space-y-3 xl:hidden">{rows.map((request) => <article key={request.id} className="surface-card p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{request.clientName}</h3><StatusBadge tone={requestStatusTone(request.status)}>{request.status}</StatusBadge></div><p className="mt-1 truncate text-sm text-muted-foreground">{request.serviceName}{request.serviceSnapshot?.variantLabel ? ` · ${request.serviceSnapshot.variantLabel}` : ""}</p></div><RowActionsMenu recordLabel={`${request.clientName}'s request`} actions={actions(request)} /></div><dl className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-3 text-sm"><div><dt className="text-xs text-muted-foreground">Submitted</dt><dd className="mt-1 font-medium">{submittedLabel(request.submittedAt)}</dd></div><div><dt className="text-xs text-muted-foreground">Requested</dt><dd className="mt-1 font-medium">{requestedDate(request) || "Not provided"}</dd></div></dl>{(request.need || request.notes) && <p className="mt-3 line-clamp-3 rounded-lg bg-muted/45 p-3 text-sm">{[request.need, request.notes].filter(Boolean).join(" · ")}</p>}</article>)}</div>
+        <div className="space-y-3 xl:hidden">{rows.map((request) => { const status = displayedStatus(request); return <article key={request.id} className="surface-card p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{request.clientName}</h3><StatusBadge tone={status.tone}>{status.label}</StatusBadge></div><p className="mt-1 truncate text-sm text-muted-foreground">{request.serviceName}{request.serviceSnapshot?.variantLabel ? ` · ${request.serviceSnapshot.variantLabel}` : ""}</p></div><RowActionsMenu recordLabel={`${request.clientName}'s request`} actions={actions(request)} /></div><dl className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-3 text-sm"><div><dt className="text-xs text-muted-foreground">Submitted</dt><dd className="mt-1 font-medium">{submittedLabel(request.submittedAt)}</dd></div><div><dt className="text-xs text-muted-foreground">Requested</dt><dd className="mt-1 font-medium">{requestedDate(request) || "Not provided"}</dd></div></dl>{(request.need || request.notes) && <p className="mt-3 line-clamp-3 rounded-lg bg-muted/45 p-3 text-sm">{[request.need, request.notes].filter(Boolean).join(" · ")}</p>}</article>; })}</div>
       </>}
     </section>
   );

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CreateBookingCommand } from "@/features/booking/types";
 import { bookingCreationRepository } from "@/features/booking/api/bookingCreationRepository";
 import { bookingRepository } from "@/features/booking/api/bookingRepository";
@@ -66,6 +66,8 @@ function prepared(amount: number | null = 2_000_000) {
 }
 
 afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
   Reflect.deleteProperty(globalThis, "window");
 });
 
@@ -187,5 +189,35 @@ describe("booking creation with optional initial payment", () => {
     expect(bookingRepository.getAll()).toHaveLength(1);
     expect(bookingRepository.getAll()[0].sessions).toHaveLength(3);
     expect(paymentRepository.getAll()).toHaveLength(1);
+  });
+
+  it("waits for validation-workspace confirmation before reporting a Booking saved", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "test-publishable-key");
+    vi.stubEnv("NEXT_PUBLIC_QAI_VALIDATION_ENABLED", "true");
+    const storage = new MemoryStorage();
+    vi.stubGlobal("window", { localStorage: storage });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { saved: 3 } }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(bookingCreationRepository.createAndConfirm(prepared(null))).resolves.toMatchObject({ created: true, booking: { id: "booking-1" } });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as { documents: Array<{ storageKey: string }> };
+    expect(body.documents.map((document) => document.storageKey)).toEqual([BOOKING_STORAGE_KEY, PAYMENT_STORAGE_KEY, BOOKING_CREATION_RECEIPT_STORAGE_KEY]);
+    expect(bookingRepository.getAll()).toHaveLength(1);
+  });
+
+  it("rolls back Booking and receipt data when validation-workspace confirmation fails", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "test-publishable-key");
+    vi.stubEnv("NEXT_PUBLIC_QAI_VALIDATION_ENABLED", "true");
+    const storage = new MemoryStorage();
+    vi.stubGlobal("window", { localStorage: storage });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: "failed" }), { status: 500 })));
+
+    await expect(bookingCreationRepository.createAndConfirm(prepared(null))).rejects.toMatchObject({ stage: "remote-confirmation" });
+    expect(storage.getItem(BOOKING_STORAGE_KEY)).toBeNull();
+    expect(storage.getItem(PAYMENT_STORAGE_KEY)).toBeNull();
+    expect(storage.getItem(BOOKING_CREATION_RECEIPT_STORAGE_KEY)).toBeNull();
   });
 });

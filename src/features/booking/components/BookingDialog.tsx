@@ -671,7 +671,8 @@ export default function BookingDialog({
 
         {!booking && startMode !== "manual" ? (
           <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-8"><BookingCreationStart mode={startMode} customers={customers} services={services} onModeChange={setStartMode} onReview={reviewParsedBooking} /></div>
-        ) : <form
+        ) : <><form
+          id="booking-details-form"
           onSubmit={handleSubmit(onSubmit)}
           className="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-y-auto p-5 sm:p-8 lg:grid-cols-12 lg:items-start"
         >
@@ -1232,15 +1233,16 @@ export default function BookingDialog({
             </div>
           )}
 
-          <div className="sticky bottom-0 z-10 -mx-5 -mb-5 mt-2 flex gap-3 border-t border-border bg-white/95 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 backdrop-blur sm:-mx-8 sm:-mb-8 sm:justify-end sm:px-8 sm:pb-8 lg:col-span-12">
+        </form>
+          <footer className="z-10 flex shrink-0 gap-3 border-t border-border bg-white/95 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 backdrop-blur sm:justify-end sm:px-8 sm:pb-5">
             <Button type="button" variant="outline" className="flex-1 sm:flex-none" disabled={action.pending} onClick={handleClose}>
               Cancel
             </Button>
-            <ActionButton type="submit" className="flex-1 sm:flex-none" loading={action.pending || isSubmitting} loadingText={booking ? "Updating…" : "Saving…"}>
+            <ActionButton form="booking-details-form" type="submit" className="flex-1 sm:flex-none" loading={action.pending || isSubmitting} loadingText={booking ? "Updating…" : "Saving…"}>
               {booking ? "Save changes" : "Add booking"}
             </ActionButton>
-          </div>
-        </form>}
+          </footer>
+        </>}
       </div>
     </div>
   );

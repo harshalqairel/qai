@@ -12,7 +12,7 @@ import type { BookingFormValues } from "@/features/booking/types";
 import { zonedDateTimeToIso } from "@/features/booking/utils/bookingSessions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { EditableNumberInput } from "@/components/ui/editable-number-input";
+import { MoneyInput } from "@/components/ui/money-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useBookings } from "@/features/booking/hooks/useBookings";
@@ -28,6 +28,8 @@ import PortfolioEditor from "@/features/qai-page/components/PortfolioEditor";
 import BookingRequestList from "@/features/qai-page/components/BookingRequestList";
 import { rejectionWhatsAppUrl, renderRejectionMessage } from "@/features/qai-page/rejectionMessage";
 import { normalizeSocialProfile } from "@/features/qai-page/socialProfiles";
+import { mergePublicServices, updatePublicServiceOrder } from "@/features/qai-page/publicServiceSync";
+import { convertRequestToBooking } from "@/features/qai-page/requestConversion";
 import {
   defaultQaiPage,
   normalizeSlug,
@@ -72,26 +74,6 @@ async function readImage(file: File | undefined, kind: "page-logo" | "page-cover
   try { const uploaded = await validationClient.uploadMedia(file, kind); onLoad(uploaded.url); } catch (error) { notify.error(error instanceof Error ? error.message : "Could not upload that image."); }
 }
 
-function publicServiceFromRecord(service: (ReturnType<typeof useServices>)["services"][number], existing?: PublicService, position = 0): PublicService {
-  return {
-    serviceId: service.id,
-    visible: existing?.visible ?? false,
-    title: existing?.title ?? service.name,
-    description: existing?.description ?? service.description,
-    price: existing?.price ?? service.price,
-    priceMode: existing?.priceMode ?? "Fixed price",
-    actionMode: existing?.actionMode ?? "Booking request",
-    durationMinutes: service.duration,
-    defaultSessionCount: service.defaultSessionCount,
-    locationPolicy: service.locationPolicy ?? "Client can choose",
-    optionGroups: service.optionGroups ?? [],
-    variants: service.variants ?? [],
-    availability: service.availability ?? { mode: "Flexible", capacityMode: "One booking", defaultCapacity: 1, recurringTimes: [], datedSessions: [], overrides: [] },
-    position: existing ? (existing.position || position) : position,
-    featured: existing?.featured ?? false,
-  };
-}
-
 export default function QaiPageOwner() {
   return (
     <Suspense fallback={<main className="min-h-screen"><div className="page-shell"><div className="surface-card min-h-64 animate-pulse" /></div></main>}>
@@ -122,18 +104,13 @@ function QaiPageOwnerContent() {
   }, []);
   useEffect(() => { const initial = window.setTimeout(() => { void load(); }, 0); const timer = window.setInterval(() => { void load(false); }, 4000); return () => { window.clearTimeout(initial); window.clearInterval(timer); }; }, [load]);
 
-  const configuredServices = useMemo(() => serviceData.services.map((service, position) => publicServiceFromRecord(service, page.services.find((item) => item.serviceId === service.id), position)).sort((left, right) => left.position - right.position), [serviceData.services, page.services]);
-  const pendingCount = requests.filter((item) => item.status === "Pending" || (item.type === "Instant booking" && !item.bookingId)).length;
+  const configuredServices = useMemo(() => serviceData.isLoading ? page.services : mergePublicServices(page.services, serviceData.services, { includeInactive: true }), [serviceData.isLoading, serviceData.services, page.services]);
+  const pendingCount = requests.filter((item) => item.status === "Pending" || (item.status === "Accepted" && !item.bookingId)).length;
   const themeIssues = qaiPageThemeIssues(page.style);
   const tiktokInvalid = page.tiktok.trim().length > 0 && normalizeSocialProfile("tiktok", page.tiktok) === null;
   function updateService(service: PublicService) { setPage((current) => ({ ...current, services: current.services.some((item) => item.serviceId === service.serviceId) ? current.services.map((item) => item.serviceId === service.serviceId ? service : item) : [...current.services, service] })); }
   function movePublicService(serviceId: string, direction: -1 | 1) {
-    const ordered = [...configuredServices].sort((left, right) => left.position - right.position);
-    const index = ordered.findIndex((service) => service.serviceId === serviceId);
-    const target = index + direction;
-    if (index < 0 || target < 0 || target >= ordered.length) return;
-    [ordered[index], ordered[target]] = [ordered[target], ordered[index]];
-    setPage((current) => ({ ...current, services: ordered.map((service, position) => ({ ...service, position })) }));
+    setPage((current) => ({ ...current, services: updatePublicServiceOrder(configuredServices, serviceId, direction) }));
   }
   function applyTone(tone: QaiPageConfig["style"]["tone"]) {
     setPage((current) => ({
@@ -173,10 +150,21 @@ function QaiPageOwnerContent() {
     if (request.bookingId) return notify.info("This request already has a booking.");
     const client = await ensureClient(request); if (!client) return notify.error("Could not create or reuse the client.");
     const values = bookingValues(request, client.id); if (!values) return notify.error("The original service is no longer available.");
-    try { await validationClient.claimRequest(request.id); } catch (error) { return notify.error(error instanceof Error ? error.message : "That time is no longer available."); }
-    const booking = await bookingData.createBookingAndReturn({ requestId: `qai-page:${request.id}`, booking: values, initialPayment: null });
-    if (!booking) { await validationClient.updateRequest(request.id, "Pending", null, client.id).catch(() => undefined); return notify.error("Could not create the booking."); }
-    try { await validationClient.updateRequest(request.id, "Accepted", booking.id, client.id); await load(); notify.success("Request accepted and booking created."); } catch (error) { notify.error(error instanceof Error ? error.message : "Booking created, but the request could not be updated."); }
+    try {
+      await convertRequestToBooking({
+        requestId: request.id,
+        clientId: client.id,
+        claimRequest: validationClient.claimRequest,
+        createBooking: (requestId) => bookingData.createBookingAndReturnOrThrow({ requestId, booking: values, initialPayment: null }),
+        linkRequest: (requestId, bookingId, clientId) => validationClient.updateRequest(requestId, "Accepted", bookingId, clientId),
+        releaseClaim: (requestId, clientId) => validationClient.updateRequest(requestId, "Pending", null, clientId),
+      });
+      await load();
+      notify.success("Request accepted and booking created.");
+    } catch (error) {
+      await load(false);
+      notify.error(error instanceof Error ? error.message : "Could not create the booking.");
+    }
   }
   async function editAndAccept(request: PublicRequest) {
     if (request.bookingId) return notify.info("This request already has a booking.");
@@ -227,18 +215,21 @@ function QaiPageOwnerContent() {
       <header><h2 className="section-title">Public services</h2><p className="mt-1 text-sm text-muted-foreground">Choose what customers can see and how each service accepts work.</p></header>
       {configuredServices.length === 0 ? (
         <div className="empty-state"><p className="empty-title">No services to publish</p><p className="mt-2 text-sm text-muted-foreground">Add a Service first, then return here.</p></div>
-      ) : configuredServices.map((service) => (
-        <article key={service.serviceId} className="surface-card p-5 sm:p-6">
-          <div className="flex flex-wrap items-start justify-between gap-4"><div><h3 className="font-semibold">{service.title}</h3><p className="mt-1 text-sm text-muted-foreground">{publicPriceLabel(service)} · {publicActionLabel(service.actionMode)}{service.variants.length ? ` · ${service.variants.filter((variant) => variant.active).length} choices` : ""}</p></div><div className="flex flex-wrap items-center gap-2"><label className="flex min-h-10 items-center gap-2 text-sm font-semibold"><input type="checkbox" className="size-4" checked={service.featured} onChange={(event) => updateService({ ...service, featured: event.target.checked })} /> Featured</label><label className="flex min-h-10 items-center gap-2 text-sm font-semibold"><input type="checkbox" className="size-4" checked={service.visible} onChange={(event) => updateService({ ...service, visible: event.target.checked })} /> Show</label><Button type="button" size="icon-sm" variant="outline" aria-label={`Move ${service.title} earlier`} disabled={service.position === 0} onClick={() => movePublicService(service.serviceId, -1)}><ArrowUp className="size-4" /></Button><Button type="button" size="icon-sm" variant="outline" aria-label={`Move ${service.title} later`} disabled={service.position === configuredServices.length - 1} onClick={() => movePublicService(service.serviceId, 1)}><ArrowDown className="size-4" /></Button></div></div>
+      ) : configuredServices.map((service) => {
+        const operational = serviceData.services.find((item) => item.id === service.serviceId);
+        const inactive = !operational?.active;
+        return <article key={service.serviceId} className="surface-card p-5 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-4"><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{service.title}</h3>{inactive && <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">Inactive</span>}</div><p className="mt-1 text-sm text-muted-foreground">{publicPriceLabel(service)} · {publicActionLabel(service.actionMode)}{service.variants.length ? ` · ${service.variants.filter((variant) => variant.active).length} choices` : ""}</p></div><div className="flex flex-wrap items-center gap-2"><label className="flex min-h-10 items-center gap-2 text-sm font-semibold"><input type="checkbox" className="size-4" checked={service.featured} onChange={(event) => updateService({ ...service, featured: event.target.checked })} /> Featured</label><label className="flex min-h-10 items-center gap-2 text-sm font-semibold"><input type="checkbox" className="size-4" checked={service.visible} disabled={inactive} onChange={(event) => updateService({ ...service, visible: event.target.checked })} /> Show</label><Button type="button" size="icon-sm" variant="outline" aria-label={`Move ${service.title} earlier`} disabled={service.position === 0} onClick={() => movePublicService(service.serviceId, -1)}><ArrowUp className="size-4" /></Button><Button type="button" size="icon-sm" variant="outline" aria-label={`Move ${service.title} later`} disabled={service.position === configuredServices.length - 1} onClick={() => movePublicService(service.serviceId, 1)}><ArrowDown className="size-4" /></Button></div></div>
+          {inactive && <p className="mt-4 rounded-lg bg-muted p-3 text-sm text-muted-foreground">Inactive Services stay hidden from the public page. Reactivate this Service from Services to publish it again.</p>}
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            <Field label="Public title"><Input value={service.title} onChange={(event) => updateService({ ...service, title: event.target.value })} /></Field>
-            <Field label="Price"><EditableNumberInput min="0" inputMode="numeric" value={service.price} onValueChange={(price) => updateService({ ...service, price })} /></Field>
-            <div className="sm:col-span-2"><Field label="Public description"><Textarea rows={3} value={service.description} onChange={(event) => updateService({ ...service, description: event.target.value })} /></Field></div>
+            <Field label="Public title"><select className="native-control mb-2" aria-label={`Title source for ${service.title}`} value={service.titleSource ?? "Service"} onChange={(event) => updateService({ ...service, titleSource: event.target.value as PublicService["titleSource"], title: event.target.value === "Service" ? operational?.name ?? service.title : service.title })}><option value="Service">Use Service name</option><option value="Custom">Custom public title</option></select><Input value={service.title} disabled={service.titleSource !== "Custom"} onChange={(event) => updateService({ ...service, titleSource: "Custom", title: event.target.value })} /></Field>
+            <Field label="Public price"><select className="native-control mb-2" aria-label={`Price source for ${service.title}`} value={service.priceSource ?? "Service"} onChange={(event) => updateService({ ...service, priceSource: event.target.value as PublicService["priceSource"], price: event.target.value === "Service" ? operational?.price ?? service.price : service.price })}><option value="Service">Use Service price</option><option value="Custom">Custom public price</option></select><MoneyInput aria-label={`Public price for ${service.title}`} value={service.price} disabled={service.priceSource !== "Custom"} onChange={(price) => updateService({ ...service, priceSource: "Custom", price })} /></Field>
+            <div className="sm:col-span-2"><p className="text-sm font-semibold">Description</p><p className="mt-2 whitespace-pre-wrap rounded-lg bg-muted/60 p-3 text-sm leading-6 text-muted-foreground">{service.description || "No description. Add one from Services."}</p><p className="mt-2 text-xs text-muted-foreground">Name, description, duration, choices, availability, and capacity stay synchronized with the Service record.</p></div>
             <Field label="Price display"><select className="native-control" value={service.priceMode} onChange={(event) => updateService({ ...service, priceMode: event.target.value as PublicService["priceMode"] })}><option>Fixed price</option><option>Starting from</option><option>Ask for price</option></select></Field>
             <Field label="Customer action"><select className="native-control" value={service.actionMode} onChange={(event) => updateService({ ...service, actionMode: event.target.value as PublicService["actionMode"] })}><option>Booking request</option><option>Inquiry</option><option>Instant booking</option></select></Field>
           </div>
-        </article>
-      ))}
+        </article>;
+      })}
       {configuredServices.some((item) => item.actionMode === "Instant booking") && <section className="surface-card p-5 sm:p-6"><h2 className="section-title">Instant booking times</h2><p className="mt-1 text-sm text-muted-foreground">Publish only times you are ready to confirm immediately.</p><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5"><select className="native-control" value={slotDraft.serviceId} onChange={(event) => setSlotDraft({ ...slotDraft, serviceId: event.target.value })}><option value="">Choose service</option>{configuredServices.filter((item) => item.actionMode === "Instant booking").map((item) => <option key={item.serviceId} value={item.serviceId}>{item.title}</option>)}</select><Input type="date" value={slotDraft.date} onChange={(event) => setSlotDraft({ ...slotDraft, date: event.target.value })} /><Input type="time" value={slotDraft.startTime} onChange={(event) => setSlotDraft({ ...slotDraft, startTime: event.target.value })} /><Input type="time" value={slotDraft.endTime} onChange={(event) => setSlotDraft({ ...slotDraft, endTime: event.target.value })} /><Button type="button" onClick={addSlot}><Plus className="size-4" /> Add time</Button></div><Input className="mt-3" placeholder="Location (optional)" value={slotDraft.location} onChange={(event) => setSlotDraft({ ...slotDraft, location: event.target.value })} /><div className="mt-4 space-y-2">{page.slots.length === 0 ? <p className="text-sm text-muted-foreground">No available times right now.</p> : page.slots.map((slot) => { const service = configuredServices.find((item) => item.serviceId === slot.serviceId); return <div key={slot.id} className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold">{service?.title ?? "Service"}</p><p className="mt-1 text-sm text-muted-foreground">{new Date(slot.startAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: bookingData.timezone })} · {slot.status}</p></div>{slot.status === "Available" && <Button variant="ghost" size="sm" onClick={() => setPage({ ...page, slots: page.slots.filter((item) => item.id !== slot.id) })}><Trash2 className="size-4" /> Remove</Button>}</div>; })}</div></section>}
     </div>}
     {tab === "Requests" && <BookingRequestList requests={requests} filter={requestFilter} onFilterChange={setRequestFilter} onRefresh={() => void load()} onAccept={(request) => void accept(request)} onReview={(request) => void editAndAccept(request)} onDecline={decline} />}
@@ -247,7 +238,26 @@ function QaiPageOwnerContent() {
     {tab !== "Requests" && tab !== "Preview" && <aside className="hidden min-w-0 xl:sticky xl:top-6 xl:block"><section className="surface-card overflow-hidden"><div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3"><div><p className="section-kicker">Live preview</p><p className="mt-1 text-sm font-semibold">Same renderer as your public page</p></div><Button type="button" size="sm" variant="outline" onClick={() => setTab("Preview")}><Eye className="size-4" /> Full preview</Button></div><div className="max-h-[calc(100dvh-10rem)] overflow-y-auto bg-muted p-3"><div className="overflow-hidden bg-white shadow-sm"><QaiPageRenderer page={{ ...page, services: configuredServices }} services={configuredServices.filter((item) => item.visible)} portfolio={[...page.portfolio].filter((item) => item.visible).sort((a, b) => a.position - b.position)} preview /></div></div></section></aside>}
     </div>
   </div>
-  <BookingDialog open={bookingDialogOpen} booking={null} initialValues={bookingInitial} customers={customerData.customers} services={serviceData.services} payments={paymentData.payments} expenses={expenseData.expenses} timezone={bookingData.timezone} onClose={() => { setBookingDialogOpen(false); setActiveRequest(null); }} onCreate={async (command) => { if (!activeRequest) return false; try { await validationClient.claimRequest(activeRequest.id); } catch (error) { notify.error(error instanceof Error ? error.message : "That time is no longer available."); return false; } const booking = await bookingData.createBookingAndReturn({ ...command, requestId: `qai-page:${activeRequest.id}` }); if (!booking) { await validationClient.updateRequest(activeRequest.id, "Pending", null, command.booking.customerId).catch(() => undefined); return false; } try { await validationClient.updateRequest(activeRequest.id, "Accepted", booking.id, command.booking.customerId); setBookingDialogOpen(false); setActiveRequest(null); await load(); return true; } catch { return false; } }} onUpdate={async () => false} onAddPaymentClick={() => undefined} onEditPaymentClick={() => undefined} onDeletePayment={async () => false} onQuickCreateCustomer={customerData.createCustomerAndReturn} onQuickCreateService={serviceData.createServiceAndReturn} />
+  <BookingDialog open={bookingDialogOpen} booking={null} initialValues={bookingInitial} customers={customerData.customers} services={serviceData.services} payments={paymentData.payments} expenses={expenseData.expenses} timezone={bookingData.timezone} onClose={() => { setBookingDialogOpen(false); setActiveRequest(null); }} onCreate={async (command) => {
+    if (!activeRequest) return false;
+    try {
+      await convertRequestToBooking({
+        requestId: activeRequest.id,
+        clientId: command.booking.customerId,
+        claimRequest: validationClient.claimRequest,
+        createBooking: (requestId) => bookingData.createBookingAndReturnOrThrow({ ...command, requestId }),
+        linkRequest: (requestId, bookingId, clientId) => validationClient.updateRequest(requestId, "Accepted", bookingId, clientId),
+        releaseClaim: (requestId, clientId) => validationClient.updateRequest(requestId, "Pending", null, clientId),
+      });
+      setBookingDialogOpen(false);
+      setActiveRequest(null);
+      await load();
+      return true;
+    } catch {
+      await load(false);
+      return false;
+    }
+  }} onUpdate={async () => false} onAddPaymentClick={() => undefined} onEditPaymentClick={() => undefined} onDeletePayment={async () => false} onQuickCreateCustomer={customerData.createCustomerAndReturn} onQuickCreateService={serviceData.createServiceAndReturn} />
   {declineTarget && <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/45 p-0 backdrop-blur-sm sm:items-center sm:p-4" onMouseDown={(event) => { if (event.target === event.currentTarget && !declinePending) setDeclineTarget(null); }}><section role="dialog" aria-modal="true" aria-labelledby="decline-request-heading" className="w-full max-w-xl rounded-t-2xl border border-border bg-card p-5 shadow-2xl sm:rounded-2xl sm:p-6"><div className="flex items-start justify-between gap-4"><div><h2 id="decline-request-heading" className="section-title">Decline {declineTarget.clientName}’s request?</h2><p className="mt-1 text-sm text-muted-foreground">The request stays in history. WhatsApp is optional and never sent automatically.</p></div><Button type="button" variant="ghost" size="icon" aria-label="Close decline dialog" disabled={declinePending} onClick={() => setDeclineTarget(null)}><X className="size-5" /></Button></div><div className="mt-5"><Field label="WhatsApp message"><Textarea rows={8} value={declineMessage} onChange={(event) => setDeclineMessage(event.target.value)} /></Field></div><div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" disabled={declinePending} onClick={() => setDeclineTarget(null)}>Cancel</Button><Button type="button" variant="outline" disabled={declinePending} onClick={() => void confirmDecline(false)}>Decline only</Button><Button type="button" variant="destructive" disabled={declinePending || !rejectionWhatsAppUrl(declineTarget.whatsapp, declineMessage)} onClick={() => void confirmDecline(true)}><MessageCircle className="size-4" />Decline &amp; open WhatsApp</Button></div></section></div>}
   </main>;
 }

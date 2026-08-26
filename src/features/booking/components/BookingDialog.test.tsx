@@ -74,6 +74,15 @@ async function chooseNewService(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("BookingDialog service changes", () => {
+  it("keeps actions outside the single scrollable form body", () => {
+    renderDialog();
+    const form = document.querySelector("#booking-details-form");
+    const save = screen.getByRole("button", { name: "Save changes" });
+    expect(form?.className).toContain("overflow-y-auto");
+    expect(save.closest("form")).toBeNull();
+    expect(save.getAttribute("form")).toBe("booking-details-form");
+  });
+
   it("changes an existing service, clears the old option snapshot, and preserves schedules", async () => {
     const user = userEvent.setup();
     const onUpdate = renderDialog();

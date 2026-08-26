@@ -54,4 +54,17 @@ describe("BookingRequestList", () => {
     await user.click(screen.getByRole("menuitem", { name: "Review & accept" }));
     expect(onReview).toHaveBeenCalledWith(request);
   });
+
+  it("keeps an accepted request without a Booking in the retryable queue", async () => {
+    const user = userEvent.setup();
+    const onReview = vi.fn();
+    const needsCompletion = { ...request, status: "Accepted" as const };
+    render(<BookingRequestList requests={[needsCompletion]} filter="Pending" onFilterChange={vi.fn()} onRefresh={vi.fn()} onAccept={vi.fn()} onReview={onReview} onDecline={vi.fn()} />);
+
+    expect(screen.getAllByText("Needs completion").length).toBeGreaterThan(0);
+    const menus = screen.getAllByRole("button", { name: "Actions for Alya's request" });
+    await user.click(menus[0]);
+    await user.click(screen.getByRole("menuitem", { name: "Review & accept" }));
+    expect(onReview).toHaveBeenCalledWith(needsCompletion);
+  });
 });
