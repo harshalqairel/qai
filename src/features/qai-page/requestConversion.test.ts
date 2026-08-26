@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Booking } from "@/features/booking/types";
-import { convertRequestToBooking, RequestConversionError } from "./requestConversion";
+import { convertRequestToBooking, requestConversionCapabilityMessage, RequestConversionError } from "./requestConversion";
 
 const booking = { id: "booking-1" } as Booking;
 
@@ -17,6 +17,30 @@ function dependencies(overrides: Partial<Parameters<typeof convertRequestToBooki
 }
 
 describe("Qai Page request conversion", () => {
+  it("keeps flexible Services independent from managed availability infrastructure", () => {
+    expect(requestConversionCapabilityMessage({
+      managedAvailability: false,
+      capabilities: { supportsManagedAvailability: false, supportsRequestBookingIdempotency: false, status: "migration-required" },
+      includeValidationDetail: true,
+    })).toBeNull();
+  });
+
+  it("blocks managed conversion before the dialog when the workspace migration is missing", () => {
+    expect(requestConversionCapabilityMessage({
+      managedAvailability: true,
+      capabilities: { supportsManagedAvailability: false, supportsRequestBookingIdempotency: false, status: "migration-required" },
+      includeValidationDetail: true,
+    })).toContain("Required database migration: 202608250001");
+  });
+
+  it("does not mislabel a capability-check failure as a missing migration", () => {
+    expect(requestConversionCapabilityMessage({
+      managedAvailability: true,
+      capabilities: { supportsManagedAvailability: false, supportsRequestBookingIdempotency: false, status: "check-failed" },
+      includeValidationDetail: true,
+    })).toBe("Qai could not verify booking availability for this workspace. Refresh and try again.");
+  });
+
   it("uses the exact request id for claim, idempotent Booking creation, and final link", async () => {
     const deps = dependencies();
     await expect(convertRequestToBooking(deps)).resolves.toBe(booking);

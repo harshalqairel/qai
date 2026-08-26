@@ -1,4 +1,6 @@
 import type { Booking } from "@/features/booking/types";
+import type { ValidationBackendCapabilities } from "@/features/qai-page/backendCapabilities";
+import { VALIDATION_MANAGED_AVAILABILITY_MIGRATION } from "@/features/qai-page/backendCapabilities";
 
 export type RequestConversionDependencies = {
   requestId: string;
@@ -19,6 +21,21 @@ export class RequestConversionError extends Error {
     this.code = code;
     this.booking = booking;
   }
+}
+
+export function requestConversionCapabilityMessage(input: {
+  managedAvailability: boolean;
+  capabilities: ValidationBackendCapabilities;
+  includeValidationDetail: boolean;
+}): string | null {
+  if (!input.managedAvailability || input.capabilities.supportsManagedAvailability) return null;
+  if (input.capabilities.status === "check-failed") {
+    return "Qai could not verify booking availability for this workspace. Refresh and try again.";
+  }
+  const base = "Booking availability needs a workspace update before this request can be accepted.";
+  return input.includeValidationDetail
+    ? `${base} Required database migration: ${VALIDATION_MANAGED_AVAILABILITY_MIGRATION}.`
+    : "This booking type is not ready in this workspace yet.";
 }
 
 /**

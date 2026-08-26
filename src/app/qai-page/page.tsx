@@ -30,6 +30,9 @@ import { rejectionWhatsAppUrl, renderRejectionMessage } from "@/features/qai-pag
 import { normalizeSocialProfile } from "@/features/qai-page/socialProfiles";
 import { mergePublicServices, updatePublicServiceOrder } from "@/features/qai-page/publicServiceSync";
 import { convertRequestToBooking } from "@/features/qai-page/requestConversion";
+import { requestConversionCapabilityMessage } from "@/features/qai-page/requestConversion";
+import { LOCAL_VALIDATION_BACKEND_CAPABILITIES } from "@/features/qai-page/backendCapabilities";
+import { normalizeServiceAvailability } from "@/features/service/domain/serviceAvailability";
 import {
   defaultQaiPage,
   normalizeSlug,
@@ -95,10 +98,11 @@ function QaiPageOwnerContent() {
   const [previewDevice, setPreviewDevice] = useState<"Desktop" | "Mobile">("Desktop");
   const [requestFilter, setRequestFilter] = useState<"Pending" | "Accepted" | "Declined" | "All">("Pending");
   const [declineTarget, setDeclineTarget] = useState<PublicRequest | null>(null); const [declineMessage, setDeclineMessage] = useState(""); const [declinePending, setDeclinePending] = useState(false);
+  const [backendCapabilities, setBackendCapabilities] = useState(LOCAL_VALIDATION_BACKEND_CAPABILITIES);
   const [slotDraft, setSlotDraft] = useState({ serviceId: "", date: dateInput(7), startTime: "09:00", endTime: "10:00", location: "" });
 
   const load = useCallback(async (refreshPage = true) => {
-    try { const [store, questionnaire] = await Promise.all([validationClient.owner(), loadBookingQuestionnaire()]); const existing = store.pages.find((item) => item.businessId === "local-business"); if (refreshPage) setPage({ ...(existing ?? defaultQaiPage()), questionnaire }); setRequests(store.requests.filter((item) => !existing || item.pageId === existing.id).sort((a, b) => b.submittedAt - a.submittedAt)); }
+    try { const [store, questionnaire] = await Promise.all([validationClient.owner(), loadBookingQuestionnaire()]); const existing = store.pages.find((item) => item.businessId === "local-business"); if (refreshPage) setPage({ ...(existing ?? defaultQaiPage()), questionnaire }); setRequests(store.requests.filter((item) => !existing || item.pageId === existing.id).sort((a, b) => b.submittedAt - a.submittedAt)); setBackendCapabilities(store.capabilities); }
     catch (error) { notify.error(error instanceof Error ? error.message : "Could not load Qai Page data."); }
     finally { setLoading(false); }
   }, []);
@@ -146,8 +150,17 @@ function QaiPageOwnerContent() {
     const service = serviceData.services.find((item) => item.id === request.serviceId); if (!service) return null;
     return requestToBookingValues(request, service, customerId, dateInput(7));
   }
+  function requestCapabilityMessage(request: PublicRequest): string | null {
+    const service = configuredServices.find((item) => item.serviceId === request.serviceId);
+    return requestConversionCapabilityMessage({
+      managedAvailability: request.type === "Booking request" && normalizeServiceAvailability(service?.availability).mode !== "Flexible",
+      capabilities: backendCapabilities,
+      includeValidationDetail: isValidationModeEnabled(),
+    });
+  }
   async function accept(request: PublicRequest) {
     if (request.bookingId) return notify.info("This request already has a booking.");
+    const capabilityMessage = requestCapabilityMessage(request); if (capabilityMessage) return notify.error(capabilityMessage);
     const client = await ensureClient(request); if (!client) return notify.error("Could not create or reuse the client.");
     const values = bookingValues(request, client.id); if (!values) return notify.error("The original service is no longer available.");
     try {
@@ -168,6 +181,7 @@ function QaiPageOwnerContent() {
   }
   async function editAndAccept(request: PublicRequest) {
     if (request.bookingId) return notify.info("This request already has a booking.");
+    const capabilityMessage = requestCapabilityMessage(request); if (capabilityMessage) return notify.error(capabilityMessage);
     const client = await ensureClient(request); if (!client) return notify.error("Could not create or reuse the client.");
     const values = bookingValues(request, client.id); if (!values) return notify.error("The original service is no longer available.");
     setActiveRequest(request); setBookingInitial(values); setBookingDialogOpen(true);

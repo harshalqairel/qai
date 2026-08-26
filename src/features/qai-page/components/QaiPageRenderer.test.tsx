@@ -80,6 +80,31 @@ describe("QaiPageRenderer", () => {
     expect(onChoose).toHaveBeenCalledWith(serviceWithVariants, "mentor-two");
   });
 
+  it("keeps configured Service order while balancing every supported count", () => {
+    for (const count of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12]) {
+      const services = Array.from({ length: count }, (_, index) => ({
+        ...service,
+        serviceId: `service-${index + 1}`,
+        title: `Service ${index + 1}`,
+        position: index,
+        featured: index === count - 1,
+      }));
+      const page = { ...defaultQaiPage(), services };
+      const { container, unmount } = render(<QaiPageRenderer page={page} services={services} portfolio={[]} />);
+      const items = Array.from(container.querySelectorAll<HTMLElement>("[data-qai-service-grid-item]"));
+      expect(items.map((item) => item.dataset.qaiServiceGridItem)).toEqual(services.map((item) => item.serviceId));
+      expect(container.querySelector("[data-service-count]")?.getAttribute("data-service-count")).toBe(String(count));
+      unmount();
+    }
+  });
+
+  it("renders a balanced three-by-two wide grid for six Services", () => {
+    const services = Array.from({ length: 6 }, (_, index) => ({ ...service, serviceId: `six-${index}`, title: `Six ${index}`, position: index }));
+    const page = { ...defaultQaiPage(), services };
+    const { container } = render(<QaiPageRenderer page={page} services={services} portfolio={[]} />);
+    expect(container.querySelector("[data-service-count='6']")?.getAttribute("data-service-columns")).toBe("3");
+  });
+
   it("uses client-friendly booking language and reveals a safe-area mobile action after the hero", async () => {
     const onChoose = vi.fn();
     const page = { ...defaultQaiPage(), businessName: "Nuyi Studio", services: [service] };

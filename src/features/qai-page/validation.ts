@@ -8,6 +8,7 @@ import type { BookingFormValues } from "@/features/booking/types";
 import type { Service, ServiceSelectionSnapshot, ServiceVariant } from "@/features/service/types";
 import { serviceAvailabilitySchema } from "@/features/service/schema";
 import { normalizeSocialProfile } from "@/features/qai-page/socialProfiles";
+import type { ValidationBackendCapabilities } from "@/features/qai-page/backendCapabilities";
 
 export type PublicPriceMode = "Fixed price" | "Starting from" | "Ask for price";
 export type PublicActionMode = "Booking request" | "Inquiry" | "Instant booking";
@@ -195,6 +196,7 @@ export type PublicRequest = z.infer<typeof publicRequestSchema>;
 export type PublicServiceVariant = ServiceVariant;
 
 export type ValidationStore = { pages: QaiPageConfig[]; requests: PublicRequest[] };
+export type ValidationOwnerStore = ValidationStore & { capabilities: ValidationBackendCapabilities };
 export type PublicServiceSlotAvailability = import("@/features/service/domain/serviceAvailability").ServiceSlotAvailability;
 
 export function normalizeSlug(value: string): string {
@@ -344,7 +346,7 @@ async function api<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 export const validationClient = {
-  owner(): Promise<ValidationStore> { return api("/api/validation?scope=owner"); },
+  owner(): Promise<ValidationOwnerStore> { return api("/api/validation?scope=owner"); },
   page(slug: string): Promise<QaiPageConfig> { return api(`/api/validation?scope=page&slug=${encodeURIComponent(slug)}`); },
   availability(slug: string, serviceId: string, date: string, variantId: string | null): Promise<PublicServiceSlotAvailability[]> { const params = new URLSearchParams({ scope: "availability", slug, serviceId, date, ...(variantId ? { variantId } : {}) }); return api(`/api/validation?${params}`); },
   savePage(page: QaiPageConfig): Promise<QaiPageConfig> { return api("/api/validation", { method: "POST", body: JSON.stringify({ action: "save-page", page }) }); },

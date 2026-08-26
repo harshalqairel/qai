@@ -16,6 +16,11 @@ import { isValidationModeEnabled } from "@/lib/supabase/config";
 import { createValidationAdminClient } from "@/lib/validation/admin";
 import { requireValidationSession } from "@/lib/validation/session";
 import { sendValidationWorkspacePush } from "@/features/notifications/webPushServer";
+import {
+  LOCAL_VALIDATION_BACKEND_CAPABILITIES,
+  isMissingCapabilityRpc,
+  loadValidationBackendCapabilities,
+} from "@/features/qai-page/backendCapabilities";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,6 +42,7 @@ const MESSAGES: Record<string, string> = {
   SCHEDULE_NOT_AVAILABLE: "Choose one of the available service times.",
   CAPACITY_CLAIM_REQUIRED: "Accept this request through the capacity-checked action.",
   CAPACITY_BACKEND_UNAVAILABLE: "Capacity checking is not ready in this workspace. Apply the pending validation migration before accepting this scheduled service.",
+  CAPACITY_BACKEND_FAILED: "Booking availability could not be checked. Refresh and try again.",
 };
 function failure(message: string, status = 400) { return NextResponse.json({ error: message }, { status }); }
 
@@ -80,7 +86,7 @@ export async function GET(request: NextRequest) {
   if (isValidationModeEnabled()) return remoteGet(request);
   try {
     const scope = request.nextUrl.searchParams.get("scope"); const store = await repository.read();
-    if (scope === "owner") return NextResponse.json({ data: store }, { headers: { "Cache-Control": "no-store" } });
+    if (scope === "owner") return NextResponse.json({ data: { ...store, capabilities: LOCAL_VALIDATION_BACKEND_CAPABILITIES } }, { headers: { "Cache-Control": "no-store" } });
     if (scope === "page") { const slug = request.nextUrl.searchParams.get("slug") ?? ""; const page = store.pages.find((item) => item.slug === slug); return page ? NextResponse.json({ data: page }, { headers: { "Cache-Control": "no-store" } }) : failure("This Qai Page is not available.", 404); }
     if (scope === "availability") { const slug = request.nextUrl.searchParams.get("slug") ?? ""; const serviceId = request.nextUrl.searchParams.get("serviceId") ?? ""; const date = request.nextUrl.searchParams.get("date") ?? ""; const variantId = request.nextUrl.searchParams.get("variantId"); const page = store.pages.find((item) => item.slug === slug); const service = page?.services.find((item) => item.serviceId === serviceId && item.visible); if (!page || !service || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return failure("Availability could not be loaded.", 404); return NextResponse.json({ data: availableServiceSlotsForDate({ service, variantId, date, timezone: page.timezone, requests: store.requests }) }, { headers: { "Cache-Control": "no-store" } }); }
     return failure("Unknown validation request.", 404);
@@ -133,6 +139,7 @@ async function remoteGet(request: NextRequest) {
     }
     if (scope !== "owner") return failure("Unknown validation request.", 404);
     const session = await requireValidationSession();
+    const capabilities = await loadValidationBackendCapabilities(admin);
     const [{ data: workspace }, { data: pageRow }, { data: requestRows }, { data: serviceDocument }] = await Promise.all([
       admin.from("validation_workspaces").select("label, public_slug").eq("id", session.workspaceId).single(),
       admin.from("validation_public_pages").select("payload").eq("workspace_id", session.workspaceId).maybeSingle(),
@@ -143,7 +150,7 @@ async function remoteGet(request: NextRequest) {
     const initial: QaiPageConfig = { ...defaultQaiPage(), id: `page-${workspace.public_slug}`, slug: workspace.public_slug, businessName: workspace.label };
     const page = materializePageServices(pageRow ? qaiPageSchema.parse(pageRow.payload) : initial, serviceDocument?.value, true);
     const requests = (requestRows ?? []).map((row) => publicRequestSchema.parse(row.payload));
-    return NextResponse.json({ data: { pages: [page], requests } }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ data: { pages: [page], requests, capabilities } }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return failure("Validation data could not be loaded.", 401);
   }
@@ -194,7 +201,13 @@ async function remotePost(input: z.infer<typeof actionSchema>) {
       if (error) {
         if (error.message.includes("SESSION_FULL")) throw new ValidationStoreError("SESSION_FULL");
         if (error.message.includes("REQUEST_NOT_FOUND")) throw new ValidationStoreError("REQUEST_NOT_FOUND");
-        throw new ValidationStoreError("CAPACITY_BACKEND_UNAVAILABLE");
+        console.error("[QAI_VALIDATION] managed capacity claim failed", {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        });
+        throw new ValidationStoreError(isMissingCapabilityRpc(error) ? "CAPACITY_BACKEND_UNAVAILABLE" : "CAPACITY_BACKEND_FAILED");
       }
       return NextResponse.json({ data: publicRequestSchema.parse(claimed) });
     }

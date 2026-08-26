@@ -25,6 +25,7 @@ import {
   type QaiPageConfig,
 } from "@/features/qai-page/validation";
 import { socialProfileUrl } from "@/features/qai-page/socialProfiles";
+import { createResponsiveServiceGridPlans } from "@/features/qai-page/serviceGridLayout";
 
 type RendererProps = {
   page: QaiPageConfig;
@@ -35,6 +36,7 @@ type RendererProps = {
 };
 
 type PageVariables = CSSProperties & Record<`--page-${string}`, string>;
+type ServiceGridVariables = CSSProperties & Record<`--qai-service-${string}`, string | number>;
 
 const NAV_LINKS = ["about", "portfolio", "services"] as const;
 
@@ -185,9 +187,10 @@ function ServiceCard({ service, compact, onChoose }: { service: PublicService; c
   }
 
   return (
-    <article className={`border border-[var(--page-border)] bg-[var(--page-surface)] ${compact ? "p-4 sm:p-5" : "p-5 sm:p-7"}`} style={{ borderRadius: "var(--page-card-radius)" }}>
+    <article className={`min-w-0 border border-[var(--page-border)] bg-[var(--page-surface)] ${compact ? "p-4 sm:p-5" : "p-5 sm:p-7"}`} style={{ borderRadius: "var(--page-card-radius)" }} data-featured={service.featured || undefined}>
       <div className={compact ? "grid gap-4 sm:grid-cols-[1fr_auto] sm:items-start" : ""}>
         <div>
+          {service.featured && <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--page-accent)]">Featured</p>}
           <h3 className={`${compact ? "text-lg" : "text-xl"} break-words font-semibold`}>{service.title}</h3>
           {service.description && <p className={`${compact ? "mt-1 line-clamp-2" : "mt-3"} whitespace-pre-wrap text-sm leading-6 text-[var(--page-muted)]`}>{service.description}</p>}
         </div>
@@ -241,9 +244,28 @@ function ServiceCard({ service, compact, onChoose }: { service: PublicService; c
 
 function ServicesSection({ page, services, onChoose }: RendererProps) {
   if (!page.style.showServices) return null;
-  const ordered = [...services].sort((left, right) => Number(right.featured) - Number(left.featured) || left.position - right.position);
+  const ordered = [...services].sort((left, right) => left.position - right.position);
   const compact = ordered.length > 8;
-  return <section id="services" aria-labelledby="services-heading"><div className={page.template === "Signature" ? "text-center" : ""}><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--page-accent)]">Services</p><h2 id="services-heading" className="mt-2 font-[var(--page-heading-font)] text-3xl font-semibold tracking-tight sm:text-4xl">Work with {page.businessName}</h2></div>{ordered.length === 0 ? <div className="mt-6 max-w-xl border border-dashed border-[var(--page-border)] bg-[var(--page-surface)] p-6 text-sm text-[var(--page-muted)]">Services are coming soon. Contact {page.businessName} for current availability.</div> : <div className={`mt-7 grid gap-4 ${compact ? "lg:grid-cols-2" : ordered.length <= 3 ? "lg:grid-cols-3" : "md:grid-cols-2 xl:grid-cols-4"}`}>{ordered.map((service) => <ServiceCard key={service.serviceId} service={service} compact={compact} onChoose={onChoose} />)}</div>}</section>;
+  const plans = createResponsiveServiceGridPlans(ordered.length, page.template);
+  const sectionWidth = ordered.length === 1
+    ? "max-w-3xl"
+    : page.template === "Signature" || page.template === "Editorial"
+      ? "max-w-6xl"
+      : "max-w-[78rem]";
+  return <section id="services" aria-labelledby="services-heading" className={`mx-auto w-full ${sectionWidth}`}><div className={page.template === "Signature" ? "text-center" : ""}><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--page-accent)]">Services</p><h2 id="services-heading" className="mt-2 font-[var(--page-heading-font)] text-3xl font-semibold tracking-tight sm:text-4xl">Work with {page.businessName}</h2></div>{ordered.length === 0 ? <div className="mt-6 max-w-xl border border-dashed border-[var(--page-border)] bg-[var(--page-surface)] p-6 text-sm text-[var(--page-muted)]">Services are coming soon. Contact {page.businessName} for current availability.</div> : <div className="qai-public-service-grid mt-7" data-service-count={ordered.length} data-service-columns={plans.desktop.columns}>{ordered.map((service, index) => {
+    const mobile = plans.mobile.placements[index];
+    const tablet = plans.tablet.placements[index];
+    const desktop = plans.desktop.placements[index];
+    const style: ServiceGridVariables = {
+      "--qai-service-mobile-start": mobile.start,
+      "--qai-service-mobile-span": mobile.span,
+      "--qai-service-tablet-start": tablet.start,
+      "--qai-service-tablet-span": tablet.span,
+      "--qai-service-desktop-start": desktop.start,
+      "--qai-service-desktop-span": desktop.span,
+    };
+    return <div key={service.serviceId} className="qai-public-service-grid-item" style={style} data-qai-service-grid-item={service.serviceId}><ServiceCard service={service} compact={compact} onChoose={onChoose} /></div>;
+  })}</div>}</section>;
 }
 
 function ClosingCta({ page, services, onChoose }: RendererProps) {
