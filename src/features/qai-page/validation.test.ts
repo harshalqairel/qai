@@ -36,7 +36,7 @@ async function repository() {
   return { directory, repository: createValidationStoreRepository(directory) };
 }
 
-describe("Qai Page domain", () => {
+describe("Qai Space domain", () => {
   it("normalizes safe slugs, phones, and public price labels", () => {
     expect(normalizeSlug("  Nuyi Makeup & Studio  ")).toBe("nuyi-makeup-studio");
     expect(normalizeSlug("../../secret")).toBe("secret");

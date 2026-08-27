@@ -81,6 +81,7 @@ export default function ServiceDialog({
   const hasSelectableCategory = selectableCategories.length > 0;
   const initializedDialogRef = useRef<string | null>(null);
   const categoryTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const [categoryFocusRequest, setCategoryFocusRequest] = useState(0);
   const [quickCategoryOpen, setQuickCategoryOpen] = useState(false);
   const [quickCategoryName, setQuickCategoryName] = useState("");
   const [quickCategoryColor, setQuickCategoryColor] = useState<string>(() => suggestCategoryColor([]));
@@ -145,12 +146,18 @@ export default function ServiceDialog({
     });
   }, [open, service, reset, categories]);
 
+  useEffect(() => {
+    if (!open || quickCategoryOpen || categoryFocusRequest === 0) return;
+    categoryTriggerRef.current?.focus();
+  }, [open, quickCategoryOpen, categoryFocusRequest]);
+
   function resetForm() {
     reset(defaultValues);
   }
 
   function handleClose() {
     resetForm();
+    setCategoryFocusRequest(0);
     setQuickCategoryOpen(false);
     setQuickCategoryName("");
     setQuickCategoryError("");
@@ -175,10 +182,10 @@ export default function ServiceDialog({
       if (!created) throw new Error("CATEGORY_CREATE_FAILED");
       setValue("categoryId", created.id, { shouldDirty: true, shouldValidate: true });
       setQuickCategoryName("");
+      setCategoryFocusRequest((request) => request + 1);
       setQuickCategoryOpen(false);
       setQuickCategoryColor(suggestCategoryColor([...categories.map((category) => category.color), created.color]));
       notify.success("Service category added and selected.");
-      window.setTimeout(() => categoryTriggerRef.current?.focus(), 0);
     } catch (error) {
       setQuickCategoryError(
         error instanceof Error && error.message === "DUPLICATE_CATEGORY"
@@ -363,9 +370,9 @@ export default function ServiceDialog({
                         variant="ghost"
                         disabled={quickCategoryPending}
                         onClick={() => {
+                          setCategoryFocusRequest((request) => request + 1);
                           setQuickCategoryOpen(false);
                           setQuickCategoryError("");
-                          window.setTimeout(() => categoryTriggerRef.current?.focus(), 0);
                         }}
                       >
                         Cancel
@@ -472,7 +479,7 @@ export default function ServiceDialog({
                 </Select>
               )}
             />
-            <p className="mt-2 text-sm text-muted-foreground">This controls which location choices clients see on your Qai Page.</p>
+            <p className="mt-2 text-sm text-muted-foreground">This controls which location choices clients see in your Space.</p>
           </div>
 
           <Controller

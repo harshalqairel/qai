@@ -90,7 +90,7 @@ export default function BookingRequestList({ requests, filter, onFilterChange, o
         <ListSortControl className="w-full lg:w-56" value={sort} onChange={setSort} options={[{ value: "submitted-desc", label: "Submitted · latest" }, { value: "submitted-asc", label: "Submitted · earliest" }, { value: "client-asc", label: "Client · A–Z" }, { value: "service-asc", label: "Service · A–Z" }, { value: "date-asc", label: "Requested date · earliest" }, { value: "status-asc", label: "Status · A–Z" }]} />
       </div>
 
-      {requests.length === 0 ? <div className="empty-state"><p className="empty-title">No requests yet</p><p className="mt-2 text-sm text-muted-foreground">Share your Qai Page link to receive a request.</p></div> : rows.length === 0 ? <div className="empty-state"><p className="empty-title">No {filter.toLowerCase()} requests</p><p className="mt-2 text-sm text-muted-foreground">Choose another status to review request history.</p></div> : <>
+      {requests.length === 0 ? <div className="empty-state"><p className="empty-title">No requests yet</p><p className="mt-2 text-sm text-muted-foreground">Share your Space with clients to receive bookings.</p></div> : rows.length === 0 ? <div className="empty-state"><p className="empty-title">No {filter.toLowerCase()} requests</p><p className="mt-2 text-sm text-muted-foreground">Choose another status to review request history.</p></div> : <>
         <div className="hidden overflow-hidden rounded-xl border border-border bg-card shadow-sm xl:block">
           <Table>
             <TableHeader><TableRow>

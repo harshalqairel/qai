@@ -16,7 +16,7 @@ function dependencies(overrides: Partial<Parameters<typeof convertRequestToBooki
   };
 }
 
-describe("Qai Page request conversion", () => {
+describe("Qai Space request conversion", () => {
   it("keeps flexible Services independent from managed availability infrastructure", () => {
     expect(requestConversionCapabilityMessage({
       managedAvailability: false,

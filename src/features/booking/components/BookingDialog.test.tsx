@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -12,6 +12,7 @@ import type { Service } from "@/features/service/types";
 import BookingDialog from "./BookingDialog";
 
 const client: Customer = { id: "client-1", name: "Alya", phone: "0812", instagram: "@alya", email: "", notes: "", createdAt: 1 };
+const createdClient: Customer = { id: "client-2", name: "Nadia", phone: "0813", instagram: "", email: "", notes: "", createdAt: 2 };
 const oldService: Service = { id: "service-old", name: "Old service", categoryId: "category", price: 2_500_000, duration: 120, defaultSessionCount: 1, description: "", active: true };
 const newService: Service = { id: "service-new", name: "New service", categoryId: "category", price: 1_500_000, duration: 60, defaultSessionCount: 1, description: "", active: true };
 const booking: Booking = {
@@ -47,7 +48,7 @@ afterEach(() => {
   window.localStorage.clear();
 });
 
-function renderDialog(payments: Payment[] = []) {
+function renderDialog(payments: Payment[] = [], quickCreate = false) {
   const onUpdate = vi.fn<(input: BookingFormValues & { id: string }) => Promise<boolean>>();
   onUpdate.mockResolvedValue(true);
   render(<BookingDialog
@@ -58,6 +59,8 @@ function renderDialog(payments: Payment[] = []) {
     payments={payments}
     expenses={[]}
     timezone="Asia/Jakarta"
+    onQuickCreateCustomer={quickCreate ? vi.fn(async () => createdClient) : undefined}
+    onQuickCreateService={quickCreate ? vi.fn(async () => newService) : undefined}
     onClose={vi.fn()}
     onCreate={vi.fn(async () => true)}
     onUpdate={onUpdate}
@@ -107,5 +110,81 @@ describe("BookingDialog service changes", () => {
 
     await waitFor(() => expect(onUpdate).toHaveBeenCalledOnce());
     expect(onUpdate.mock.calls[0]![0].servicePrice).toBe(booking.servicePrice);
+  });
+
+  it("opens inline client creation after the iOS touch blur sequence", async () => {
+    const user = userEvent.setup();
+    renderDialog([], true);
+    await user.click(screen.getByRole("combobox", { name: "Client" }));
+    const search = screen.getByRole("textbox", { name: /Search name/ });
+    const create = screen.getByRole("button", { name: "Add new client" });
+
+    fireEvent.pointerDown(create, { pointerId: 1, pointerType: "touch", isPrimary: true, button: 0 });
+    fireEvent.blur(search, { relatedTarget: null });
+    fireEvent.pointerUp(create, { pointerId: 1, pointerType: "touch", isPrimary: true, button: 0 });
+    fireEvent.click(create);
+
+    expect(screen.getByLabelText("Client name")).toBeTruthy();
+    expect(screen.getByRole("dialog", { name: "Edit booking" })).toBeTruthy();
+  });
+
+  it("opens inline service creation after the iOS touch blur sequence", async () => {
+    const user = userEvent.setup();
+    renderDialog([], true);
+    await user.click(screen.getByRole("combobox", { name: "Service" }));
+    const search = screen.getByRole("textbox", { name: /Search service/ });
+    const create = screen.getByRole("button", { name: "Add new service" });
+
+    fireEvent.pointerDown(create, { pointerId: 1, pointerType: "touch", isPrimary: true, button: 0 });
+    fireEvent.blur(search, { relatedTarget: null });
+    fireEvent.pointerUp(create, { pointerId: 1, pointerType: "touch", isPrimary: true, button: 0 });
+    fireEvent.click(create);
+
+    expect(screen.getByLabelText("Service name")).toBeTruthy();
+    expect(screen.getByRole("dialog", { name: "Edit booking" })).toBeTruthy();
+  });
+
+  it("creates and selects a client without losing the booking form state", async () => {
+    const user = userEvent.setup();
+    const onUpdate = renderDialog([], true);
+    await user.click(screen.getByRole("combobox", { name: "Client" }));
+    const search = screen.getByRole("textbox", { name: /Search name/ });
+    const create = screen.getByRole("button", { name: "Add new client" });
+    fireEvent.pointerDown(create, { pointerId: 1, pointerType: "touch", isPrimary: true, button: 0 });
+    fireEvent.blur(search, { relatedTarget: null });
+    fireEvent.pointerUp(create, { pointerId: 1, pointerType: "touch", isPrimary: true, button: 0 });
+    fireEvent.click(create);
+
+    await user.type(screen.getByLabelText("Client name"), createdClient.name);
+    await user.type(screen.getByLabelText("Phone"), createdClient.phone);
+    await user.click(screen.getByRole("button", { name: "Add and select" }));
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => expect(onUpdate).toHaveBeenCalledOnce());
+    expect(onUpdate.mock.calls[0]![0]).toMatchObject({
+      customerId: createdClient.id,
+      serviceId: oldService.id,
+      notes: "Keep notes",
+      sessions: [{ id: "session-1", label: "Main", date: "2026-09-12", startTime: "09:00", endTime: "11:00", location: "Studio", notes: "Keep" }],
+    });
+  });
+
+  it("cancels inline creation and Escape closes only the selector", async () => {
+    const user = userEvent.setup();
+    renderDialog([], true);
+    await user.click(screen.getByRole("combobox", { name: "Client" }));
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Edit booking" })).toBeTruthy();
+
+    await user.click(screen.getByRole("combobox", { name: "Client" }));
+    await user.click(screen.getByRole("button", { name: "Add new client" }));
+    const nameInput = screen.getByLabelText("Client name");
+    const quickPanel = nameInput.parentElement?.parentElement;
+    expect(quickPanel).toBeTruthy();
+    await user.click(quickPanel!.querySelectorAll("button")[1]!);
+
+    expect(screen.queryByLabelText("Client name")).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Edit booking" })).toBeTruthy();
   });
 });

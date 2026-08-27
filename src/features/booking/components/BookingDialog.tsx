@@ -702,11 +702,11 @@ export default function BookingDialog({
             {errors.customerId && <p className="mt-2 text-sm text-destructive">{errors.customerId.message}</p>}
             {onQuickCreateCustomer && quickCustomerOpen && (
                   <div className="mt-3 space-y-3 rounded-xl border border-border bg-muted/30 p-4">
-                    <div><Label className="mb-2 block">Client name</Label><Input autoFocus value={quickCustomer.name} onChange={(event) => setQuickCustomer((value) => ({ ...value, name: event.target.value }))} /></div>
-                    <div><Label className="mb-2 block">Phone</Label><Input inputMode="tel" value={quickCustomer.phone} onChange={(event) => setQuickCustomer((value) => ({ ...value, phone: event.target.value }))} /></div>
+                    <div><Label className="mb-2 block">Client name</Label><Input autoFocus aria-label="Client name" value={quickCustomer.name} onChange={(event) => setQuickCustomer((value) => ({ ...value, name: event.target.value }))} /></div>
+                    <div><Label className="mb-2 block">Phone</Label><Input aria-label="Phone" inputMode="tel" value={quickCustomer.phone} onChange={(event) => setQuickCustomer((value) => ({ ...value, phone: event.target.value }))} /></div>
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <div><Label className="mb-2 block">Instagram</Label><Input value={quickCustomer.instagram} onChange={(event) => setQuickCustomer((value) => ({ ...value, instagram: event.target.value }))} placeholder="@username" /></div>
-                      <div><Label className="mb-2 block">Email</Label><Input type="email" value={quickCustomer.email} onChange={(event) => setQuickCustomer((value) => ({ ...value, email: event.target.value }))} /></div>
+                      <div><Label className="mb-2 block">Instagram</Label><Input aria-label="Instagram" value={quickCustomer.instagram} onChange={(event) => setQuickCustomer((value) => ({ ...value, instagram: event.target.value }))} placeholder="@username" /></div>
+                      <div><Label className="mb-2 block">Email</Label><Input aria-label="Email" type="email" value={quickCustomer.email} onChange={(event) => setQuickCustomer((value) => ({ ...value, email: event.target.value }))} /></div>
                     </div>
                     {quickCustomerMatches.length > 0 && (
                       <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
@@ -791,7 +791,7 @@ export default function BookingDialog({
             )}
             {onQuickCreateService && quickServiceOpen && (
                   <div className="mt-3 space-y-3 rounded-xl border border-border bg-muted/30 p-4">
-                    <div><Label className="mb-2 block">Service name</Label><Input autoFocus value={quickService.name} onChange={(event) => setQuickService((value) => ({ ...value, name: event.target.value }))} /></div>
+                    <div><Label className="mb-2 block">Service name</Label><Input autoFocus aria-label="Service name" value={quickService.name} onChange={(event) => setQuickService((value) => ({ ...value, name: event.target.value }))} /></div>
                     <div>
                       <Label className="mb-2 block">Category</Label>
                       <Select value={quickService.categoryId} onValueChange={(categoryId) => setQuickService((value) => ({ ...value, categoryId: categoryId ?? "" }))}>

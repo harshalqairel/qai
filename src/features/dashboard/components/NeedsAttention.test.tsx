@@ -13,7 +13,7 @@ describe("NeedsAttention", () => {
 
     const overdue = screen.getByRole("link", { name: /Overdue payments/ });
     expect(overdue.getAttribute("href")).toBe("/bookings?payment=outstanding");
-    expect(screen.getByRole("link", { name: /Booking requests/ }).getAttribute("href")).toBe("/qai-page?tab=Requests");
+    expect(screen.getByRole("link", { name: /Booking requests/ }).getAttribute("href")).toBe("/space?tab=Requests");
     unmount();
   });
 

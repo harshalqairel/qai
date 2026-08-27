@@ -320,7 +320,7 @@ export function requestToBookingValues(request: PublicRequest, service: Service,
     capacitySlotKeys: request.availabilityKeys?.length
       ? request.availabilityKeys
       : request.availabilityKey ? [request.availabilityKey] : [],
-    notes: [request.need, request.notes, "Source: Qai Page"].filter(Boolean).join("\n\n"),
+    notes: [request.need, request.notes, "Source: Qai Space"].filter(Boolean).join("\n\n"),
   };
 }
 

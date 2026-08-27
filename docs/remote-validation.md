@@ -7,7 +7,7 @@ This build is a temporary real-user validation environment. It is intentionally 
 - Founder access uses a dedicated server-only credential and an eight-hour signed, HTTP-only cookie.
 - Test codes and one-click invite tokens are hashed with a server-side secret before storage. Invite tokens are removed from the URL during exchange.
 - Tester access uses a revocable, workspace-bound server session. Server routes derive the workspace from that validated session; browser-supplied workspace IDs are never authorization input.
-- Completed localhost collections are mirrored into `validation_workspace_documents` under the session workspace. Qai Page records, Requests, media, Calendar tokens, event mappings, and invoice sequences have dedicated workspace-scoped tables.
+- Completed localhost collections are mirrored into `validation_workspace_documents` under the session workspace. Qai Space records, Requests, media, Calendar tokens, event mappings, and invoice sequences have dedicated workspace-scoped tables.
 - Validation tables have RLS enabled, no anon/authenticated policies, and revoked direct grants. Only Qai server routes use the service role.
 - Google access and refresh tokens are encrypted with AES-256-GCM before database storage. Calendar OAuth is separate from tester access.
 - This environment is suitable for copied validation data, not regulated, uniquely sensitive, or irreplaceable production records.

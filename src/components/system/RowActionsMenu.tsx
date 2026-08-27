@@ -41,7 +41,7 @@ export default function RowActionsMenu({ actions, recordLabel, className }: RowA
         <DropdownMenuTrigger
           render={
             <Button
-              size="icon-sm"
+              size="icon"
               variant="ghost"
               aria-label={`Actions for ${recordLabel}`}
               title={`Actions for ${recordLabel}`}

@@ -106,7 +106,7 @@ export default function PublicQaiPage() {
       setPage(await validationClient.page(params.slug));
       setError("");
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "This Qai Page is not available.");
+      setError(caught instanceof Error ? caught.message : "This Space is not available.");
     } finally {
       setLoading(false);
     }
@@ -155,7 +155,7 @@ export default function PublicQaiPage() {
   }
 
   if (loading) return <main className="min-h-screen min-w-0 w-full flex-1 bg-muted p-4"><div className="mx-auto min-h-80 max-w-5xl animate-pulse rounded-2xl bg-card" /></main>;
-  if (error || !page) return <main className="flex min-h-screen min-w-0 w-full flex-1 items-center justify-center bg-muted p-6"><div className="max-w-sm text-center"><h1 className="text-2xl font-bold">Page unavailable</h1><p className="mt-3 text-sm leading-6 text-muted-foreground">{error || "This Qai Page is not available."}</p></div></main>;
+  if (error || !page) return <main className="flex min-h-screen min-w-0 w-full flex-1 items-center justify-center bg-muted p-6"><div className="max-w-sm text-center"><h1 className="text-2xl font-bold">Space unavailable</h1><p className="mt-3 text-sm leading-6 text-muted-foreground">{error || "This Space is not available."}</p></div></main>;
 
   return <main className="min-h-screen min-w-0 w-full max-w-none flex-1 overflow-x-hidden"><QaiPageRenderer page={page} services={services} portfolio={portfolio} onChoose={choose} />{selected && form && <PublicBookingDialog page={page} selected={selected} form={form} setForm={setForm} submitting={submitting} setSubmitting={setSubmitting} confirmation={confirmation} setConfirmation={setConfirmation} formError={formError} setFormError={setFormError} questionnaireErrors={questionnaireErrors} setQuestionnaireErrors={setQuestionnaireErrors} onReload={load} onClose={closeDialog} />}</main>;
 }

@@ -71,7 +71,7 @@ describe("public questionnaire media upload", () => {
     const response = await POST(uploadRequest("missing-page"));
 
     expect(response.status).toBe(404);
-    expect(await response.json()).toEqual({ error: "This Qai Page is not available." });
+    expect(await response.json()).toEqual({ error: "This Space is not available." });
     expect(admin.spies.upload).not.toHaveBeenCalled();
   });
 });

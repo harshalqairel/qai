@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { rejectionWhatsAppUrl, renderRejectionMessage } from "./rejectionMessage";
 
-describe("Qai Page rejection message", () => {
+describe("Qai Space rejection message", () => {
   it("renders only known placeholders and preserves unknown content", () => {
     expect(renderRejectionMessage("Hi {client_name}, {service_name} from {business_name}. {unknown}", { clientName: "Sarah", serviceName: "Wedding", businessName: "Nuyi" })).toBe("Hi Sarah, Wedding from Nuyi. {unknown}");
   });

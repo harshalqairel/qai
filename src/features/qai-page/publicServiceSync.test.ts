@@ -37,7 +37,7 @@ function configured(record: Service, position: number, overrides: Partial<Public
   };
 }
 
-describe("Qai Page service synchronization", () => {
+describe("Qai Space service synchronization", () => {
   it("keeps explicit public order independent from operational array order", () => {
     const first = service("first");
     const second = service("second");

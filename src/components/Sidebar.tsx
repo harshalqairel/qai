@@ -27,6 +27,7 @@ import { QaiLogo, QaiMark } from "@/components/brand/QaiLogo";
 import AuthControls from "@/components/auth/AuthControls";
 import useOperationalAttention from "@/features/dashboard/hooks/useOperationalAttention";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
+import { qaiSpaceHref } from "@/lib/qaiSpaceRouting";
 
 type NavItem = { href: string; label: string; Icon: LucideIcon };
 
@@ -44,7 +45,7 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
     { href: "/reports", label: "Reports", Icon: ChartNoAxesCombined },
   ] },
   { label: "Presence", items: [
-    { href: "/qai-page", label: "Qai Page", Icon: PanelsTopLeft },
+    { href: qaiSpaceHref(), label: "Space", Icon: PanelsTopLeft },
   ] },
   { label: "System", items: [
     { href: "/settings", label: "Settings", Icon: Settings },
@@ -110,12 +111,12 @@ export default function Sidebar() {
     <>
       <header className="fixed inset-x-0 top-0 z-30 flex h-14 items-center justify-between border-b border-border/80 bg-card/95 px-3.5 backdrop-blur-xl lg:hidden">
         <Link
-          href="/qai-page"
-          aria-label="Manage Qai Page"
+          href={qaiSpaceHref()}
+          aria-label="Manage Qai Space"
           className="inline-flex min-h-11 min-w-0 items-center gap-2 rounded-lg px-1.5 pr-2.5 text-sm font-semibold tracking-tight text-foreground transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
         >
           <QaiMark size="sm" decorative />
-          <span className="truncate">Qai Page</span>
+          <span className="truncate">Space</span>
         </Link>
         <div className="flex items-center gap-1">
           <button
@@ -180,13 +181,13 @@ function MobileNavLink({ href, label, active, Icon }: { href: string; label: str
 }
 
 function MobileSheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return <section role="dialog" aria-modal="true" aria-label={title} className="fixed inset-x-0 bottom-0 z-50 max-h-[82dvh] overflow-y-auto rounded-t-[1.75rem] border border-border bg-card px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 shadow-2xl lg:hidden"><div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-border" /><div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold">{title}</h2><button type="button" onClick={onClose} aria-label={`Close ${title.toLowerCase()}`} className="flex size-10 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted"><X className="size-5" /></button></div>{children}</section>;
+  return <section role="dialog" aria-modal="true" aria-label={title} className="fixed inset-x-0 bottom-0 z-50 max-h-[82dvh] overflow-y-auto rounded-t-[1.75rem] border border-border bg-card px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 shadow-2xl lg:hidden"><div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-border" /><div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold">{title}</h2><button type="button" onClick={onClose} aria-label={`Close ${title.toLowerCase()}`} className="flex size-11 touch-manipulation items-center justify-center rounded-xl text-muted-foreground hover:bg-muted"><X className="size-5" /></button></div>{children}</section>;
 }
 
 function AttentionPanel({ attention, onNavigate }: { attention: ReturnType<typeof useOperationalAttention>; onNavigate: () => void }) {
   if (attention.attentionCount === 0) return <div className="border-y border-border py-5"><p className="font-semibold">You’re up to date.</p><p className="mt-1 text-sm text-muted-foreground">No overdue payments or booking requests need action.</p></div>;
   return <div className="divide-y divide-border border-y border-border">
     {attention.overdueCount > 0 && <Link href="/bookings?payment=outstanding" onClick={onNavigate} className="flex min-h-18 items-center gap-3 py-3"><span className="min-w-0 flex-1"><span className="block font-semibold">Overdue payments</span><span className="mt-1 block text-sm text-muted-foreground">{attention.overdueCount} {attention.overdueCount === 1 ? "booking" : "bookings"} · {formatRupiah(attention.overdueAmount)}</span></span><ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" /></Link>}
-    {attention.requestCount > 0 && <Link href="/qai-page?tab=Requests" onClick={onNavigate} className="flex min-h-18 items-center gap-3 py-3"><span className="min-w-0 flex-1"><span className="block font-semibold">Booking requests</span><span className="mt-1 block text-sm text-muted-foreground">{attention.requestCount} waiting</span></span><ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" /></Link>}
+    {attention.requestCount > 0 && <Link href={qaiSpaceHref("Requests")} onClick={onNavigate} className="flex min-h-18 items-center gap-3 py-3"><span className="min-w-0 flex-1"><span className="block font-semibold">Booking requests</span><span className="mt-1 block text-sm text-muted-foreground">{attention.requestCount} waiting</span></span><ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" /></Link>}
   </div>;
 }

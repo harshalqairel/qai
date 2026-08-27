@@ -33,7 +33,7 @@ const claimRequestAction = z.object({ action: z.literal("claim-request"), reques
 const actionSchema = z.discriminatedUnion("action", [savePageAction, submitRequestAction, updateRequestAction, claimRequestAction]);
 
 const MESSAGES: Record<string, string> = {
-  SLUG_TAKEN: "This page address is already in use.", PAGE_NOT_FOUND: "This Qai Page is not available.", SERVICE_NOT_AVAILABLE: "This service is not available.",
+  SLUG_TAKEN: "This Space address is already in use.", PAGE_NOT_FOUND: "This Space is not available.", SERVICE_NOT_AVAILABLE: "This service is not available.",
   SCHEDULE_REQUIRED: "Add at least one preferred schedule.", SLOT_REQUIRED: "Choose an available time.", SLOT_TAKEN: "This time is no longer available. Choose another one.",
   REQUEST_NOT_FOUND: "This request could not be found.", REQUEST_DECLINED: "A declined request cannot be accepted.",
   QUESTIONNAIRE_INVALID: "Complete the required questions and try again.",
@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
   try {
     const scope = request.nextUrl.searchParams.get("scope"); const store = await repository.read();
     if (scope === "owner") return NextResponse.json({ data: { ...store, capabilities: LOCAL_VALIDATION_BACKEND_CAPABILITIES } }, { headers: { "Cache-Control": "no-store" } });
-    if (scope === "page") { const slug = request.nextUrl.searchParams.get("slug") ?? ""; const page = store.pages.find((item) => item.slug === slug); return page ? NextResponse.json({ data: page }, { headers: { "Cache-Control": "no-store" } }) : failure("This Qai Page is not available.", 404); }
+    if (scope === "page") { const slug = request.nextUrl.searchParams.get("slug") ?? ""; const page = store.pages.find((item) => item.slug === slug); return page ? NextResponse.json({ data: page }, { headers: { "Cache-Control": "no-store" } }) : failure("This Space is not available.", 404); }
     if (scope === "availability") { const slug = request.nextUrl.searchParams.get("slug") ?? ""; const serviceId = request.nextUrl.searchParams.get("serviceId") ?? ""; const date = request.nextUrl.searchParams.get("date") ?? ""; const variantId = request.nextUrl.searchParams.get("variantId"); const page = store.pages.find((item) => item.slug === slug); const service = page?.services.find((item) => item.serviceId === serviceId && item.visible); if (!page || !service || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return failure("Availability could not be loaded.", 404); return NextResponse.json({ data: availableServiceSlotsForDate({ service, variantId, date, timezone: page.timezone, requests: store.requests }) }, { headers: { "Cache-Control": "no-store" } }); }
     return failure("Unknown validation request.", 404);
   } catch { return failure("Validation data could not be loaded.", 500); }
@@ -116,7 +116,7 @@ async function remoteGet(request: NextRequest) {
     if (scope === "page") {
       const slug = request.nextUrl.searchParams.get("slug") ?? "";
       const { data } = await admin.from("validation_public_pages").select("workspace_id, payload").eq("slug", slug).maybeSingle();
-      if (!data) return failure("This Qai Page is not available.", 404);
+      if (!data) return failure("This Space is not available.", 404);
       const { data: serviceDocument } = await admin.from("validation_workspace_documents").select("value").eq("workspace_id", data.workspace_id).eq("storage_key", "qai:services").maybeSingle();
       const page = materializePageServices(qaiPageSchema.parse(data.payload), serviceDocument?.value);
       return NextResponse.json({ data: page }, { headers: { "Cache-Control": "no-store" } });
@@ -125,7 +125,7 @@ async function remoteGet(request: NextRequest) {
       const slug = request.nextUrl.searchParams.get("slug") ?? ""; const serviceId = request.nextUrl.searchParams.get("serviceId") ?? ""; const date = request.nextUrl.searchParams.get("date") ?? ""; const variantId = request.nextUrl.searchParams.get("variantId");
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return failure("Availability could not be loaded.", 400);
       const { data: pageRow } = await admin.from("validation_public_pages").select("workspace_id, payload").eq("slug", slug).maybeSingle();
-      if (!pageRow) return failure("This Qai Page is not available.", 404);
+      if (!pageRow) return failure("This Space is not available.", 404);
       const [{ data: rows }, { data: bookingDocument }, { data: serviceDocument }] = await Promise.all([
         admin.from("validation_public_requests").select("payload").eq("workspace_id", pageRow.workspace_id),
         admin.from("validation_workspace_documents").select("value").eq("workspace_id", pageRow.workspace_id).eq("storage_key", "qai:bookings").maybeSingle(),
@@ -276,7 +276,7 @@ async function remotePost(input: z.infer<typeof actionSchema>) {
       const { data: reserved, error: reserveError } = await admin.rpc("reserve_validation_instant_request", { target_workspace_id: pageRow.workspace_id, target_page_slug: page.slug, target_slot_id: input.request.instantSlotId, target_request_id: id, target_request_payload: created, target_reserved_slot: reservedSlot, target_idempotency_key: idempotencyKey }).maybeSingle();
       if (reserveError || !reserved) throw new ValidationStoreError("SLOT_TAKEN");
       const parsedReserved = publicRequestSchema.parse(reserved);
-      await sendValidationWorkspacePush(pageRow.workspace_id, "bookingRequests", { title: "New instant booking", body: `${parsedReserved.clientName} booked ${parsedReserved.serviceName}.`, url: "/qai-page?tab=Requests", tag: `qai-request-${parsedReserved.id}` }).catch(() => undefined);
+      await sendValidationWorkspacePush(pageRow.workspace_id, "bookingRequests", { title: "New instant booking", body: `${parsedReserved.clientName} booked ${parsedReserved.serviceName}.`, url: "/space?tab=Requests", tag: `qai-request-${parsedReserved.id}` }).catch(() => undefined);
       return NextResponse.json({ data: parsedReserved });
     }
     const { data: inserted, error } = await admin.from("validation_public_requests").insert({ id, workspace_id: pageRow.workspace_id, page_slug: page.slug, payload: created, idempotency_key: idempotencyKey }).select("payload").maybeSingle();
@@ -286,7 +286,7 @@ async function remotePost(input: z.infer<typeof actionSchema>) {
     }
     if (error || !inserted) throw error;
     const parsedInserted = publicRequestSchema.parse(inserted.payload);
-    await sendValidationWorkspacePush(pageRow.workspace_id, "bookingRequests", { title: parsedInserted.type === "Inquiry" ? "New service inquiry" : "New booking request", body: `${parsedInserted.clientName} asked about ${parsedInserted.serviceName}.`, url: "/qai-page?tab=Requests", tag: `qai-request-${parsedInserted.id}` }).catch(() => undefined);
+    await sendValidationWorkspacePush(pageRow.workspace_id, "bookingRequests", { title: parsedInserted.type === "Inquiry" ? "New service inquiry" : "New booking request", body: `${parsedInserted.clientName} asked about ${parsedInserted.serviceName}.`, url: "/space?tab=Requests", tag: `qai-request-${parsedInserted.id}` }).catch(() => undefined);
     return NextResponse.json({ data: parsedInserted });
   } catch (error) {
     const code = error instanceof ValidationStoreError ? error.code : "";

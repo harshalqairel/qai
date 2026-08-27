@@ -22,7 +22,7 @@ export async function POST(request: Request) {
 
     const admin = createValidationAdminClient();
     const { data: pageRow } = await admin.from("validation_public_pages").select("workspace_id, payload").eq("slug", slug).maybeSingle();
-    if (!pageRow) return NextResponse.json({ error: "This Qai Page is not available." }, { status: 404 });
+    if (!pageRow) return NextResponse.json({ error: "This Space is not available." }, { status: 404 });
     const page = qaiPageSchema.parse(pageRow.payload);
     const service = page.services.find((item) => item.serviceId === serviceId && item.visible);
     const question = questionsForService(page.questionnaire, serviceId).find((item) => item.id === questionId && item.type === "File / image");

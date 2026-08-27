@@ -94,7 +94,7 @@ the visual focus.
   snapshot with its own period selector. Prefer rows, dividers, and typography
   over nested cards; do not repeat the global Create sheet as large mobile quick
   actions.
-- **Public Qai Page:** the public canvas, navigation background, and template
+- **Public Qai Space:** the public canvas, navigation background, and template
   backgrounds fill the available viewport. Template-specific readable content
   may remain centred and width-constrained; editor preview frames own their own
   simulation width and must not constrain the live route.

@@ -83,7 +83,7 @@ export default function BookingQuestionnaireSettings() {
 
   return <div className="space-y-6">
     <section className="surface-card p-5 sm:p-6">
-      <div><h2 className="section-title">Booking questions</h2><p className="mt-1 text-sm text-muted-foreground">One questionnaire powers Qai Page requests, copied templates, pasted replies, and booking review.</p></div>
+      <div><h2 className="section-title">Booking questions</h2><p className="mt-1 text-sm text-muted-foreground">One questionnaire powers Space bookings, copied templates, pasted replies, and booking review.</p></div>
       <div className="mt-6 grid gap-5 sm:grid-cols-2">
         <div className="sm:col-span-2"><Label className="mb-2 block">Template introduction</Label><Textarea rows={3} value={definition.introduction} onChange={(event) => setDefinition({ ...definition, introduction: event.target.value })} /></div>
         <div className="sm:col-span-2"><Label className="mb-2 block">Template closing</Label><Textarea rows={3} value={definition.closing} onChange={(event) => setDefinition({ ...definition, closing: event.target.value })} /></div>

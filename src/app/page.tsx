@@ -24,7 +24,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ i
           <nav className="hidden items-center gap-7 text-sm font-semibold text-muted-foreground md:flex" aria-label="Landing page">
             <a href="#features" className="transition-colors hover:text-foreground">Features</a>
             <a href="#workflow" className="transition-colors hover:text-foreground">How it works</a>
-            <a href="#qai-page" className="transition-colors hover:text-foreground">Qai Page</a>
+            <a href="#qai-space" className="transition-colors hover:text-foreground">Qai Space</a>
             <a href="#faq" className="transition-colors hover:text-foreground">FAQ</a>
           </nav>
           <div className="flex items-center gap-2">
@@ -112,14 +112,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ i
         <Container className="max-w-[86rem]">
           <div className="grid items-center gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
             <div><p className="text-sm font-bold uppercase tracking-[0.16em] text-primary">A connected day of work</p><h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">From first request to paid invoice—without copying the same details twice.</h2><p className="mt-5 max-w-xl leading-7 text-muted-foreground">Qai reuses the same client, service, schedule, and price across the tools you need. Each screen stays focused, while the business record remains consistent.</p></div>
-            <div className="grid gap-3 sm:grid-cols-2"><WorkflowStep number="01" title="Capture the booking" detail="Create it manually or review structured details pasted from a client message." /><WorkflowStep number="02" title="Run the schedule" detail="See every session on your calendar, including multi-day work." /><WorkflowStep number="03" title="Track the money" detail="Record payments and expenses without turning Qai into accounting software." /><WorkflowStep number="04" title="Share professionally" detail="Issue an invoice and publish a polished Qai Page for your business." /></div>
+            <div className="grid gap-3 sm:grid-cols-2"><WorkflowStep number="01" title="Capture the booking" detail="Create it manually or review structured details pasted from a client message." /><WorkflowStep number="02" title="Run the schedule" detail="See every session on your calendar, including multi-day work." /><WorkflowStep number="03" title="Track the money" detail="Record payments and expenses without turning Qai into accounting software." /><WorkflowStep number="04" title="Share professionally" detail="Issue an invoice and publish a polished Qai Space for your business." /></div>
           </div>
         </Container>
       </section>
 
-      <section id="qai-page" className="bg-[#16131a] py-16 text-white sm:py-24">
+      <section id="qai-space" className="bg-[#16131a] py-16 text-white sm:py-24">
         <Container className="max-w-[86rem]">
-          <div className="grid items-center gap-10 lg:grid-cols-[0.72fr_1.28fr] lg:gap-14"><div><p className="text-sm font-bold uppercase tracking-[0.16em] text-[#c99db9]">Your public Qai Page</p><h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">A portfolio that can turn interest into a real request.</h2><p className="mt-5 leading-7 text-white/65">Show selected work, services, location, and contact details in a controlled page that keeps your own business identity first.</p><Link href="/qai-page" className={buttonVariants({ variant: "secondary", size: "lg", className: "mt-7" })}>Explore Qai Page <ArrowRight /></Link></div><div className="grid grid-cols-12 gap-3"><div className="col-span-7 aspect-[4/3] rounded-2xl bg-[linear-gradient(145deg,#9a6882,#313d62)] p-5"><PanelsTopLeft className="size-7" /><p className="mt-20 text-2xl font-bold">Your best work,<br />beautifully presented.</p></div><div className="col-span-5 grid gap-3"><div className="aspect-square rounded-2xl bg-[#ede3e8]" /><div className="aspect-[4/3] rounded-2xl bg-[#647da6]" /></div></div></div>
+          <div className="grid items-center gap-10 lg:grid-cols-[0.72fr_1.28fr] lg:gap-14"><div><p className="text-sm font-bold uppercase tracking-[0.16em] text-[#c99db9]">Your public Qai Space</p><h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">A portfolio that can turn interest into a real booking.</h2><p className="mt-5 leading-7 text-white/65">Show selected work, services, location, and contact details while keeping your own business identity first.</p><Link href="/space" className={buttonVariants({ variant: "secondary", size: "lg", className: "mt-7" })}>Explore Qai Space <ArrowRight /></Link></div><div className="grid grid-cols-12 gap-3"><div className="col-span-7 aspect-[4/3] rounded-2xl bg-[linear-gradient(145deg,#9a6882,#313d62)] p-5"><PanelsTopLeft className="size-7" /><p className="mt-20 text-2xl font-bold">Your best work,<br />beautifully presented.</p></div><div className="col-span-5 grid gap-3"><div className="aspect-square rounded-2xl bg-[#ede3e8]" /><div className="aspect-[4/3] rounded-2xl bg-[#647da6]" /></div></div></div>
         </Container>
       </section>
 

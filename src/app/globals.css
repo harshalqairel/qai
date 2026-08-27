@@ -504,6 +504,14 @@
     box-shadow: 0 4px 12px rgb(15 29 45 / 0.1) !important;
   }
 
+  [data-sonner-toaster] {
+    pointer-events: none;
+  }
+
+  [data-sonner-toast] {
+    pointer-events: auto;
+  }
+
   .qai-toast-success {
     background: color-mix(in srgb, var(--status-success) 8%, white) !important;
     border-color: color-mix(in srgb, var(--status-success) 30%, white) !important;

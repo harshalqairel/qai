@@ -1,4 +1,4 @@
-# Qai invoice and Qai Page validation guide
+# Qai invoice and Qai Space validation guide
 
 This build is for product validation with freelancers and test customers. It is not a production deployment and should use dummy or low-sensitivity test data.
 
@@ -8,7 +8,7 @@ This build is for product validation with freelancers and test customers. It is 
 2. Start the local application with `npm run dev`.
 3. Open `http://localhost:3000`.
 
-The owner application continues to store its normal localhost records in the owner's browser. Public Qai Page configuration and customer requests use the shared validation store described below.
+The owner application continues to store its normal localhost records in the owner's browser. Public Qai Space configuration and customer requests use the shared validation store described below.
 
 ## Configure invoices
 
@@ -48,13 +48,13 @@ Issued invoices support:
 
 The browser cannot attach the PDF automatically. Download it first if it should be attached. Opening WhatsApp or an email app does not confirm delivery.
 
-## Configure Qai Page
+## Configure Qai Space
 
-Open **Qai Page** in the owner navigation.
+Open **Space** in the owner navigation.
 
 ### Page
 
-Add the business name, description, location, contact details, optional logo, optional cover image, and a safe page address. Save the page.
+Add the business name, description, location, contact details, optional logo, optional cover image, and a safe Space address. Save the profile.
 
 ### Services
 
@@ -68,11 +68,11 @@ Instant booking is deliberately simple. Manually add only times that are ready t
 
 ### Preview and link
 
-Use **Preview** to open the customer-facing page. **Copy page link** derives the URL from the current browser origin. It therefore works with localhost and with a temporary HTTPS tunnel without hardcoded hostnames.
+Use **Preview** to open the customer-facing Space. **Copy Space link** derives the URL from the current browser origin. It therefore works with localhost and with a temporary HTTPS tunnel without hardcoded hostnames.
 
 ## Requests
 
-Customer submissions appear under **Qai Page → Requests**. The inbox refreshes automatically and also has a manual Refresh action.
+Customer submissions appear under **Qai Space → Requests**. The inbox refreshes automatically and also has a manual Refresh action.
 
 - **Accept** creates one Booking through Qai's existing idempotent booking domain.
 - **Edit & accept** opens the normal Booking form with the Client, Service, schedules, location, and notes prefilled.
@@ -90,7 +90,7 @@ Dashboard preferences stay in the owner browser for refresh and navigation testi
 
 ## Shared validation data
 
-Cross-device Qai Page data lives in:
+Cross-device Qai Space data lives in:
 
 `.qai-validation/store.json`
 
@@ -112,7 +112,7 @@ If `cloudflared` is already installed, a generic Quick Tunnel can be started wit
 
 `cloudflared tunnel --url http://localhost:3000`
 
-Do not install it automatically and do not hardcode the generated address. Quick Tunnel URLs are temporary and change when the tunnel restarts. Open the owner application through the temporary URL before using **Copy page link**, so the copied Qai Page link uses that origin.
+Do not install it automatically and do not hardcode the generated address. Quick Tunnel URLs are temporary and change when the tunnel restarts. Open the owner application through the temporary URL before using **Copy link**, so the copied Space link uses that origin.
 
 Keep the local server running while testers use the page. A tunnel exposes the local validation application to the internet; use test data, stop the tunnel after the session, and do not treat this as production security.
 
@@ -142,7 +142,7 @@ After validation, production design will need:
 - invoice-branding entitlement
 - optional standalone payment integration without creating a second ledger
 
-### Qai Page
+### Qai Space
 
 - authenticated business ownership
 - globally unique slugs

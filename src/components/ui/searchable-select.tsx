@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Plus, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -45,8 +45,8 @@ export function SearchableSelect({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [highlighted, setHighlighted] = useState(0);
-  const inputRef = useRef<HTMLInputElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const optionsId = useId();
   const selected = items.find((item) => item.value === value);
   const normalizedQuery = query.normalize("NFKC").trim().toLowerCase();
   const filtered = useMemo(() => items.filter((item) => {
@@ -57,8 +57,14 @@ export function SearchableSelect({
 
   useEffect(() => {
     if (!open) return;
-    const timer = window.setTimeout(() => inputRef.current?.focus(), 0);
-    return () => window.clearTimeout(timer);
+    function dismissFromOutsidePointer(event: PointerEvent) {
+      if (!rootRef.current?.contains(event.target as Node | null)) {
+        setOpen(false);
+        setQuery("");
+      }
+    }
+    document.addEventListener("pointerdown", dismissFromOutsidePointer, true);
+    return () => document.removeEventListener("pointerdown", dismissFromOutsidePointer, true);
   }, [open]);
 
   function choose(item: SearchableSelectItem) {
@@ -79,7 +85,10 @@ export function SearchableSelect({
       ref={rootRef}
       className={cn("relative min-w-0", className)}
       onBlur={(event) => {
-        if (!rootRef.current?.contains(event.relatedTarget as Node | null)) {
+        // Mobile Safari may report a null relatedTarget while moving focus from
+        // the search field to an action in this layer. Pointer dismissal above
+        // owns that case so the action remains mounted until its click arrives.
+        if (event.relatedTarget && !rootRef.current?.contains(event.relatedTarget as Node)) {
           setOpen(false);
           setQuery("");
         }
@@ -90,10 +99,10 @@ export function SearchableSelect({
         role="combobox"
         aria-label={label}
         aria-expanded={open}
-        aria-controls={`${label.replace(/\W+/g, "-").toLowerCase()}-options`}
+        aria-controls={optionsId}
         disabled={disabled}
         onClick={() => { setHighlighted(0); setOpen((current) => !current); }}
-        className={cn("flex min-h-11 w-full min-w-0 items-center gap-3 rounded-lg border border-input bg-transparent px-3 py-2 text-left text-sm shadow-xs outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50", value && clearable && !disabled ? "pr-[4.75rem]" : "pr-10")}
+        className={cn("flex min-h-11 w-full min-w-0 touch-manipulation items-center gap-3 rounded-lg border border-input bg-transparent px-3 py-2 text-left text-sm shadow-xs outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50", value && clearable && !disabled ? "pr-[4.75rem]" : "pr-10")}
       >
         <span className="min-w-0 flex-1">
           <span className={cn("block truncate", !selected && "text-muted-foreground")}>{selected?.label ?? placeholder}</span>
@@ -114,7 +123,7 @@ export function SearchableSelect({
           <div className="flex items-center gap-2 border-b border-border px-3">
             <Search className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
             <input
-              ref={inputRef}
+              autoFocus
               value={query}
               onChange={(event) => { setQuery(event.target.value); setHighlighted(0); }}
               onKeyDown={(event) => {
@@ -128,7 +137,7 @@ export function SearchableSelect({
               className="h-11 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
           </div>
-          <div id={`${label.replace(/\W+/g, "-").toLowerCase()}-options`} role="listbox" aria-label={label} className="max-h-72 overflow-y-auto p-1.5">
+          <div id={optionsId} role="listbox" aria-label={label} className="max-h-72 overflow-y-auto p-1.5">
             {filtered.length === 0 ? <p className="px-3 py-6 text-center text-sm text-muted-foreground">{emptyMessage}</p> : filtered.map((item) => {
               const enabledIndex = enabled.findIndex((candidate) => candidate.value === item.value);
               const isHighlighted = enabledIndex === highlighted && !item.disabled;
@@ -141,7 +150,7 @@ export function SearchableSelect({
                   disabled={item.disabled}
                   onMouseEnter={() => { if (enabledIndex >= 0) setHighlighted(enabledIndex); }}
                   onClick={() => choose(item)}
-                  className={cn("flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm disabled:opacity-40", isHighlighted ? "bg-accent text-accent-foreground" : "hover:bg-muted")}
+                  className={cn("flex min-h-11 w-full touch-manipulation items-center gap-3 rounded-lg px-3 py-2 text-left text-sm disabled:opacity-40", isHighlighted ? "bg-accent text-accent-foreground" : "hover:bg-muted")}
                 >
                   <span className="min-w-0 flex-1"><span className="block truncate font-medium">{item.label}</span>{item.description && <span className="mt-0.5 block truncate text-xs opacity-70">{item.description}</span>}</span>
                   {item.value === value && <Check className="size-4 shrink-0" />}
@@ -154,7 +163,7 @@ export function SearchableSelect({
               <button
                 type="button"
                 onClick={chooseCreateAction}
-                className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold text-primary transition hover:bg-accent hover:text-accent-foreground"
+                className="flex min-h-11 w-full touch-manipulation items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold text-primary transition hover:bg-accent hover:text-accent-foreground"
               >
                 <Plus className="size-4 shrink-0" aria-hidden="true" />
                 {createAction.label}

@@ -110,7 +110,7 @@ describe("pointer interaction reliability", () => {
     await clickAction("New invoice", (onClick) => <Button onClick={onClick}>New invoice</Button>);
   });
 
-  it("runs a Qai Page action once through the shared button", async () => {
+  it("runs a Qai Space action once through the shared button", async () => {
     await clickAction("Save page", (onClick) => <Button onClick={onClick}>Save page</Button>);
   });
 

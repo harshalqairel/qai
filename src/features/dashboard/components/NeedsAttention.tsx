@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
+import { qaiSpaceHref } from "@/lib/qaiSpaceRouting";
 
 type NeedsAttentionProps = {
   overdueCount: number;
@@ -25,7 +26,7 @@ export default function NeedsAttention({ overdueCount, overdueAmount, requestCou
           <span className="min-w-0 flex-1"><span className="block font-semibold text-[var(--dashboard-text)]">Overdue payments</span><span className="mt-1 block text-sm text-[var(--dashboard-muted-text)]">{overdueCount} {overdueCount === 1 ? "booking" : "bookings"} · {formatRupiah(overdueAmount)}</span></span>
           <ChevronRight className="size-5 shrink-0 text-[var(--dashboard-muted-text)]" aria-hidden="true" />
         </Link>}
-        {requestCount > 0 && <Link href="/qai-page?tab=Requests" className="flex min-h-17 items-center gap-3 py-3">
+        {requestCount > 0 && <Link href={qaiSpaceHref("Requests")} className="flex min-h-17 items-center gap-3 py-3">
           <span className="min-w-0 flex-1"><span className="block font-semibold text-[var(--dashboard-text)]">Booking requests</span><span className="mt-1 block text-sm text-[var(--dashboard-muted-text)]">{requestCount} waiting</span></span>
           <ChevronRight className="size-5 shrink-0 text-[var(--dashboard-muted-text)]" aria-hidden="true" />
         </Link>}
