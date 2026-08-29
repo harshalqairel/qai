@@ -9,6 +9,7 @@ import type { Service, ServiceSelectionSnapshot, ServiceVariant } from "@/featur
 import { serviceAvailabilitySchema } from "@/features/service/schema";
 import { normalizeSocialProfile } from "@/features/qai-page/socialProfiles";
 import type { ValidationBackendCapabilities } from "@/features/qai-page/backendCapabilities";
+import { isCloudModeEnabled } from "@/lib/supabase/config";
 
 export type PublicPriceMode = "Fixed price" | "Starting from" | "Ask for price";
 export type PublicActionMode = "Booking request" | "Inquiry" | "Instant booking";
@@ -366,4 +367,49 @@ export const validationClient = {
     return result.data;
   },
   async deleteMedia(url: string): Promise<void> { const id = url.split("/").pop(); if (!id) return; await api(`/api/validation/media/${encodeURIComponent(id)}`, { method: "DELETE" }); },
+};
+
+function qaiSpaceApiBase(): string {
+  return isCloudModeEnabled() ? "/api/qai-space" : "/api/validation";
+}
+
+/**
+ * Runtime-aware Qai Space transport. Cloud mode never falls through to the
+ * validation filesystem or validation tables; local and validation modes keep
+ * their existing isolated backends.
+ */
+export const qaiSpaceClient = {
+  owner(): Promise<ValidationOwnerStore> { return api(`${qaiSpaceApiBase()}?scope=owner`); },
+  page(slug: string): Promise<QaiPageConfig> { return api(`${qaiSpaceApiBase()}?scope=page&slug=${encodeURIComponent(slug)}`); },
+  availability(slug: string, serviceId: string, date: string, variantId: string | null): Promise<PublicServiceSlotAvailability[]> {
+    const params = new URLSearchParams({ scope: "availability", slug, serviceId, date, ...(variantId ? { variantId } : {}) });
+    return api(`${qaiSpaceApiBase()}?${params}`);
+  },
+  savePage(page: QaiPageConfig): Promise<QaiPageConfig> { return api(qaiSpaceApiBase(), { method: "POST", body: JSON.stringify({ action: "save-page", page }) }); },
+  submitRequest(request: Omit<PublicRequest, "id" | "status" | "submittedAt" | "updatedAt" | "bookingId" | "clientId" | "serviceSnapshot" | "availabilityKey" | "availabilityKeys">): Promise<PublicRequest> {
+    return api(qaiSpaceApiBase(), { method: "POST", body: JSON.stringify({ action: "submit-request", request }) });
+  },
+  claimRequest(requestId: string): Promise<PublicRequest> { return api(qaiSpaceApiBase(), { method: "POST", body: JSON.stringify({ action: "claim-request", requestId }) }); },
+  updateRequest(requestId: string, status: PublicRequestStatus, bookingId: string | null, clientId: string | null = null): Promise<PublicRequest> {
+    return api(qaiSpaceApiBase(), { method: "POST", body: JSON.stringify({ action: "update-request", requestId, status, bookingId, clientId }) });
+  },
+  async uploadMedia(file: File, kind: "page-logo" | "page-cover" | "portfolio"): Promise<{ id: string; url: string }> {
+    const body = new FormData(); body.set("file", file); body.set("kind", kind);
+    const response = await fetch(`${qaiSpaceApiBase()}/media`, { method: "POST", body });
+    const result = await response.json() as { data?: { id: string; url: string }; error?: string };
+    if (!response.ok || !result.data) throw new Error(result.error ?? "Could not upload that image.");
+    return result.data;
+  },
+  async uploadPublicQuestionFile(file: File, slug: string, serviceId: string, questionId: string): Promise<{ id: string; url: string }> {
+    const body = new FormData(); body.set("file", file); body.set("slug", slug); body.set("serviceId", serviceId); body.set("questionId", questionId);
+    const response = await fetch(`${qaiSpaceApiBase()}/public-media`, { method: "POST", body });
+    const result = await response.json() as { data?: { id: string; url: string }; error?: string };
+    if (!response.ok || !result.data) throw new Error(result.error ?? "Could not upload that file.");
+    return result.data;
+  },
+  async deleteMedia(url: string): Promise<void> {
+    const id = url.split("/").pop();
+    if (!id) return;
+    await api(`${qaiSpaceApiBase()}/media/${encodeURIComponent(id)}`, { method: "DELETE" });
+  },
 };

@@ -9,11 +9,17 @@ const PUBLIC_ROUTES = new Set([
   "/manifest.webmanifest",
   "/privacy",
   "/pricing",
+  "/sw.js",
   "/terms",
 ]);
 
-function isPublicRoute(pathname: string): boolean {
-  return PUBLIC_ROUTES.has(pathname) || pathname.startsWith("/auth/");
+export function isCloudPublicRoute(pathname: string): boolean {
+  return PUBLIC_ROUTES.has(pathname)
+    || pathname.startsWith("/auth/")
+    || pathname.startsWith("/q/")
+    || pathname === "/api/qai-space"
+    || pathname.startsWith("/api/qai-space/media/")
+    || pathname === "/api/qai-space/public-media";
 }
 
 function copyAuthState(source: NextResponse, target: NextResponse): NextResponse {
@@ -52,7 +58,7 @@ export async function updateSession(request: NextRequest) {
   const isAuthenticated = Boolean(data?.claims?.sub);
   const { pathname } = request.nextUrl;
 
-  if (!isAuthenticated && !isPublicRoute(pathname)) {
+  if (!isAuthenticated && !isCloudPublicRoute(pathname)) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
     return copyAuthState(response, NextResponse.redirect(loginUrl));

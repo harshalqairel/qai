@@ -2,6 +2,7 @@ import "server-only";
 
 import webPush from "web-push";
 
+import { createCloudAdminClient } from "@/lib/supabase/admin";
 import { createValidationAdminClient } from "@/lib/validation/admin";
 import type { NotificationCategory } from "./notificationPreferences";
 import { pushSubscriptionSchema, type StoredPushSubscription } from "./pushSubscription";
@@ -43,5 +44,16 @@ export async function sendValidationWorkspacePush(workspaceId: string, category:
     const subscription = pushSubscriptionSchema.parse({ endpoint: row.endpoint, expirationTime: row.expiration_time, keys: { p256dh: row.p256dh, auth: row.auth } });
     const result = await sendWebPush(subscription, payload).catch(() => "failed" as const);
     if (result === "expired") await admin.from("push_subscriptions").delete().eq("id", row.id);
+  }));
+}
+
+export async function sendCloudBusinessPush(businessId: string, category: NotificationCategory, payload: QaiPushPayload): Promise<void> {
+  if (!pushConfig().configured) return;
+  const admin = createCloudAdminClient();
+  const { data } = await admin.from("push_subscriptions").select("id, endpoint, expiration_time, p256dh, auth").eq("business_id", businessId).contains("categories", [category]);
+  await Promise.all((data ?? []).map(async (row) => {
+    const subscription = pushSubscriptionSchema.parse({ endpoint: row.endpoint, expirationTime: row.expiration_time, keys: { p256dh: row.p256dh, auth: row.auth } });
+    const result = await sendWebPush(subscription, payload).catch(() => "failed" as const);
+    if (result === "expired") await admin.from("push_subscriptions").delete().eq("business_id", businessId).eq("id", row.id);
   }));
 }

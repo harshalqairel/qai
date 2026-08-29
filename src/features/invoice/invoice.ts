@@ -20,6 +20,27 @@ export type InvoiceTaxMode = "percentage" | "fixed";
 export type InvoiceTaxTreatment = "added" | "deducted";
 export type InvoicePaymentStatus = "Unpaid" | "Part paid" | "Paid";
 
+export type InvoiceLayoutProfile = {
+  header: "editorial-split" | "quiet-split" | "commercial-grid" | "centered-masthead";
+  metadata: "header-dates" | "bill-to-split" | "boxed-ledger" | "ruled-columns";
+  lineItems: "editorial" | "minimal" | "commercial-grid" | "numbered-ledger";
+  totals: "accent-panel" | "quiet-rule" | "commercial-box" | "classic-ledger";
+};
+
+export function invoiceLayoutProfile(style: InvoiceStyle): InvoiceLayoutProfile {
+  switch (style) {
+    case "Creative":
+      return { header: "editorial-split", metadata: "header-dates", lineItems: "editorial", totals: "accent-panel" };
+    case "Professional":
+      return { header: "commercial-grid", metadata: "boxed-ledger", lineItems: "commercial-grid", totals: "commercial-box" };
+    case "Modern Classic":
+      return { header: "centered-masthead", metadata: "ruled-columns", lineItems: "numbered-ledger", totals: "classic-ledger" };
+    case "Neutral":
+    default:
+      return { header: "quiet-split", metadata: "bill-to-split", lineItems: "minimal", totals: "quiet-rule" };
+  }
+}
+
 export type InvoiceLineItem = {
   id: string;
   item: string;
@@ -515,6 +536,7 @@ export async function generateInvoicePdf(invoice: Invoice, settings: InvoiceSett
   const modernClassic = source.invoiceStyle === "Modern Classic";
   const professional = source.invoiceStyle === "Professional";
   const creative = source.invoiceStyle === "Creative";
+  const layout = invoiceLayoutProfile(source.invoiceStyle);
   let y = 18;
   const setTextColor = (color: Rgb) => doc.setTextColor(color[0], color[1], color[2]);
   const setDrawColor = (color: Rgb) => doc.setDrawColor(color[0], color[1], color[2]);
@@ -584,32 +606,59 @@ export async function generateInvoicePdf(invoice: Invoice, settings: InvoiceSett
 
   drawPageFrame(true);
   drawWatermark();
-  if (logoImage) drawContainedImage(logoImage, margin, y - 1, 27, 27);
-  const headerX = logoImage ? margin + 33 : margin;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
-  setTextColor(ink);
-  doc.text(source.businessName, headerX, y + 6);
-  let businessDetailY = y + 12;
-  if (source.legalName) {
-    doc.setFont("helvetica", "normal"); doc.setFontSize(8); setTextColor(muted);
-    doc.text(source.legalName, headerX, businessDetailY);
-    businessDetailY += 5;
-  }
   const businessContact = [source.address, source.phone, source.email].filter(Boolean).join(" | ");
-  if (businessContact) {
-    const contactLines: string[] = doc.splitTextToSize(businessContact, 78);
-    doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); setTextColor(muted);
-    doc.text(contactLines, headerX, businessDetailY);
+  if (layout.header === "editorial-split") {
+    doc.setFont("helvetica", "bold"); doc.setFontSize(7); setTextColor(body);
+    doc.text("CLIENT DOCUMENT", margin, y + 1);
+    doc.setFontSize(25); setTextColor(ink); doc.text("Invoice", margin, y + 11);
+    doc.setFontSize(9); doc.text(source.invoiceNumber, margin, y + 18);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); setTextColor(body);
+    doc.text(`Invoice date  ${formatInvoiceDate(source.invoiceDate)}`, margin, y + 27);
+    doc.text(`Due date      ${formatInvoiceDate(source.dueDate)}`, margin, y + 33);
+    if (logoImage) drawContainedImage(logoImage, 105, y - 2, 22, 22);
+    const businessX = logoImage ? 132 : 105;
+    doc.setFont("helvetica", "bold"); doc.setFontSize(15); setTextColor(ink);
+    doc.text(doc.splitTextToSize(source.businessName, pageWidth - margin - businessX), businessX, y + 5);
+    let detailY = y + 15;
+    if (source.legalName) { doc.setFontSize(8); doc.text(source.legalName, businessX, detailY); detailY += 5; }
+    if (businessContact) { doc.setFont("helvetica", "normal"); doc.setFontSize(7); setTextColor(body); doc.text(doc.splitTextToSize(businessContact, pageWidth - margin - businessX), businessX, detailY); }
+    y += 41;
+  } else if (layout.header === "commercial-grid") {
+    doc.setFont("helvetica", "bold"); doc.setFontSize(22); setTextColor(ink); doc.text("INVOICE", margin, y + 5);
+    doc.setFontSize(9); doc.text(source.invoiceNumber, margin, y + 13);
+    setDrawColor(ink); doc.setLineWidth(0.3); doc.rect(121, y - 1, pageWidth - margin - 121, 22);
+    doc.setFontSize(6.8); setTextColor(body); doc.text("INVOICE DATE", 125, y + 5); doc.text("DUE DATE", 125, y + 14);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8.2); doc.text(formatInvoiceDate(source.invoiceDate), pageWidth - margin - 4, y + 5, { align: "right" }); doc.text(formatInvoiceDate(source.dueDate), pageWidth - margin - 4, y + 14, { align: "right" });
+    y += 28; drawRule(y, 0.35, ink); y += 7;
+    if (logoImage) drawContainedImage(logoImage, margin, y - 2, 22, 22);
+    const businessX = logoImage ? margin + 28 : margin;
+    doc.setFont("helvetica", "bold"); doc.setFontSize(15); setTextColor(ink); doc.text(source.businessName, businessX, y + 5);
+    let detailY = y + 11;
+    if (source.legalName) { doc.setFontSize(8); doc.text(source.legalName, businessX, detailY); detailY += 5; }
+    if (businessContact) { doc.setFont("helvetica", "normal"); doc.setFontSize(7.2); setTextColor(body); doc.text(doc.splitTextToSize(businessContact, 100), businessX, detailY); }
+    y += 27;
+  } else if (layout.header === "centered-masthead") {
+    if (logoImage) drawContainedImage(logoImage, pageWidth / 2 - 10, y - 4, 20, 20);
+    const nameY = logoImage ? y + 23 : y + 5;
+    doc.setFont("times", "bold"); doc.setFontSize(18); setTextColor(ink); doc.text(source.businessName, pageWidth / 2, nameY, { align: "center" });
+    let detailY = nameY + 6;
+    if (source.legalName) { doc.setFont("times", "normal"); doc.setFontSize(8); doc.text(source.legalName, pageWidth / 2, detailY, { align: "center" }); detailY += 5; }
+    if (businessContact) { doc.setFont("helvetica", "normal"); doc.setFontSize(7); setTextColor(body); doc.text(doc.splitTextToSize(businessContact, 140), pageWidth / 2, detailY, { align: "center" }); detailY += 7; }
+    drawRule(detailY, 0.22, ink); drawRule(detailY + 1.5, 0.5, ink);
+    doc.setFont("times", "bold"); doc.setFontSize(20); setTextColor(ink); doc.text("INVOICE", pageWidth / 2, detailY + 10, { align: "center" });
+    doc.setFont("helvetica", "bold"); doc.setFontSize(8.5); doc.text(source.invoiceNumber, pageWidth / 2, detailY + 16, { align: "center" });
+    y = detailY + 22;
+  } else {
+    if (logoImage) drawContainedImage(logoImage, margin, y - 1, 27, 27);
+    const headerX = logoImage ? margin + 33 : margin;
+    doc.setFont("helvetica", "bold"); doc.setFontSize(18); setTextColor(ink); doc.text(source.businessName, headerX, y + 6);
+    let detailY = y + 12;
+    if (source.legalName) { doc.setFont("helvetica", "normal"); doc.setFontSize(8); setTextColor(body); doc.text(source.legalName, headerX, detailY); detailY += 5; }
+    if (businessContact) { doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); setTextColor(body); doc.text(doc.splitTextToSize(businessContact, 78), headerX, detailY); }
+    doc.setFont("helvetica", "bold"); doc.setFontSize(22); setTextColor(ink); doc.text("INVOICE", pageWidth - margin, y + 6, { align: "right" });
+    doc.setFontSize(9); setTextColor(body); doc.text(source.invoiceNumber, pageWidth - margin, y + 14, { align: "right" });
+    y += 31;
   }
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(22);
-  setTextColor(modernClassic ? ink : accent);
-  doc.text("INVOICE", pageWidth - margin, y + 6, { align: "right" });
-  doc.setFontSize(9);
-  setTextColor(muted);
-  doc.text(source.invoiceNumber, pageWidth - margin, y + 14, { align: "right" });
-  y += 31;
   drawRule(y, modernClassic ? 0.55 : 0.22, modernClassic ? ink : rule);
   y += 9;
 
@@ -625,12 +674,18 @@ export async function generateInvoicePdf(invoice: Invoice, settings: InvoiceSett
     doc.setFont("helvetica", "normal"); doc.setFontSize(8); setTextColor(body); doc.text(lines, margin, clientBottom + 1);
     clientBottom += lines.length * 3.8 + 2;
   }
-  const metaX = 126;
-  doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); setTextColor(muted); doc.text("INVOICE DATE", metaX, clientTop);
-  doc.setFont("helvetica", "normal"); doc.setFontSize(9); setTextColor(body); doc.text(formatInvoiceDate(source.invoiceDate), metaX, clientTop + 6);
-  doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); setTextColor(muted); doc.text("DUE DATE", metaX, clientTop + 13);
-  doc.setFont("helvetica", "normal"); doc.setFontSize(9); setTextColor(body); doc.text(formatInvoiceDate(source.dueDate), metaX, clientTop + 19);
-  y = Math.max(clientBottom, clientTop + 22) + 7;
+  if (layout.metadata === "bill-to-split" || layout.metadata === "ruled-columns") {
+    const metaX = 126;
+    doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); setTextColor(body); doc.text("INVOICE DATE", metaX, clientTop);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.text(formatInvoiceDate(source.invoiceDate), metaX, clientTop + 6);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); doc.text("DUE DATE", metaX, clientTop + 13);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.text(formatInvoiceDate(source.dueDate), metaX, clientTop + 19);
+    clientBottom = Math.max(clientBottom, clientTop + 22);
+  }
+  if (layout.metadata === "boxed-ledger") {
+    setDrawColor(ink); doc.setLineWidth(0.25); doc.rect(margin - 3, clientTop - 4, contentWidth + 6, Math.max(24, clientBottom - clientTop + 8));
+  }
+  y = clientBottom + 7;
 
   const tableColumns = modernClassic
     ? { itemX: margin + 12, numberX: margin + 3, quantityX: 135, unitX: 164, amountX: pageWidth - margin - 3 }
@@ -739,23 +794,23 @@ export async function generateInvoicePdf(invoice: Invoice, settings: InvoiceSett
 
   const drawFlowSection = (title: string, value: string, width = contentWidth) => {
     const lines: string[] = doc.splitTextToSize(value, width);
-    ensure(12);
+    ensure(10);
     drawRule(y, 0.18, rule);
-    y += 6;
-    doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); setTextColor(muted); doc.text(title, margin, y);
     y += 5;
+    doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); setTextColor(muted); doc.text(title, margin, y);
+    y += 4;
     doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); setTextColor(body);
     for (const line of lines) {
-      if (y + 4 > contentBottom) {
+      if (y + 3.8 > contentBottom) {
         addFlowPage();
         doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); setTextColor(muted); doc.text(`${title} - CONTINUED`, margin, y);
-        y += 5;
+        y += 4;
         doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); setTextColor(body);
       }
       doc.text(line, margin, y);
-      y += 4;
+      y += 3.8;
     }
-    y += 3;
+    y += 2;
   };
   if (source.showSchedules && source.schedules.length) {
     const scheduleText = source.schedules.map((schedule) => {
@@ -770,14 +825,19 @@ export async function generateInvoicePdf(invoice: Invoice, settings: InvoiceSett
   if (source.paymentInstructions) drawFlowSection("PAYMENT INSTRUCTIONS", source.paymentInstructions);
   if (source.notes) drawFlowSection("NOTES", source.notes);
   if (signatureImage || stampImage) {
-    ensure(32);
+    // Keep a compact signature block on the current page when it fits above
+    // the footer. The general flow boundary intentionally leaves more air,
+    // but using it here could create an almost-empty continuation page that
+    // contained only a signature and stamp.
+    const signatureBottom = pageHeight - 15.5;
+    if (y + 17 > signatureBottom) addFlowPage();
     drawRule(y, 0.18, rule);
-    y += 6;
+    y += 3.5;
     doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); setTextColor(muted); doc.text("AUTHORIZED SIGNATURE", margin, y);
-    const imageTop = y + 2;
-    if (signatureImage) drawContainedImage(signatureImage, margin, imageTop + 5, 40, 15);
-    if (stampImage) drawContainedImage(stampImage, margin + 15, imageTop, 26, 26);
-    y += 27;
+    const imageTop = y + 1;
+    if (signatureImage) drawContainedImage(signatureImage, margin, imageTop + 2.5, 22, 8);
+    if (stampImage) drawContainedImage(stampImage, margin + 11, imageTop, 12, 12);
+    y += 13;
   }
   const pageCount = doc.getNumberOfPages();
   for (let page = 1; page <= pageCount; page += 1) {

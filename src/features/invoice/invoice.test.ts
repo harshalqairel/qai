@@ -6,9 +6,11 @@ import {
   DEFAULT_INVOICE_SHARE_TEMPLATES,
   DEFAULT_INVOICE_SETTINGS,
   generateInvoicePdf,
+  createBookingInvoiceDraft,
   createInvoiceRevision,
   insertInvoiceTemplateVariable,
   invoiceEmailUrl,
+  invoiceLayoutProfile,
   invoicePaidAmount,
   invoicePaymentStatus,
   invoiceRemainingAmount,
@@ -60,6 +62,34 @@ describe("invoice financial rules", () => {
     expect(invoicePaidAmount(invoice, payments)).toBe(2_000_000);
     expect(invoiceRemainingAmount(invoice, payments)).toBe(3_500_000);
     expect(invoicePaidAmount({ ...invoice, bookingId: null }, payments)).toBe(0);
+  });
+
+  it("creates separate immutable-priced service and Additional Charge lines from a Booking", () => {
+    const draft = createBookingInvoiceDraft({
+      booking: {
+        id: "booking-priced", customerId: "client-1", serviceId: "service-1", servicePrice: 50_000,
+        serviceSnapshot: { serviceName: "Bobo Siang", variantId: null, variantLabel: "", options: [], price: 50_000, duration: 60, defaultSessionCount: 1 },
+        sessions: [], additionalCharges: [{ id: "charge-1", bookingId: "booking-priced", sessionId: null, categoryId: "category-1", categoryName: "Extra assistant", description: "", amount: 25_000, createdAt: 1, updatedAt: 1 }],
+        questionnaireResponses: [], capacitySourceRequestId: null, capacitySlotKeys: [], bookingStatus: "Scheduled", fullPaymentDueDate: "2026-08-20", notes: "", createdAt: 1, updatedAt: 1,
+      },
+      customer: { id: "client-1", name: "Harshal", phone: "0812", instagram: "", email: "", notes: "", createdAt: 1 },
+      service: { id: "service-1", name: "Renamed live service", categoryId: "category-1", price: 999_000, duration: 120, defaultSessionCount: 1, description: "", active: true },
+      settings,
+      now: Date.UTC(2026, 7, 12),
+    });
+    expect(draft.lineItems.map((line) => [line.item, line.unitPrice])).toEqual([
+      ["Bobo Siang", 50_000],
+      ["Extra assistant", 25_000],
+    ]);
+    expect(invoiceTotals(draft).total).toBe(75_000);
+  });
+
+  it("defines four structurally distinct preview/PDF layout profiles", () => {
+    const profiles = (["Creative", "Neutral", "Professional", "Modern Classic"] as InvoiceStyle[]).map(invoiceLayoutProfile);
+    expect(new Set(profiles.map((profile) => profile.header))).toHaveLength(4);
+    expect(new Set(profiles.map((profile) => profile.metadata))).toHaveLength(4);
+    expect(new Set(profiles.map((profile) => profile.lineItems))).toHaveLength(4);
+    expect(new Set(profiles.map((profile) => profile.totals))).toHaveLength(4);
   });
 });
 

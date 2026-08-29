@@ -21,7 +21,7 @@ import { useExpenses } from "@/features/expense/hooks/useExpenses";
 import { useExpenseCategories } from "@/features/expense-category/hooks/useExpenseCategories";
 import { suggestCategoryColor } from "@/features/category/constants";
 import { summarizeBookingPayments } from "@/features/payment/utils/paymentCalculations";
-import { calculateBookingFinancials } from "@/features/booking/domain/bookingFinancials";
+import { bookingClientTotal, calculateBookingFinancials } from "@/features/booking/domain/bookingFinancials";
 import {
   compareBookingsByFirstSession,
   firstBookingSession,
@@ -93,13 +93,11 @@ export default function BookingsPage() {
   const bookingsWithNames: BookingFinancialDetails[] = bookings.map((booking) => {
     const customer = customers.find((item) => item.id === booking.customerId);
     const service = services.find((item) => item.id === booking.serviceId);
-    const effectiveServicePrice = booking.servicePrice > 0 ? booking.servicePrice : service?.price ?? 0;
     const paymentSummary = paymentSummaries[booking.id];
-    const financials = calculateBookingFinancials({ ...booking, servicePrice: effectiveServicePrice }, payments, expenses);
+    const financials = calculateBookingFinancials(booking, payments, expenses);
     const directExpenses = financials.directExpenses;
     return {
       ...booking,
-      servicePrice: effectiveServicePrice,
       customerName: customer?.name ?? "Client not found",
       serviceName: [booking.serviceSnapshot?.serviceName || service?.name || "Unknown Service", booking.serviceSnapshot?.variantLabel].filter(Boolean).join(" · "),
       paymentStatus: paymentSummary?.paymentStatus ?? "Outstanding",
@@ -160,7 +158,6 @@ export default function BookingsPage() {
       .sort((left, right) => right.updatedAt - left.updatedAt)[0];
     return latest?.lifecycle ?? "No invoice";
   };
-  const clientTotal = (booking: BookingFinancialDetails) => booking.servicePrice + (booking.additionalCharges ?? []).reduce((sum, charge) => sum + charge.amount, 0);
   const nullableNumber = (left: number | null, right: number | null) => (left ?? Number.NEGATIVE_INFINITY) - (right ?? Number.NEGATIVE_INFINITY);
   switch (sort) {
     case "client-asc": sortedBookings.sort((a, b) => a.customerName.localeCompare(b.customerName) || a.serviceName.localeCompare(b.serviceName)); break;
@@ -174,8 +171,8 @@ export default function BookingsPage() {
     case "payment-status-desc": sortedBookings.sort((a, b) => b.paymentStatus.localeCompare(a.paymentStatus)); break;
     case "invoice-status-asc": sortedBookings.sort((a, b) => invoiceState(a.id).localeCompare(invoiceState(b.id))); break;
     case "invoice-status-desc": sortedBookings.sort((a, b) => invoiceState(b.id).localeCompare(invoiceState(a.id))); break;
-    case "amount-asc": sortedBookings.sort((a, b) => clientTotal(a) - clientTotal(b)); break;
-    case "amount-desc": sortedBookings.sort((a, b) => clientTotal(b) - clientTotal(a)); break;
+    case "amount-asc": sortedBookings.sort((a, b) => bookingClientTotal(a) - bookingClientTotal(b)); break;
+    case "amount-desc": sortedBookings.sort((a, b) => bookingClientTotal(b) - bookingClientTotal(a)); break;
     case "profit-asc": sortedBookings.sort((a, b) => nullableNumber(a.estimatedProfit, b.estimatedProfit)); break;
     case "profit-desc": sortedBookings.sort((a, b) => nullableNumber(b.estimatedProfit, a.estimatedProfit)); break;
     case "date-desc":

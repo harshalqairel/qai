@@ -132,6 +132,26 @@ describe("financial reporting domain", () => {
     expect(active?.estimatedJobProfit).toBe(900_000);
   });
 
+  it("reconciles service price, Additional Charges, payments, and direct expenses from the canonical Booking values", () => {
+    const chargedBooking: Booking = {
+      ...bookings[0],
+      servicePrice: 50_000,
+      additionalCharges: [{
+        id: "charge-1", bookingId: "booking-1", sessionId: null, categoryId: "category-charge",
+        categoryName: "Extra assistant", description: "", amount: 25_000, createdAt: 1, updatedAt: 1,
+      }],
+    };
+    const result = buildFinancialReport({
+      businessName: "Qai Test", currency: "IDR", timezone: "Asia/Jakarta", period: { preset: "this-month" },
+      bookings: [chargedBooking], customers, services,
+      payments: [{ ...payments[0], amount: 20_000 }],
+      expenses: [{ ...expenses[0], amount: 10_000 }], expenseCategories, invoices: [],
+      generatedAt: new Date("2026-08-20T08:00:00.000Z"),
+    });
+    expect(result.bookings[0]).toMatchObject({ bookingValue: 75_000, totalPaid: 20_000, outstanding: 55_000, directExpenses: 10_000, estimatedJobProfit: 65_000 });
+    expect(result.summary).toMatchObject({ expectedBookingValue: 75_000, outstanding: 55_000, estimatedJobProfit: 65_000 });
+  });
+
   it("counts a multi-session booking once financially and once per session in Schedule", () => {
     const result = report();
     expect(result.bookings.filter((row) => row.bookingId === "booking-1")).toHaveLength(1);

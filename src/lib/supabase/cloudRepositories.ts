@@ -58,6 +58,14 @@ function throwOnError(error: { message: string } | null): void {
   if (error) throw new Error(error.message);
 }
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isMissingIntegrityRpc(error: { code?: string; message: string } | null): boolean {
+  if (!error) return false;
+  return error.code === "PGRST202"
+    || /save_booking_with_integrity/i.test(error.message) && /not found|schema cache/i.test(error.message);
+}
+
 export function resetActiveBusinessContext(): void {
   activeBusinessPromise = null;
 }
@@ -231,6 +239,20 @@ export const cloudAdditionalChargeCategoryRepository = {
     name: category.name.trim(),
     created_at: isoTimestamp(category.createdAt),
   }),
+  async ensureDefaults(names: readonly string[]) {
+    const { businessId } = await getActiveBusinessContext();
+    const now = Date.now();
+    const { error } = await createClient().from("additional_charge_categories").upsert(
+      names.map((name) => ({ id: crypto.randomUUID(), business_id: businessId, name, created_at: isoTimestamp(now) })),
+      { onConflict: "business_id,normalized_name", ignoreDuplicates: true },
+    );
+    throwOnError(error);
+    return getAll("additional_charge_categories", (row) => ({
+      id: valueAsString(row, "id"),
+      name: valueAsString(row, "name"),
+      createdAt: timestamp(row.created_at),
+    }));
+  },
 };
 
 function serviceFromRow(row: DbRow): Service {
@@ -328,7 +350,10 @@ function bookingFromRow(row: DbRow, sessions: BookingSession[], additionalCharge
   };
 }
 
-function bookingToPayload(booking: Booking): DbRow {
+export function bookingToCloudPayload(booking: Booking): DbRow {
+  if (!Number.isFinite(booking.servicePrice) || booking.servicePrice < 0) {
+    throw new Error("BOOKING_SERVICE_PRICE_INVALID");
+  }
   return {
     id: booking.id,
     customer_id: booking.customerId,
@@ -367,6 +392,30 @@ function bookingToPayload(booking: Booking): DbRow {
   };
 }
 
+async function saveCloudBooking(booking: Booking): Promise<void> {
+  const client = createClient();
+  const bookingPayload = bookingToCloudPayload(booking);
+  const integrityResult = await client.rpc("save_booking_with_integrity", {
+    booking_payload: bookingPayload,
+  });
+  if (!isMissingIntegrityRpc(integrityResult.error)) {
+    throwOnError(integrityResult.error);
+    return;
+  }
+
+  // Compatibility for a deployment where application code reaches the cloud
+  // just before the forward migration. The legacy writer is safe only when
+  // every category is already a real database UUID; stale local fallback IDs
+  // must wait for the integrity RPC rather than reaching a UUID cast.
+  if ((booking.additionalCharges ?? []).some((charge) => !UUID_PATTERN.test(charge.categoryId))) {
+    throw new Error("BOOKING_INTEGRITY_MIGRATION_REQUIRED");
+  }
+  const fallbackResult = await client.rpc("save_booking_with_questionnaire", {
+    booking_payload: bookingPayload,
+  });
+  throwOnError(fallbackResult.error);
+}
+
 export const cloudBookingRepository = {
   async getAll(): Promise<Booking[]> {
     const { businessId } = await getActiveBusinessContext();
@@ -402,16 +451,10 @@ export const cloudBookingRepository = {
       .sort((left, right) => left.sessions[0].startAt.localeCompare(right.sessions[0].startAt));
   },
   async create(booking: Booking) {
-    const { error } = await createClient().rpc("save_booking_with_questionnaire", {
-      booking_payload: bookingToPayload(booking),
-    });
-    throwOnError(error);
+    await saveCloudBooking(booking);
   },
   async update(booking: Booking) {
-    const { error } = await createClient().rpc("save_booking_with_questionnaire", {
-      booking_payload: bookingToPayload(booking),
-    });
-    throwOnError(error);
+    await saveCloudBooking(booking);
   },
   async delete(id: string): Promise<BookingDeleteResult> {
     const { businessId } = await getActiveBusinessContext();

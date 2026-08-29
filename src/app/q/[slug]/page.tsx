@@ -26,7 +26,7 @@ import {
   resolvePublicServiceLocation,
   snapshotPublicServiceSelection,
   QAI_ATTRIBUTION_HREF,
-  validationClient,
+  qaiSpaceClient,
   type InstantSlot,
   type PublicRequest,
   type PublicSchedule,
@@ -34,7 +34,7 @@ import {
   type PublicServiceSlotAvailability,
   type QaiPageConfig,
 } from "@/features/qai-page/validation";
-import { isValidationModeEnabled } from "@/lib/supabase/config";
+import { isCloudModeEnabled, isValidationModeEnabled } from "@/lib/supabase/config";
 import { normalizeServiceAvailability } from "@/features/service/domain/serviceAvailability";
 import { useServices } from "@/features/service/hooks/useServices";
 import { mergePublicServices } from "@/features/qai-page/publicServiceSync";
@@ -90,7 +90,8 @@ function PoweredByQai() {
 
 export default function PublicQaiPage() {
   const params = useParams<{ slug: string }>();
-  const operationalServices = useServices();
+  const cloudMode = isCloudModeEnabled();
+  const operationalServices = useServices({ enabled: !cloudMode });
   const [page, setPage] = useState<QaiPageConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -103,7 +104,7 @@ export default function PublicQaiPage() {
 
   const load = useCallback(async () => {
     try {
-      setPage(await validationClient.page(params.slug));
+      setPage(await qaiSpaceClient.page(params.slug));
       setError("");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "This Space is not available.");
@@ -125,16 +126,16 @@ export default function PublicQaiPage() {
 
   const synchronizedPageServices = useMemo(() => {
     if (!page) return [];
-    return !isValidationModeEnabled() && !operationalServices.isLoading
+    return !isValidationModeEnabled() && !cloudMode && !operationalServices.isLoading
       ? mergePublicServices(page.services, operationalServices.services)
       : page.services;
-  }, [operationalServices.isLoading, operationalServices.services, page]);
+  }, [cloudMode, operationalServices.isLoading, operationalServices.services, page]);
   useEffect(() => {
-    if (!page || isValidationModeEnabled() || operationalServices.isLoading) return;
+    if (!page || isValidationModeEnabled() || cloudMode || operationalServices.isLoading) return;
     if (JSON.stringify(page.services) === JSON.stringify(synchronizedPageServices)) return;
     const synchronizedPage = { ...page, services: synchronizedPageServices, updatedAt: Date.now() };
-    void validationClient.savePage(synchronizedPage).then(setPage).catch(() => undefined);
-  }, [operationalServices.isLoading, page, synchronizedPageServices]);
+    void qaiSpaceClient.savePage(synchronizedPage).then(setPage).catch(() => undefined);
+  }, [cloudMode, operationalServices.isLoading, page, synchronizedPageServices]);
   const services = useMemo(() => synchronizedPageServices.filter((item) => item.visible).sort((left, right) => left.position - right.position), [synchronizedPageServices]);
   const portfolio = useMemo(() => [...(page?.portfolio ?? [])].filter((item) => item.visible).sort((left, right) => left.position - right.position), [page]);
 
@@ -201,8 +202,8 @@ function PublicBookingDialog({
 
   async function uploadQuestionFile(question: BookingQuestion, file: File): Promise<BookingQuestionFileAnswer> {
     if (!["image/png", "image/jpeg", "image/webp", "application/pdf"].includes(file.type) || file.size <= 0 || file.size > 8 * 1024 * 1024) throw new Error("Use a PNG, JPG, WebP, or PDF file up to 8 MB.");
-    if (isValidationModeEnabled()) {
-      const uploaded = await validationClient.uploadPublicQuestionFile(file, page.slug, service.serviceId, question.id);
+    if (isValidationModeEnabled() || isCloudModeEnabled()) {
+      const uploaded = await qaiSpaceClient.uploadPublicQuestionFile(file, page.slug, service.serviceId, question.id);
       return { url: uploaded.url, name: file.name, mimeType: file.type, size: file.size };
     }
     if (file.size > 2 * 1024 * 1024) throw new Error("Local file answers are limited to 2 MB.");
@@ -223,7 +224,7 @@ function PublicBookingDialog({
     setSubmitting(true);
     setFormError("");
     try {
-      const created = await validationClient.submitRequest({
+      const created = await qaiSpaceClient.submitRequest({
         pageId: page.id,
         slug: page.slug,
         serviceId: service.serviceId,
@@ -277,7 +278,7 @@ function AvailabilityScheduleFields({ page, service, variantId, snapshotCount, f
     }
     setLoadingScheduleId(schedule.id);
     try {
-      const slots = await validationClient.availability(page.slug, service.serviceId, date, variantId);
+      const slots = await qaiSpaceClient.availability(page.slug, service.serviceId, date, variantId);
       setSlotsBySchedule((current) => ({ ...current, [schedule.id]: slots }));
     } finally {
       setLoadingScheduleId((current) => current === schedule.id ? null : current);
