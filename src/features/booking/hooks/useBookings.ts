@@ -96,13 +96,18 @@ export function useBookings() {
     catch { return null; }
   }, [createBookingAndReturnOrThrow]);
 
+  const createBookingOrThrow = useCallback(async (command: CreateBookingCommand): Promise<boolean> => {
+    await createBookingAndReturnOrThrow(command);
+    return true;
+  }, [createBookingAndReturnOrThrow]);
+
   const createBooking = useCallback(async (command: CreateBookingCommand): Promise<boolean> => {
     return Boolean(await createBookingAndReturn(command));
   }, [createBookingAndReturn]);
 
-  const updateBooking = useCallback(async (input: UpdateBookingInput): Promise<boolean> => {
+  const updateBookingOrThrow = useCallback(async (input: UpdateBookingInput): Promise<boolean> => {
     const current = bookings.find((booking) => booking.id === input.id);
-    if (!current) return false;
+    if (!current) throw new Error("BOOKING_NOT_FOUND");
     const now = Date.now();
     const sessions = buildBookingSessions(current.id, input.sessions, timezone, current.sessions, now);
     const updated: Booking = {
@@ -130,19 +135,20 @@ export function useBookings() {
       updatedAt: now,
     };
 
-    try {
-      if (isCloudModeEnabled()) await cloudBookingRepository.update(updated);
-      else bookingRepository.update(updated);
-      setBookings((prev) =>
-        prev.map((booking) => (booking.id === updated.id ? updated : booking)),
-      );
-      emitDataRefresh();
-      void synchronizeAffectedCalendarSessions(calendarRelevantSessionIds(current, updated));
-      return true;
-    } catch {
-      return false;
-    }
+    if (isCloudModeEnabled()) await cloudBookingRepository.update(updated);
+    else bookingRepository.update(updated);
+    setBookings((prev) =>
+      prev.map((booking) => (booking.id === updated.id ? updated : booking)),
+    );
+    emitDataRefresh();
+    void synchronizeAffectedCalendarSessions(calendarRelevantSessionIds(current, updated));
+    return true;
   }, [bookings, timezone]);
+
+  const updateBooking = useCallback(async (input: UpdateBookingInput): Promise<boolean> => {
+    try { return await updateBookingOrThrow(input); }
+    catch { return false; }
+  }, [updateBookingOrThrow]);
 
   const deleteBooking = useCallback(async (id: string): Promise<BookingDeleteResult | "error"> => {
     try {
@@ -180,9 +186,11 @@ export function useBookings() {
   return {
     bookings,
     createBooking,
+    createBookingOrThrow,
     createBookingAndReturn,
     createBookingAndReturnOrThrow,
     updateBooking,
+    updateBookingOrThrow,
     deleteBooking,
     updateAdditionalCharges,
     isLoading,

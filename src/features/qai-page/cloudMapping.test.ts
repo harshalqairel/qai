@@ -32,6 +32,29 @@ describe("cloud Qai Space mapping", () => {
     expect(result.services[0]).toMatchObject({ serviceId: "service-2", visible: false, price: 0 });
   });
 
+  it("removes inactive and deleted operational Services from the public page", () => {
+    const page = defaultQaiPage();
+    page.services = [
+      {
+        serviceId: "inactive-service", visible: true, title: "Inactive", description: "", price: 100_000,
+        priceMode: "Fixed price", actionMode: "Booking request", durationMinutes: 60, defaultSessionCount: 1,
+        locationPolicy: "Client can choose", optionGroups: [], variants: [], position: 0, featured: false,
+      },
+      {
+        serviceId: "deleted-service", visible: true, title: "Deleted", description: "", price: 200_000,
+        priceMode: "Fixed price", actionMode: "Booking request", durationMinutes: 60, defaultSessionCount: 1,
+        locationPolicy: "Client can choose", optionGroups: [], variants: [], position: 1, featured: false,
+      },
+    ];
+
+    const result = materializeCloudPage(page, [{
+      id: "inactive-service", name: "Inactive", category_id: "category-1", price: 100_000,
+      duration_minutes: 60, default_session_count: 1, description: "", active: false,
+    }]);
+
+    expect(result.services).toEqual([]);
+  });
+
   it("maps stable booking snapshots and capacity keys without live-price fallback", () => {
     const bookings = cloudBookingsForCapacity([{
       id: "booking-1", customer_id: "customer-1", service_id: "service-1", service_price: 0,

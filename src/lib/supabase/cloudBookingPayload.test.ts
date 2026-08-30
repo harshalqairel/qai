@@ -6,7 +6,10 @@ import { bookingToCloudPayload, cloudBookingRepository } from "./cloudRepositori
 
 vi.mock("./client", () => ({ createClient: vi.fn() }));
 
-afterEach(() => vi.resetAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.resetAllMocks();
+});
 
 function booking(changes: Partial<Booking> = {}): Booking {
   return {
@@ -61,6 +64,35 @@ describe("cloud Booking payload", () => {
     });
   });
 
+  it("preserves safe RPC diagnostics instead of collapsing a cloud save failure", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const rpc = vi.fn().mockResolvedValue({
+      data: null,
+      error: {
+        code: "22P02",
+        message: 'invalid input syntax for type uuid: "charge-category-7"',
+        details: "private database detail",
+        hint: null,
+      },
+      status: 400,
+    });
+    vi.mocked(createClient).mockReturnValue({ rpc } as never);
+
+    await expect(cloudBookingRepository.create(booking())).rejects.toMatchObject({
+      name: "BookingSaveError",
+      message: "The Additional Charge category could not be saved.",
+      operation: "save_booking_with_integrity",
+      code: "22P02",
+      status: 400,
+    });
+    expect(consoleError).toHaveBeenCalledWith("Booking cloud save failed.", {
+      operation: "save_booking_with_integrity",
+      status: 400,
+      code: "22P02",
+      reason: "The Additional Charge category could not be saved.",
+    });
+  });
+
   it("uses the legacy RPC during a safe migration rollout only for UUID-backed categories", async () => {
     const rpc = vi.fn()
       .mockResolvedValueOnce({ data: null, error: { code: "PGRST202", message: "save_booking_with_integrity was not found in the schema cache" } })
@@ -71,7 +103,11 @@ describe("cloud Booking payload", () => {
     expect(rpc.mock.calls.map(([name]) => name)).toEqual(["save_booking_with_integrity", "save_booking_with_questionnaire"]);
 
     rpc.mockReset().mockResolvedValueOnce({ data: null, error: { code: "PGRST202", message: "not found" } });
-    await expect(cloudBookingRepository.create(booking({ additionalCharges: [{ ...uuidCharge, categoryId: "charge-category-7" }] }))).rejects.toThrow("BOOKING_INTEGRITY_MIGRATION_REQUIRED");
+    await expect(cloudBookingRepository.create(booking({ additionalCharges: [{ ...uuidCharge, categoryId: "charge-category-7" }] }))).rejects.toMatchObject({
+      name: "BookingSaveError",
+      message: "The Additional Charge category could not be saved.",
+      code: "BOOKING_INTEGRITY_MIGRATION_REQUIRED",
+    });
     expect(rpc).toHaveBeenCalledOnce();
   });
 });

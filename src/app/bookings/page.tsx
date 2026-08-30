@@ -48,7 +48,13 @@ export default function BookingsPage() {
   const expenseData = useExpenses();
   const expenseCategoryData = useExpenseCategories();
   const serviceCategoryData = useServiceCategories();
-  const { bookings, createBooking, updateBooking, deleteBooking } = bookingData;
+  const {
+    bookings,
+    createBookingOrThrow,
+    updateBooking,
+    updateBookingOrThrow,
+    deleteBooking,
+  } = bookingData;
   const { customers } = customerData;
   const { services } = serviceData;
   const { payments, createPayment, updatePayment, deletePayment } = paymentData;
@@ -358,11 +364,11 @@ export default function BookingsPage() {
           setInitialBookingValues(undefined);
         }}
         onCreate={async (command: CreateBookingCommand) => {
-          const created = await createBooking(command);
+          const created = await createBookingOrThrow(command);
           if (created) await paymentData.retry();
           return created;
         }}
-        onUpdate={(input: UpdateBookingInput) => updateBooking(input)}
+        onUpdate={(input: UpdateBookingInput) => updateBookingOrThrow(input)}
         onAddPaymentClick={(bookingId, remainingAmount) =>
           openPaymentDialog(bookingId, undefined, remainingAmount)
         }

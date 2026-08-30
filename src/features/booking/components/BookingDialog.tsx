@@ -48,6 +48,7 @@ import { clientSearchText, clientSecondaryIdentity, findClientMatches } from "@/
 import { defaultServiceVariant, snapshotServiceSelection } from "@/features/service/domain/serviceVariants";
 import type { Invoice } from "@/features/invoice/invoice";
 import { recommendedServiceChangePriceMode, serviceUsesManagedAvailability } from "@/features/booking/domain/serviceChange";
+import { bookingSaveErrorMessage } from "@/features/booking/domain/bookingSaveError";
 
 type BookingDialogProps = {
   open: boolean;
@@ -641,11 +642,21 @@ export default function BookingDialog({
       };
     }
 
-    const succeeded = await action.run(() => booking
-      ? onUpdate({ id: booking.id, ...bookingValues, additionalCharges })
-      : onCreate(createCommand!));
+    let saveFailure: unknown = null;
+    const succeeded = await action.run(async () => {
+      try {
+        return await (booking
+          ? onUpdate({ id: booking.id, ...bookingValues, additionalCharges })
+          : onCreate(createCommand!));
+      } catch (error) {
+        saveFailure = error;
+        return false;
+      }
+    });
     if (!succeeded) {
-      notify.error("Could not save the booking. Try again.");
+      notify.error(saveFailure
+        ? bookingSaveErrorMessage(saveFailure)
+        : "Could not save the booking. Try again.");
       return;
     }
     notify.success(booking ? "Booking updated." : "Booking saved.");
@@ -931,7 +942,7 @@ export default function BookingDialog({
           </section>
           </div>
 
-          <aside className="space-y-4 lg:sticky lg:top-4 lg:col-span-4">
+          <aside className="space-y-4 lg:col-span-4 lg:self-start">
           <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <div className="mb-4">
               <p className="section-kicker">Booking summary</p>

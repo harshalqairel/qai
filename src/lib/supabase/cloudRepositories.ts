@@ -2,6 +2,10 @@
 
 import type { Booking, BookingAdditionalCharge, BookingSession } from "@/features/booking/types";
 import type { BookingDeleteResult } from "@/features/booking/api/bookingRepository";
+import {
+  createCloudBookingSaveError,
+  type BookingSaveOperation,
+} from "@/features/booking/domain/bookingSaveError";
 import type { Customer } from "@/features/customer/types";
 import type { ExpenseCategory } from "@/features/expense-category/types";
 import type { Expense } from "@/features/expense/types";
@@ -64,6 +68,22 @@ function isMissingIntegrityRpc(error: { code?: string; message: string } | null)
   if (!error) return false;
   return error.code === "PGRST202"
     || /save_booking_with_integrity/i.test(error.message) && /not found|schema cache/i.test(error.message);
+}
+
+function throwBookingSaveError(
+  error: { code?: string; details?: string; hint?: string; message: string } | null,
+  operation: BookingSaveOperation,
+  status?: number | null,
+): void {
+  if (!error) return;
+  const saveError = createCloudBookingSaveError(error, operation, status);
+  console.error("Booking cloud save failed.", {
+    operation: saveError.operation,
+    status: saveError.status,
+    code: saveError.code,
+    reason: saveError.message,
+  });
+  throw saveError;
 }
 
 export function resetActiveBusinessContext(): void {
@@ -399,7 +419,11 @@ async function saveCloudBooking(booking: Booking): Promise<void> {
     booking_payload: bookingPayload,
   });
   if (!isMissingIntegrityRpc(integrityResult.error)) {
-    throwOnError(integrityResult.error);
+    throwBookingSaveError(
+      integrityResult.error,
+      "save_booking_with_integrity",
+      integrityResult.status,
+    );
     return;
   }
 
@@ -408,12 +432,20 @@ async function saveCloudBooking(booking: Booking): Promise<void> {
   // every category is already a real database UUID; stale local fallback IDs
   // must wait for the integrity RPC rather than reaching a UUID cast.
   if ((booking.additionalCharges ?? []).some((charge) => !UUID_PATTERN.test(charge.categoryId))) {
-    throw new Error("BOOKING_INTEGRITY_MIGRATION_REQUIRED");
+    throw createCloudBookingSaveError(
+      { code: "BOOKING_INTEGRITY_MIGRATION_REQUIRED" },
+      "save_booking_with_integrity",
+      integrityResult.status,
+    );
   }
   const fallbackResult = await client.rpc("save_booking_with_questionnaire", {
     booking_payload: bookingPayload,
   });
-  throwOnError(fallbackResult.error);
+  throwBookingSaveError(
+    fallbackResult.error,
+    "save_booking_with_questionnaire",
+    fallbackResult.status,
+  );
 }
 
 export const cloudBookingRepository = {

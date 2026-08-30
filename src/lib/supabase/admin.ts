@@ -20,6 +20,7 @@ export function logCloudFailure(operation: string, error: unknown) {
     name: error instanceof Error ? error.name : record.name,
     message: error instanceof Error ? error.message : record.message,
     code: record.code,
+    stage: record.stage,
     details: record.details,
     hint: record.hint,
     status: record.status,

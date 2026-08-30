@@ -9,7 +9,17 @@ import type { BookingFormValues } from "@/features/booking/schema";
 import type { Customer } from "@/features/customer/types";
 import type { Payment } from "@/features/payment/types";
 import type { Service } from "@/features/service/types";
+import { BookingSaveError } from "@/features/booking/domain/bookingSaveError";
 import BookingDialog from "./BookingDialog";
+
+const notificationMocks = vi.hoisted(() => ({
+  error: vi.fn(),
+  success: vi.fn(),
+  warning: vi.fn(),
+  info: vi.fn(),
+}));
+
+vi.mock("@/lib/notifications", () => ({ notify: notificationMocks }));
 
 const client: Customer = { id: "client-1", name: "Alya", phone: "0812", instagram: "@alya", email: "", notes: "", createdAt: 1 };
 const createdClient: Customer = { id: "client-2", name: "Nadia", phone: "0813", instagram: "", email: "", notes: "", createdAt: 2 };
@@ -45,6 +55,7 @@ const payment: Payment = { id: "payment-1", bookingId: booking.id, date: "2026-0
 
 afterEach(() => {
   cleanup();
+  vi.clearAllMocks();
   window.localStorage.clear();
 });
 
@@ -86,6 +97,15 @@ describe("BookingDialog service changes", () => {
     expect(save.getAttribute("form")).toBe("booking-details-form");
   });
 
+  it("keeps the pricing rail in normal document flow so later financial sections cannot scroll beneath it", () => {
+    renderDialog();
+    const pricingRail = screen.getByRole("heading", { name: "Pricing & status" }).closest("aside");
+    expect(pricingRail).not.toBeNull();
+    expect(pricingRail?.className).not.toContain("sticky");
+    expect(pricingRail?.className).toContain("lg:self-start");
+    expect(screen.getByRole("heading", { name: "Booking Profit" })).toBeTruthy();
+  });
+
   it("changes an existing service, clears the old option snapshot, and preserves schedules", async () => {
     const user = userEvent.setup();
     const onUpdate = renderDialog();
@@ -110,6 +130,21 @@ describe("BookingDialog service changes", () => {
 
     await waitFor(() => expect(onUpdate).toHaveBeenCalledOnce());
     expect(onUpdate.mock.calls[0]![0].servicePrice).toBe(booking.servicePrice);
+  });
+
+  it("shows the sanitized cloud save reason returned by the throwing save path", async () => {
+    const user = userEvent.setup();
+    const onUpdate = renderDialog();
+    onUpdate.mockRejectedValueOnce(new BookingSaveError(
+      "The Additional Charge category could not be saved.",
+      { operation: "save_booking_with_integrity", code: "22P02", status: 400 },
+    ));
+
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => expect(notificationMocks.error).toHaveBeenCalledWith(
+      "Could not save the booking: The Additional Charge category could not be saved.",
+    ));
   });
 
   it("opens inline client creation after the iOS touch blur sequence", async () => {

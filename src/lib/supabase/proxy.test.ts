@@ -5,6 +5,7 @@ import { isCloudPublicRoute } from "./proxy";
 describe("cloud public routes", () => {
   it.each([
     "/q/nuyimakeup",
+    "/q/testtt",
     "/api/qai-space",
     "/api/qai-space/public-media",
     "/api/qai-space/media/6f7bdd95-a3d6-4a9f-b27b-f6e4de71af3f",

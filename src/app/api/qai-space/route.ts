@@ -57,6 +57,28 @@ function requestRows(value: unknown): PublicRequest[] {
   return rows(value).map((row) => publicRequestSchema.parse(row.payload));
 }
 
+type PublicPageLoadStage =
+  | "page lookup"
+  | "payload validation"
+  | "operational services"
+  | "service materialization"
+  | "capacity requests"
+  | "capacity bookings"
+  | "capacity booking sessions";
+
+function publicPageLoadError(stage: PublicPageLoadStage, error: unknown): Error {
+  const record = error && typeof error === "object" ? error as Record<string, unknown> : {};
+  const message = error instanceof Error
+    ? error.message
+    : typeof record.message === "string" ? record.message : "Cloud page load failed.";
+  return Object.assign(new Error(message), {
+    name: "QaiSpacePublicLoadError",
+    stage,
+    code: typeof record.code === "string" ? record.code : undefined,
+    status: typeof record.status === "number" ? record.status : undefined,
+  });
+}
+
 function localSchedulePart(value: string, timezone: string) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: timezone,
@@ -74,14 +96,26 @@ function localSchedulePart(value: string, timezone: string) {
 async function publicPageBySlug(slug: string) {
   const admin = createCloudAdminClient();
   const { data: pageRow, error } = await admin.from("qai_space_pages").select("id, business_id, payload").eq("slug", slug).not("published_at", "is", null).maybeSingle();
-  if (error) throw error;
+  if (error) throw publicPageLoadError("page lookup", error);
   if (!pageRow) throw new ValidationStoreError("PAGE_NOT_FOUND");
+  let storedPage: QaiPageConfig;
+  try {
+    storedPage = qaiPageSchema.parse(pageRow.payload);
+  } catch (parseError) {
+    throw publicPageLoadError("payload validation", parseError);
+  }
   const { data: serviceRows, error: serviceError } = await admin.from("services").select("*").eq("business_id", pageRow.business_id);
-  if (serviceError) throw serviceError;
+  if (serviceError) throw publicPageLoadError("operational services", serviceError);
+  let page: QaiPageConfig;
+  try {
+    page = materializeCloudPage(storedPage, rows(serviceRows));
+  } catch (mappingError) {
+    throw publicPageLoadError("service materialization", mappingError);
+  }
   return {
     admin,
     pageRow,
-    page: materializeCloudPage(qaiPageSchema.parse(pageRow.payload), rows(serviceRows)),
+    page,
   };
 }
 
@@ -91,9 +125,9 @@ async function capacityDocuments(admin: ReturnType<typeof createCloudAdminClient
     admin.from("bookings").select("*").eq("business_id", businessId),
     admin.from("booking_sessions").select("*").eq("business_id", businessId),
   ]);
-  if (requestResult.error) throw requestResult.error;
-  if (bookingResult.error) throw bookingResult.error;
-  if (sessionResult.error) throw sessionResult.error;
+  if (requestResult.error) throw publicPageLoadError("capacity requests", requestResult.error);
+  if (bookingResult.error) throw publicPageLoadError("capacity bookings", bookingResult.error);
+  if (sessionResult.error) throw publicPageLoadError("capacity booking sessions", sessionResult.error);
   return {
     requests: requestRows(requestResult.data),
     bookings: cloudBookingsForCapacity(rows(bookingResult.data), rows(sessionResult.data)),
