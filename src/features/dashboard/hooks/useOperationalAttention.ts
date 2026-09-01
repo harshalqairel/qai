@@ -23,7 +23,7 @@ export function buildOperationalAttention(
   pendingRequests: PublicRequest[],
 ) {
   const { validPayments } = partitionPaymentsByBookingIntegrity(payments, bookings);
-  const summaries = summarizeBookingPayments(bookings, validPayments);
+  const summaries = summarizeBookingPayments(bookings, validPayments, todayKey);
   const overdueBookings = bookings.filter((booking) => {
     const remainingAmount = summaries[booking.id]?.remainingAmount ?? 0;
     return isPaymentReminderEligible({ bookingStatus: booking.bookingStatus, remainingAmount })

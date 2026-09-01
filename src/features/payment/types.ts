@@ -33,5 +33,6 @@ export type UpdatePaymentInput = CreatePaymentInput & {
 export type DerivedPaymentStatus =
   | "Outstanding"
   | "Partial Paid"
+  | "Overdue"
   | "Fully Paid"
   | "Cancelled";

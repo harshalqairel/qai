@@ -18,12 +18,29 @@ export function sumPaymentsForBooking(bookingId: string, payments: Payment[]): n
 export function derivePaymentStatus(
   bookingStatus: Booking["bookingStatus"],
   totalPaid: number,
-  servicePrice: number,
+  clientTotal: number,
+  dueDate?: string,
+  todayKey?: string,
 ): DerivedPaymentStatus {
   if (bookingStatus === "Cancelled") return "Cancelled";
-  if (totalPaid <= 0) return "Outstanding";
-  if (totalPaid < servicePrice) return "Partial Paid";
-  return "Fully Paid";
+  const outstanding = Math.max(clientTotal - totalPaid, 0);
+  if (outstanding <= 0) return "Fully Paid";
+  if (isValidDateKey(dueDate) && isValidDateKey(todayKey) && dueDate < todayKey) return "Overdue";
+  if (totalPaid > 0) return "Partial Paid";
+  return "Outstanding";
+}
+
+function isValidDateKey(value: string | undefined): value is string {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+export function paymentStatusLabel(status: DerivedPaymentStatus): string {
+  if (status === "Outstanding") return "Unpaid";
+  if (status === "Partial Paid") return "Part paid";
+  if (status === "Fully Paid") return "Paid";
+  return status;
 }
 
 /**
@@ -57,6 +74,7 @@ export function getPaymentLabel(
 export function summarizeBookingPayments(
   bookings: Booking[],
   payments: Payment[],
+  todayKey?: string,
 ): Record<string, BookingPaymentSummary> {
   const byBookingId: Record<string, BookingPaymentSummary> = {};
 
@@ -66,7 +84,13 @@ export function summarizeBookingPayments(
     const remainingAmount = booking.bookingStatus === "Cancelled"
       ? 0
       : Math.max(clientTotal - totalPaid, 0);
-    const paymentStatus = derivePaymentStatus(booking.bookingStatus, totalPaid, clientTotal);
+    const paymentStatus = derivePaymentStatus(
+      booking.bookingStatus,
+      totalPaid,
+      clientTotal,
+      booking.fullPaymentDueDate,
+      todayKey,
+    );
 
     byBookingId[booking.id] = {
       bookingId: booking.id,

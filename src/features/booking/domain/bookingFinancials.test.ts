@@ -27,4 +27,46 @@ describe("booking financial truth", () => {
       estimatedJobProfit: 1_580_000,
     });
   });
+
+  it("adds multiple client charges without creating Direct Expenses", () => {
+    const charged = {
+      ...booking,
+      additionalCharges: [
+        ...booking.additionalCharges,
+        { ...booking.additionalCharges[0], id: "charge-2", amount: 125_000 },
+      ],
+    };
+    expect(calculateBookingFinancials(charged, [], [])).toMatchObject({
+      servicePrice: 7_500_000,
+      additionalCharges: 425_000,
+      clientTotal: 7_925_000,
+      directExpenses: 0,
+      estimatedJobProfit: 7_925_000,
+    });
+  });
+
+  it("treats an initial or later Payment as paid money without reducing Client Total", () => {
+    const initial = { id: "payment-initial", bookingId: booking.id, amount: 2_000_000 } as never;
+    const later = { id: "payment-later", bookingId: booking.id, amount: 1_000_000 } as never;
+    expect(calculateBookingFinancials(booking, [initial], [])).toMatchObject({
+      clientTotal: 7_800_000,
+      totalPaid: 2_000_000,
+      outstanding: 5_800_000,
+    });
+    expect(calculateBookingFinancials(booking, [initial, later], [])).toMatchObject({
+      clientTotal: 7_800_000,
+      totalPaid: 3_000_000,
+      outstanding: 4_800_000,
+    });
+  });
+
+  it("accepts an exact outstanding total in the model and preserves a persisted zero price", () => {
+    const exact = { id: "payment-exact", bookingId: booking.id, amount: 7_800_000 } as never;
+    expect(calculateBookingFinancials(booking, [exact], [])).toMatchObject({ outstanding: 0 });
+    expect(calculateBookingFinancials({ ...booking, servicePrice: 0, additionalCharges: [] }, [], [])).toMatchObject({
+      servicePrice: 0,
+      clientTotal: 0,
+      outstanding: 0,
+    });
+  });
 });

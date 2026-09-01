@@ -37,41 +37,43 @@ export function usePayments() {
     };
   }, [retry]);
 
-  const createPayment = useCallback(async (input: CreatePaymentInput): Promise<boolean> => {
+  const createPaymentOrThrow = useCallback(async (input: CreatePaymentInput): Promise<boolean> => {
     const payment: Payment = {
       id: crypto.randomUUID(),
       createdAt: Date.now(),
       ...input,
     };
 
-    try {
-      if (isCloudModeEnabled()) await cloudPaymentRepository.create(payment);
-      else paymentRepository.create(payment);
-      setPayments((prev) => [...prev, payment]);
-      emitDataRefresh();
-      return true;
-    } catch {
-      return false;
-    }
+    if (isCloudModeEnabled()) await cloudPaymentRepository.create(payment);
+    else paymentRepository.create(payment);
+    setPayments((prev) => [...prev, payment]);
+    emitDataRefresh();
+    return true;
   }, []);
 
-  const updatePayment = useCallback(async (input: UpdatePaymentInput): Promise<boolean> => {
+  const createPayment = useCallback(async (input: CreatePaymentInput): Promise<boolean> => {
+    try { return await createPaymentOrThrow(input); }
+    catch { return false; }
+  }, [createPaymentOrThrow]);
+
+  const updatePaymentOrThrow = useCallback(async (input: UpdatePaymentInput): Promise<boolean> => {
     const current = payments.find((payment) => payment.id === input.id);
-    if (!current) return false;
+    if (!current) throw new Error("PAYMENT_NOT_FOUND");
     const updated: Payment = { ...current, ...input };
 
-    try {
-      if (isCloudModeEnabled()) await cloudPaymentRepository.update(updated);
-      else paymentRepository.update(updated);
-      setPayments((prev) =>
-        prev.map((payment) => (payment.id === updated.id ? updated : payment)),
-      );
-      emitDataRefresh();
-      return true;
-    } catch {
-      return false;
-    }
+    if (isCloudModeEnabled()) await cloudPaymentRepository.update(updated);
+    else paymentRepository.update(updated);
+    setPayments((prev) =>
+      prev.map((payment) => (payment.id === updated.id ? updated : payment)),
+    );
+    emitDataRefresh();
+    return true;
   }, [payments]);
+
+  const updatePayment = useCallback(async (input: UpdatePaymentInput): Promise<boolean> => {
+    try { return await updatePaymentOrThrow(input); }
+    catch { return false; }
+  }, [updatePaymentOrThrow]);
 
   const deletePayment = useCallback(async (id: string): Promise<boolean> => {
     try {
@@ -99,7 +101,9 @@ export function usePayments() {
     payments,
     paymentsByBookingId,
     createPayment,
+    createPaymentOrThrow,
     updatePayment,
+    updatePaymentOrThrow,
     deletePayment,
     isLoading,
     loadError,

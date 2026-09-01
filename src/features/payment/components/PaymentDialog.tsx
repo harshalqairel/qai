@@ -18,6 +18,7 @@ import ActionButton from "@/components/system/ActionButton";
 import { useActionGuard } from "@/hooks/useActionGuard";
 import { notify } from "@/lib/notifications";
 import { XIcon } from "lucide-react";
+import { paymentSaveErrorMessage } from "../domain/paymentSaveError";
 
 type PaymentDialogProps = {
   open: boolean;
@@ -91,11 +92,21 @@ export default function PaymentDialog({
       return;
     }
 
-    const succeeded = await action.run(() => isEdit && payment
-      ? onUpdate?.({ id: payment.id, ...values }) ?? false
-      : onCreate(values));
+    let saveFailure: unknown = null;
+    const succeeded = await action.run(async () => {
+      try {
+        return await (isEdit && payment
+          ? onUpdate?.({ id: payment.id, ...values }) ?? false
+          : onCreate(values));
+      } catch (error) {
+        saveFailure = error;
+        return false;
+      }
+    });
     if (!succeeded) {
-      notify.error("Could not save the payment. Try again.");
+      notify.error(saveFailure
+        ? paymentSaveErrorMessage(saveFailure)
+        : "Could not save the payment. Try again.");
       return;
     }
     notify.success(isEdit ? "Payment updated." : "Payment recorded.");

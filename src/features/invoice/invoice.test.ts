@@ -52,6 +52,9 @@ describe("invoice financial rules", () => {
     expect(invoicePaymentStatus(5_600_000, 0)).toBe("Unpaid");
     expect(invoicePaymentStatus(5_600_000, 2_000_000)).toBe("Part paid");
     expect(invoicePaymentStatus(5_600_000, 5_600_000)).toBe("Paid");
+    expect(invoicePaymentStatus(5_600_000, 0, "2026-08-18", "2026-08-18")).toBe("Unpaid");
+    expect(invoicePaymentStatus(5_600_000, 2_000_000, "2026-08-18", "2026-08-19")).toBe("Overdue");
+    expect(invoicePaymentStatus(5_600_000, 5_600_000, "2026-08-18", "2026-08-19")).toBe("Paid");
   });
 
   it("uses only actual booking Payment records for paid and remaining amounts", () => {

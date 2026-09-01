@@ -42,6 +42,7 @@ import type { DerivedPaymentStatus } from "@/features/payment/types";
 import { latestInvoiceVersions, type Invoice } from "@/features/invoice/invoice";
 import {
   formatRupiah,
+  paymentStatusLabel,
 } from "@/features/payment/utils/paymentCalculations";
 import {
   firstBookingSession,
@@ -86,16 +87,10 @@ const BOOKING_STATUS_STYLES: Record<BookingStatus, string> = {
   Cancelled: "bg-red-100 text-red-700",
 };
 
-const PAYMENT_STATUS_LABELS: Record<DerivedPaymentStatus, string> = {
-  Outstanding: "Unpaid",
-  "Partial Paid": "Part paid",
-  "Fully Paid": "Paid",
-  Cancelled: "Cancelled",
-};
-
 const PAYMENT_STATUS_STYLES: Record<DerivedPaymentStatus, string> = {
   Outstanding: "bg-zinc-200 text-zinc-700",
   "Partial Paid": "bg-amber-100 text-amber-700",
+  Overdue: "bg-rose-100 text-rose-700",
   "Fully Paid": "bg-emerald-100 text-emerald-700",
   Cancelled: "bg-red-100 text-red-700",
 };
@@ -192,7 +187,7 @@ function PaymentStatusControl({
         `View payment details for ${booking.customerName}`
       }
     >
-      {PAYMENT_STATUS_LABELS[booking.paymentStatus]}
+      {paymentStatusLabel(booking.paymentStatus)}
     </Button>
   );
 }

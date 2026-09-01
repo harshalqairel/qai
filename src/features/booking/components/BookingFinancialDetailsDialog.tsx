@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { MoneyInput } from "@/components/ui/money-input";
 import type { Booking, BookingAdditionalCharge } from "@/features/booking/types";
 import type { Payment, DerivedPaymentStatus } from "@/features/payment/types";
-import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
+import { formatRupiah, paymentStatusLabel } from "@/features/payment/utils/paymentCalculations";
 import ReminderHistoryList from "@/features/reminder/components/ReminderHistoryList";
 import { invoiceRepository, latestInvoiceVersions } from "@/features/invoice/invoice";
 import { bookingAdditionalChargesTotal, bookingClientTotal } from "@/features/booking/domain/bookingFinancials";
@@ -40,13 +40,6 @@ type BookingFinancialDetailsDialogProps = {
 
 function isPaymentAllowed(booking: BookingFinancialDetails): boolean {
   return booking.bookingStatus !== "Cancelled" && (booking.remainingAmount ?? 0) > 0;
-}
-
-function paymentStatusLabel(status: DerivedPaymentStatus): string {
-  if (status === "Outstanding") return "Unpaid";
-  if (status === "Partial Paid") return "Part paid";
-  if (status === "Fully Paid") return "Paid";
-  return "Cancelled";
 }
 
 function valueClass(value: number): string {

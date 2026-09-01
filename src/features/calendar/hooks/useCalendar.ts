@@ -31,7 +31,7 @@ export function useCalendar() {
   const customerData = useCustomers();
   const serviceData = useServices();
   const serviceCategoryData = useServiceCategories();
-  const { bookings, createBooking, updateBooking, deleteBooking } = bookingData;
+  const { bookings, createBooking, createBookingOrThrow, updateBooking, updateBookingOrThrow, deleteBooking } = bookingData;
   const { customers } = customerData;
   const { services } = serviceData;
   const { categories: serviceCategories } = serviceCategoryData;
@@ -154,7 +154,9 @@ export function useCalendar() {
     openEditBooking,
     closeDialog,
     createBooking,
+    createBookingOrThrow,
     updateBooking,
+    updateBookingOrThrow,
     deleteBooking,
     isLoading: bookingData.isLoading || customerData.isLoading || serviceData.isLoading || serviceCategoryData.isLoading,
     loadError: bookingData.loadError || customerData.loadError || serviceData.loadError || serviceCategoryData.loadError,

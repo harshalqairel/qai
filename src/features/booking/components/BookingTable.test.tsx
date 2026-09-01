@@ -77,6 +77,11 @@ const callbacks = {
 afterEach(cleanup);
 
 describe("BookingTable invoice summary", () => {
+  it("renders the centralized Overdue payment status in desktop and mobile booking views", () => {
+    render(<BookingTable bookings={[{ ...booking, paymentStatus: "Overdue" }]} invoices={[]} timezone="Asia/Jakarta" {...callbacks} />);
+    expect(screen.getAllByText("Overdue")).toHaveLength(2);
+  });
+
   it("offers booking-linked invoice actions from the shared row menu and hides zero expense noise", async () => {
     const user = userEvent.setup();
     render(<BookingTable bookings={[booking]} invoices={[]} timezone="Asia/Jakarta" {...callbacks} />);

@@ -34,6 +34,8 @@ import { isPaymentReminderEligible } from "@/features/reminder/reminderTransport
 import { getActiveBusinessContext } from "@/lib/supabase/cloudRepositories";
 import { isCloudModeEnabled, isValidationModeEnabled } from "@/lib/supabase/config";
 import { buildUpcomingJobs, type ScheduledSessionItem } from "@/features/dashboard/upcomingJobs";
+import { bookingClientTotal } from "@/features/booking/domain/bookingFinancials";
+import type { DerivedPaymentStatus } from "@/features/payment/types";
 
 export type { ScheduledSessionItem } from "@/features/dashboard/upcomingJobs";
 
@@ -69,7 +71,7 @@ export type EnrichedBooking = Booking & {
   serviceName: string;
   totalPaid: number;
   remainingAmount: number;
-  paymentStatus: "Outstanding" | "Partial Paid" | "Fully Paid" | "Cancelled";
+  paymentStatus: DerivedPaymentStatus;
 };
 
 export type SetupGuideProgress = {
@@ -132,28 +134,24 @@ export function useDashboard({ period }: UseDashboardArgs) {
   );
 
   const paymentSummaries = useMemo(
-    () => summarizeBookingPayments(bookings, validPayments),
-    [bookings, validPayments],
+    () => summarizeBookingPayments(bookings, validPayments, todayContext.todayKey),
+    [bookings, validPayments, todayContext.todayKey],
   );
 
   const enrichedBookings = useMemo<EnrichedBooking[]>(() => {
     return bookings.map((booking) => {
       const customer = customers.find((item) => item.id === booking.customerId);
       const service = services.find((item) => item.id === booking.serviceId);
-      const effectiveServicePrice = booking.servicePrice > 0
-        ? booking.servicePrice
-        : service?.price ?? 0;
       const paymentSummary = paymentSummaries[booking.id];
 
       return {
         ...booking,
-        servicePrice: effectiveServicePrice,
         customerName: customer?.name ?? "Client not found",
         customerPhone: customer?.phone ?? "",
         customerEmail: customer?.email ?? "",
         serviceName: service?.name ?? "Service not found",
         totalPaid: paymentSummary?.totalPaid ?? 0,
-        remainingAmount: paymentSummary?.remainingAmount ?? effectiveServicePrice,
+        remainingAmount: paymentSummary?.remainingAmount ?? bookingClientTotal(booking),
         paymentStatus: paymentSummary?.paymentStatus ?? "Outstanding",
       };
     });

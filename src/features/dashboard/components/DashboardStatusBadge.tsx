@@ -16,6 +16,10 @@ const PAYMENT_DETAILS: Record<DerivedPaymentStatus, { label: string; style: stri
     label: "Part paid",
     style: "bg-[var(--dashboard-profit-soft)] text-[var(--dashboard-profit-text)]",
   },
+  Overdue: {
+    label: "Overdue",
+    style: "bg-[var(--dashboard-expense-soft)] text-[var(--dashboard-expense-text)]",
+  },
   "Fully Paid": {
     label: "Paid",
     style: "bg-[var(--dashboard-income-soft)] text-[var(--dashboard-income-text)]",

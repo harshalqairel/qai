@@ -34,14 +34,14 @@ export default function BookingCalendar() {
     openCreateForDate,
     openEditBooking,
     closeDialog,
-    createBooking,
-    updateBooking,
+    createBookingOrThrow,
+    updateBookingOrThrow,
     timezone,
     todayKey,
   } = useCalendar();
 
   const paymentData = usePayments();
-  const { payments, createPayment, updatePayment, deletePayment } = paymentData;
+  const { payments, createPaymentOrThrow, updatePaymentOrThrow, deletePayment } = paymentData;
   const { expenses } = useExpenses();
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [selectedBookingIdForPayment, setSelectedBookingIdForPayment] = useState<string | null>(null);
@@ -60,13 +60,13 @@ export default function BookingCalendar() {
   }
 
   const handleCreate = async (command: CreateBookingCommand) => {
-    const created = await createBooking(command);
+    const created = await createBookingOrThrow(command);
     if (created) await paymentData.retry();
     return created;
   };
 
   const handleUpdate = (input: BookingFormValues & { id: string }) => {
-    return updateBooking(input);
+    return updateBookingOrThrow(input);
   };
 
   return (
@@ -120,8 +120,8 @@ export default function BookingCalendar() {
         bookingId={selectedBookingIdForPayment}
         payment={editingPayment}
         onClose={closePaymentDialog}
-        onCreate={(input) => createPayment(input)}
-        onUpdate={(input) => updatePayment(input)}
+        onCreate={(input) => createPaymentOrThrow(input)}
+        onUpdate={(input) => updatePaymentOrThrow(input)}
       />
     </>
   );

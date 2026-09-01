@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { Booking, BookingSession } from "@/features/booking/types";
 import type { Customer } from "@/features/customer/types";
 import type { Payment } from "@/features/payment/types";
-import { formatRupiah, sumPaymentsForBooking } from "@/features/payment/utils/paymentCalculations";
+import { derivePaymentStatus, formatRupiah, sumPaymentsForBooking } from "@/features/payment/utils/paymentCalculations";
 import type { Service } from "@/features/service/types";
 import { emitDataRefresh } from "@/lib/dataRefresh";
 import { readVersionedCollection, writeVersionedCollection } from "@/lib/persistence";
@@ -18,7 +18,7 @@ export type InvoiceStyle = "Creative" | "Neutral" | "Professional" | "Modern Cla
 export type InvoiceDiscountMode = "none" | "fixed" | "percentage";
 export type InvoiceTaxMode = "percentage" | "fixed";
 export type InvoiceTaxTreatment = "added" | "deducted";
-export type InvoicePaymentStatus = "Unpaid" | "Part paid" | "Paid";
+export type InvoicePaymentStatus = "Unpaid" | "Part paid" | "Overdue" | "Paid";
 
 export type InvoiceLineItem = {
   id: string;
@@ -299,10 +299,17 @@ export function invoiceTotals(invoice: InvoiceTotalsInput) {
   return { subtotal, discount, tax, total };
 }
 
-export function invoicePaymentStatus(total: number, paid: number): InvoicePaymentStatus {
-  if (paid <= 0) return "Unpaid";
-  if (paid < total) return "Part paid";
-  return "Paid";
+export function invoicePaymentStatus(
+  total: number,
+  paid: number,
+  dueDate?: string,
+  todayKey?: string,
+): InvoicePaymentStatus {
+  const status = derivePaymentStatus("Scheduled", paid, total, dueDate, todayKey);
+  if (status === "Fully Paid") return "Paid";
+  if (status === "Partial Paid") return "Part paid";
+  if (status === "Overdue") return "Overdue";
+  return "Unpaid";
 }
 
 export function invoicePaidAmount(invoice: Invoice, payments: Payment[]): number {

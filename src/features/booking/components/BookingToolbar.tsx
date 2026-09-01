@@ -60,6 +60,7 @@ export default function BookingToolbar({
         <option value="">All payments</option>
         <option value="Outstanding">Unpaid</option>
         <option value="Partial Paid">Part paid</option>
+        <option value="Overdue">Overdue</option>
         <option value="Fully Paid">Paid</option>
         <option value="Cancelled">Cancelled</option>
       </select>

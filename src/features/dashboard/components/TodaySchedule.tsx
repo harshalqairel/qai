@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import type { ScheduledSessionItem } from "@/features/dashboard/hooks/useDashboard";
 import { formatSessionTime } from "@/features/booking/utils/bookingSessions";
 import { BookingStatusBadge, PaymentStatusBadge } from "./DashboardStatusBadge";
+import { paymentStatusLabel } from "@/features/payment/utils/paymentCalculations";
 
 type TodayScheduleProps = {
   items: ScheduledSessionItem[];
@@ -39,7 +40,7 @@ export default function TodaySchedule({ items, timezone }: TodayScheduleProps) {
             <div className="min-w-0">
               <p className="truncate font-semibold text-[var(--dashboard-text)]">{first.customerName}</p>
               <p className="mt-0.5 truncate text-sm text-[var(--dashboard-muted-text)]">{first.serviceName}{first.session.label ? ` · ${first.session.label}` : ""}</p>
-              <p className="mt-2 truncate text-sm text-[var(--dashboard-muted-text)]">{first.session.location.trim() || "Location not set"} · <span className="font-medium text-[var(--dashboard-text)]">{first.paymentStatus === "Fully Paid" ? "Paid" : first.paymentStatus === "Partial Paid" ? "Part paid" : first.paymentStatus}</span></p>
+              <p className="mt-2 truncate text-sm text-[var(--dashboard-muted-text)]">{first.session.location.trim() || "Location not set"} · <span className="font-medium text-[var(--dashboard-text)]">{paymentStatusLabel(first.paymentStatus)}</span></p>
             </div>
           </article>}
           <div className="mt-3 flex items-center justify-between gap-3 lg:hidden">

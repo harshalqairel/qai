@@ -2,15 +2,24 @@
 
 import type { Booking, BookingAdditionalCharge, BookingSession } from "@/features/booking/types";
 import type { BookingDeleteResult } from "@/features/booking/api/bookingRepository";
+import {
+  createCloudBookingSaveError,
+  type BookingSaveOperation,
+} from "@/features/booking/domain/bookingSaveError";
 import type { Customer } from "@/features/customer/types";
 import type { ExpenseCategory } from "@/features/expense-category/types";
 import type { Expense } from "@/features/expense/types";
 import type { Payment } from "@/features/payment/types";
+import {
+  createCloudPaymentSaveError,
+  type PaymentSaveOperation,
+} from "@/features/payment/domain/paymentSaveError";
 import type { ServiceCategory } from "@/features/service-category/types";
 import type { Service } from "@/features/service/types";
 import { createClient } from "./client";
 
 type DbRow = Record<string, unknown>;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export type ActiveBusinessContext = {
   businessId: string;
@@ -56,6 +65,44 @@ function rows(data: unknown): DbRow[] {
 
 function throwOnError(error: { message: string } | null): void {
   if (error) throw new Error(error.message);
+}
+
+function isMissingRpc(error: { code?: string; message: string } | null, rpcName: string): boolean {
+  if (!error) return false;
+  return error.code === "PGRST202"
+    || new RegExp(rpcName, "i").test(error.message) && /not found|schema cache/i.test(error.message);
+}
+
+function throwBookingSaveError(
+  error: { code?: string; details?: string; hint?: string; message: string } | null,
+  operation: BookingSaveOperation,
+  status?: number | null,
+): void {
+  if (!error) return;
+  const saveError = createCloudBookingSaveError(error, operation, status);
+  console.error("Booking cloud save failed.", {
+    operation: saveError.operation,
+    status: saveError.status,
+    code: saveError.code,
+    reason: saveError.message,
+  });
+  throw saveError;
+}
+
+function throwPaymentSaveError(
+  error: { code?: string; details?: string; hint?: string; message: string } | null,
+  operation: PaymentSaveOperation,
+  status?: number | null,
+): void {
+  if (!error) return;
+  const saveError = createCloudPaymentSaveError(error, operation, status);
+  console.error("Payment cloud save failed.", {
+    operation: saveError.operation,
+    status: saveError.status,
+    code: saveError.code,
+    reason: saveError.message,
+  });
+  throw saveError;
 }
 
 export function resetActiveBusinessContext(): void {
@@ -231,6 +278,25 @@ export const cloudAdditionalChargeCategoryRepository = {
     name: category.name.trim(),
     created_at: isoTimestamp(category.createdAt),
   }),
+  async ensureDefaults(names: readonly string[]) {
+    const { businessId } = await getActiveBusinessContext();
+    const now = Date.now();
+    const { error } = await createClient().from("additional_charge_categories").upsert(
+      names.map((name) => ({
+        id: crypto.randomUUID(),
+        business_id: businessId,
+        name,
+        created_at: isoTimestamp(now),
+      })),
+      { onConflict: "business_id,normalized_name", ignoreDuplicates: true },
+    );
+    throwOnError(error);
+    return getAll("additional_charge_categories", (row) => ({
+      id: valueAsString(row, "id"),
+      name: valueAsString(row, "name"),
+      createdAt: timestamp(row.created_at),
+    }));
+  },
 };
 
 function serviceFromRow(row: DbRow): Service {
@@ -328,7 +394,10 @@ function bookingFromRow(row: DbRow, sessions: BookingSession[], additionalCharge
   };
 }
 
-function bookingToPayload(booking: Booking): DbRow {
+export function bookingToCloudPayload(booking: Booking): DbRow {
+  if (!Number.isFinite(booking.servicePrice) || booking.servicePrice < 0) {
+    throw new Error("BOOKING_SERVICE_PRICE_INVALID");
+  }
   return {
     id: booking.id,
     customer_id: booking.customerId,
@@ -367,6 +436,66 @@ function bookingToPayload(booking: Booking): DbRow {
   };
 }
 
+function paymentToCloudPayload(payment: Payment): DbRow {
+  return {
+    id: payment.id,
+    booking_id: payment.bookingId,
+    payment_date: payment.date,
+    amount: payment.amount,
+    method: payment.method,
+    notes: payment.notes,
+    created_at: isoTimestamp(payment.createdAt),
+  };
+}
+
+async function saveCloudBookingWithIntegrity(booking: Booking): Promise<void> {
+  const client = createClient();
+  const bookingPayload = bookingToCloudPayload(booking);
+  const integrityResult = await client.rpc("save_booking_with_integrity", {
+    booking_payload: bookingPayload,
+  });
+  if (!isMissingRpc(integrityResult.error, "save_booking_with_integrity")) {
+    throwBookingSaveError(integrityResult.error, "save_booking_with_integrity", integrityResult.status);
+    return;
+  }
+
+  if ((booking.additionalCharges ?? []).some((charge) => !UUID_PATTERN.test(charge.categoryId))) {
+    throw createCloudBookingSaveError(
+      { code: "BOOKING_INTEGRITY_MIGRATION_REQUIRED" },
+      "save_booking_with_integrity",
+      integrityResult.status,
+    );
+  }
+  const fallbackResult = await client.rpc("save_booking_with_questionnaire", {
+    booking_payload: bookingPayload,
+  });
+  throwBookingSaveError(
+    fallbackResult.error,
+    "save_booking_with_questionnaire",
+    fallbackResult.status,
+  );
+}
+
+async function createCloudBooking(booking: Booking, initialPayment: Payment | null = null): Promise<void> {
+  const client = createClient();
+  const result = await client.rpc("save_booking_with_initial_payment", {
+    booking_payload: bookingToCloudPayload(booking),
+    initial_payment_payload: initialPayment ? paymentToCloudPayload(initialPayment) : null,
+  });
+  if (!isMissingRpc(result.error, "save_booking_with_initial_payment")) {
+    throwBookingSaveError(result.error, "save_booking_with_initial_payment", result.status);
+    return;
+  }
+  if (initialPayment) {
+    throw createCloudBookingSaveError(
+      { code: "BOOKING_PAYMENT_MIGRATION_REQUIRED", message: "save_booking_with_initial_payment is unavailable" },
+      "save_booking_with_initial_payment",
+      result.status,
+    );
+  }
+  await saveCloudBookingWithIntegrity(booking);
+}
+
 export const cloudBookingRepository = {
   async getAll(): Promise<Booking[]> {
     const { businessId } = await getActiveBusinessContext();
@@ -401,17 +530,11 @@ export const cloudBookingRepository = {
       .filter((booking) => booking.sessions.length > 0)
       .sort((left, right) => left.sessions[0].startAt.localeCompare(right.sessions[0].startAt));
   },
-  async create(booking: Booking) {
-    const { error } = await createClient().rpc("save_booking_with_questionnaire", {
-      booking_payload: bookingToPayload(booking),
-    });
-    throwOnError(error);
+  async create(booking: Booking, initialPayment: Payment | null = null) {
+    await createCloudBooking(booking, initialPayment);
   },
   async update(booking: Booking) {
-    const { error } = await createClient().rpc("save_booking_with_questionnaire", {
-      booking_payload: bookingToPayload(booking),
-    });
-    throwOnError(error);
+    await saveCloudBookingWithIntegrity(booking);
   },
   async delete(id: string): Promise<BookingDeleteResult> {
     const { businessId } = await getActiveBusinessContext();
@@ -443,21 +566,27 @@ function paymentFromRow(row: DbRow): Payment {
 }
 
 function paymentToRow(payment: Payment): DbRow {
-  return {
-    id: payment.id,
-    booking_id: payment.bookingId,
-    payment_date: payment.date,
-    amount: payment.amount,
-    method: payment.method,
-    notes: payment.notes,
-    created_at: isoTimestamp(payment.createdAt),
-  };
+  return paymentToCloudPayload(payment);
 }
 
 export const cloudPaymentRepository = {
   getAll: () => getAll("payments", paymentFromRow, "payment_date"),
-  create: (payment: Payment) => insert("payments", paymentToRow(payment)),
-  update: (payment: Payment) => update("payments", payment.id, paymentToRow(payment)),
+  async create(payment: Payment) {
+    const { businessId } = await getActiveBusinessContext();
+    const result = await createClient().from("payments").insert({
+      ...paymentToRow(payment),
+      business_id: businessId,
+    });
+    throwPaymentSaveError(result.error, "create_payment", result.status);
+  },
+  async update(payment: Payment) {
+    const { businessId } = await getActiveBusinessContext();
+    const result = await createClient().from("payments")
+      .update({ ...paymentToRow(payment), business_id: businessId })
+      .eq("id", payment.id)
+      .eq("business_id", businessId);
+    throwPaymentSaveError(result.error, "update_payment", result.status);
+  },
   delete: (id: string) => remove("payments", id),
 };
 

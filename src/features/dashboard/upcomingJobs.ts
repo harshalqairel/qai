@@ -2,11 +2,12 @@ import type { Booking, BookingSession } from "@/features/booking/types";
 import { instantParts } from "@/features/booking/utils/bookingSessions";
 import { calculateServiceSlotAvailability, serviceSlotsForDate } from "@/features/service/domain/serviceAvailability";
 import type { Service } from "@/features/service/types";
+import type { DerivedPaymentStatus } from "@/features/payment/types";
 
 export type UpcomingBooking = Booking & {
   customerName: string;
   serviceName: string;
-  paymentStatus: "Outstanding" | "Partial Paid" | "Fully Paid" | "Cancelled";
+  paymentStatus: DerivedPaymentStatus;
 };
 
 export type ScheduledSessionItem = UpcomingBooking & {

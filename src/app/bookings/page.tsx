@@ -26,6 +26,7 @@ import {
   compareBookingsByFirstSession,
   firstBookingSession,
   formatSessionDate,
+  instantParts,
   sessionToFormValues,
 } from "@/features/booking/utils/bookingSessions";
 import PageSkeleton from "@/components/system/PageSkeleton";
@@ -48,10 +49,10 @@ export default function BookingsPage() {
   const expenseData = useExpenses();
   const expenseCategoryData = useExpenseCategories();
   const serviceCategoryData = useServiceCategories();
-  const { bookings, createBooking, updateBooking, deleteBooking } = bookingData;
+  const { bookings, createBookingOrThrow, updateBooking, updateBookingOrThrow, deleteBooking } = bookingData;
   const { customers } = customerData;
   const { services } = serviceData;
-  const { payments, createPayment, updatePayment, deletePayment } = paymentData;
+  const { payments, createPaymentOrThrow, updatePaymentOrThrow, deletePayment } = paymentData;
   const { expenses, createExpense, updateExpense } = expenseData;
   const { categories: expenseCategories } = expenseCategoryData;
   const { categories: serviceCategories } = serviceCategoryData;
@@ -78,7 +79,11 @@ export default function BookingsPage() {
   const [sort, setSort] = useState<BookingSort>("newest");
   const handledDeepLink = useRef(false);
 
-  const paymentSummaries = useMemo(() => summarizeBookingPayments(bookings, payments), [bookings, payments]);
+  const todayKey = instantParts(new Date().toISOString(), bookingData.timezone).date;
+  const paymentSummaries = useMemo(
+    () => summarizeBookingPayments(bookings, payments, todayKey),
+    [bookings, payments, todayKey],
+  );
   const keyword = search.trim().toLowerCase();
 
   const bookingOptions = useMemo(() => bookings.map((booking) => {
@@ -93,13 +98,11 @@ export default function BookingsPage() {
   const bookingsWithNames: BookingFinancialDetails[] = bookings.map((booking) => {
     const customer = customers.find((item) => item.id === booking.customerId);
     const service = services.find((item) => item.id === booking.serviceId);
-    const effectiveServicePrice = booking.servicePrice > 0 ? booking.servicePrice : service?.price ?? 0;
     const paymentSummary = paymentSummaries[booking.id];
-    const financials = calculateBookingFinancials({ ...booking, servicePrice: effectiveServicePrice }, payments, expenses);
+    const financials = calculateBookingFinancials(booking, payments, expenses);
     const directExpenses = financials.directExpenses;
     return {
       ...booking,
-      servicePrice: effectiveServicePrice,
       customerName: customer?.name ?? "Client not found",
       serviceName: [booking.serviceSnapshot?.serviceName || service?.name || "Unknown Service", booking.serviceSnapshot?.variantLabel].filter(Boolean).join(" · "),
       paymentStatus: paymentSummary?.paymentStatus ?? "Outstanding",
@@ -361,11 +364,11 @@ export default function BookingsPage() {
           setInitialBookingValues(undefined);
         }}
         onCreate={async (command: CreateBookingCommand) => {
-          const created = await createBooking(command);
+          const created = await createBookingOrThrow(command);
           if (created) await paymentData.retry();
           return created;
         }}
-        onUpdate={(input: UpdateBookingInput) => updateBooking(input)}
+        onUpdate={(input: UpdateBookingInput) => updateBookingOrThrow(input)}
         onAddPaymentClick={(bookingId, remainingAmount) =>
           openPaymentDialog(bookingId, undefined, remainingAmount)
         }
@@ -392,8 +395,8 @@ export default function BookingsPage() {
         defaultAmount={paymentDefaultAmount}
         maxAmount={paymentDefaultAmount}
         onClose={closePaymentDialog}
-        onCreate={(input) => createPayment(input)}
-        onUpdate={(input) => updatePayment(input)}
+        onCreate={(input) => createPaymentOrThrow(input)}
+        onUpdate={(input) => updatePaymentOrThrow(input)}
       />
 
       <BookingFinancialDetailsDialog
