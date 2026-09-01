@@ -327,7 +327,9 @@ export function formatInvoiceDate(value: string): string {
 }
 
 function scheduleFromBooking(value: BookingSession): InvoiceSchedule {
-  return { label: value.label, startAt: value.startAt, endAt: value.endAt, location: value.location };
+  const startAt = new Date(value.startAt).toISOString();
+  const endAt = new Date(value.endAt).toISOString();
+  return { label: value.label, startAt, endAt, location: value.location };
 }
 
 export function createBookingInvoiceDraft(args: { booking: Booking; customer: Customer; service: Service; settings: InvoiceSettings; now?: number }): Invoice {

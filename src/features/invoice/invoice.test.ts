@@ -2,9 +2,13 @@ import { describe, expect, it } from "vitest";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 
 import type { Invoice, InvoiceSettings, InvoiceShareContext, InvoiceStyle } from "./invoice";
+import type { Booking } from "@/features/booking/types";
+import type { Customer } from "@/features/customer/types";
+import type { Service } from "@/features/service/types";
 import {
   DEFAULT_INVOICE_SHARE_TEMPLATES,
   DEFAULT_INVOICE_SETTINGS,
+  createBookingInvoiceDraft,
   generateInvoicePdf,
   createInvoiceRevision,
   insertInvoiceTemplateVariable,
@@ -63,6 +67,43 @@ describe("invoice financial rules", () => {
     expect(invoicePaidAmount(invoice, payments)).toBe(2_000_000);
     expect(invoiceRemainingAmount(invoice, payments)).toBe(3_500_000);
     expect(invoicePaidAmount({ ...invoice, bookingId: null }, payments)).toBe(0);
+  });
+
+  it("builds booking invoices from persisted service price and Additional Charges without changing totals for payments", () => {
+    const booking: Booking = {
+      id: "booking-financial",
+      customerId: "client-1",
+      serviceId: "service-1",
+      sessions: [{ id: "session-1", bookingId: "booking-financial", sequence: 1, label: "Main session", startAt: "2026-09-02T03:00:00+00:00", endAt: "2026-09-02T05:00:00+00:00", location: "Bandung", notes: "", createdAt: 1, updatedAt: 1 }],
+      servicePrice: 7_500_000,
+      additionalCharges: [{ id: "charge-1", bookingId: "booking-financial", sessionId: null, categoryId: "travel", categoryName: "Travel", description: "Outside Bandung", amount: 500_000, createdAt: 1, updatedAt: 1 }],
+      bookingStatus: "Scheduled",
+      fullPaymentDueDate: "2026-09-05",
+      notes: "",
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    const customer: Customer = { id: "client-1", name: "Sarah Wijaya", phone: "081234567890", instagram: "", email: "sarah@example.com", notes: "", createdAt: 1 };
+    const service: Service = { id: "service-1", name: "Wedding Package", categoryId: "wedding", price: 99_000_000, duration: 120, defaultSessionCount: 1, description: "Wedding service", active: true };
+    const invoice = createBookingInvoiceDraft({ booking, customer, service, settings, now: Date.UTC(2026, 8, 1) });
+
+    expect(invoice.lineItems.map(({ item, unitPrice }) => ({ item, unitPrice }))).toEqual([
+      { item: "Wedding Package", unitPrice: 7_500_000 },
+      { item: "Travel", unitPrice: 500_000 },
+    ]);
+    expect(invoiceTotals(invoice).total).toBe(8_000_000);
+    expect(invoice.schedules[0]).toMatchObject({ startAt: "2026-09-02T03:00:00.000Z", endAt: "2026-09-02T05:00:00.000Z" });
+    expect(invoicePaidAmount(invoice, [])).toBe(0);
+    expect(invoiceRemainingAmount(invoice, [])).toBe(8_000_000);
+
+    const partial = [{ id: "payment-1", bookingId: booking.id, amount: 2_000_000, date: "2026-09-01", method: "Bank Transfer" as const, notes: "Initial payment", createdAt: 1 }];
+    expect(invoicePaidAmount(invoice, partial)).toBe(2_000_000);
+    expect(invoiceRemainingAmount(invoice, partial)).toBe(6_000_000);
+    expect(invoiceTotals(invoice).total).toBe(8_000_000);
+
+    const paid = [{ ...partial[0], amount: 8_000_000 }];
+    expect(invoiceRemainingAmount(invoice, paid)).toBe(0);
+    expect(invoiceTotals(invoice).total).toBe(8_000_000);
   });
 });
 

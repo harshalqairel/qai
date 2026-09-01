@@ -57,6 +57,15 @@ import {
 type Filter = "All" | "Draft" | "Unpaid" | "Part paid" | "Overdue" | "Paid";
 type ShareChannel = "whatsapp" | "email";
 type InvoiceSort = "updated-desc" | "updated-asc" | "invoice-asc" | "invoice-desc" | "client-asc" | "client-desc" | "date-asc" | "date-desc" | "due-asc" | "due-desc" | "total-asc" | "total-desc" | "remaining-asc" | "remaining-desc" | "status-asc" | "status-desc";
+export type NewInvoiceFlow = "closed" | "choose-source" | "choose-booking";
+
+export type NewInvoiceBookingOption = {
+  id: string;
+  customerName: string;
+  serviceName: string;
+  sessionCount: number;
+  servicePrice: number;
+};
 
 function todayKey(timezone = "Asia/Jakarta") { return instantParts(new Date().toISOString(), timezone).date; }
 function newLineItem(): InvoiceLineItem { return { id: crypto.randomUUID(), item: "", description: "", quantity: 1, unitPrice: 0 }; }
@@ -127,12 +136,39 @@ function InvoicePreview({ invoice, settings, payments }: { invoice: Invoice; set
   </article>;
 }
 
+export function NewInvoiceFlowDialog({
+  flow,
+  bookings,
+  onFlowChange,
+  onSelectBooking,
+  onCreateFromScratch,
+}: {
+  flow: NewInvoiceFlow;
+  bookings: NewInvoiceBookingOption[];
+  onFlowChange: (flow: NewInvoiceFlow) => void;
+  onSelectBooking: (bookingId: string) => void;
+  onCreateFromScratch: () => void;
+}) {
+  return <Dialog open={flow !== "closed"} onOpenChange={(open) => { if (!open) onFlowChange("closed"); }}>
+    <DialogContent className={flow === "choose-booking" ? "sm:max-w-xl" : undefined}>
+      {flow === "choose-booking" ? <>
+        <DialogHeader><DialogTitle>Choose a booking</DialogTitle><DialogDescription>The invoice will use its client, service, schedules, price, and recorded payments.</DialogDescription></DialogHeader>
+        <Button type="button" variant="ghost" size="sm" className="w-fit" onClick={() => onFlowChange("choose-source")}>← Back</Button>
+        <div className="max-h-[55vh] space-y-2 overflow-y-auto">{bookings.length ? bookings.map((booking) => <button type="button" key={booking.id} onClick={() => onSelectBooking(booking.id)} className="w-full rounded-xl border border-border p-4 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><p className="font-semibold">{booking.customerName}</p><p className="mt-1 text-sm text-muted-foreground">{booking.serviceName} · {booking.sessionCount} {booking.sessionCount === 1 ? "schedule" : "schedules"} · {formatRupiah(booking.servicePrice)}</p></button>) : <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">Add a booking before creating a booking-linked invoice.</p>}</div>
+      </> : <>
+        <DialogHeader><DialogTitle>New invoice</DialogTitle><DialogDescription>Choose how you want to start.</DialogDescription></DialogHeader>
+        <div className="grid gap-3"><button type="button" onClick={() => onFlowChange("choose-booking")} className="rounded-xl border border-border p-4 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><p className="font-semibold">From a booking</p><p className="mt-1 text-sm text-muted-foreground">Use an existing booking and its payment details.</p></button><button type="button" onClick={onCreateFromScratch} className="rounded-xl border border-border p-4 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><p className="font-semibold">From scratch</p><p className="mt-1 text-sm text-muted-foreground">Create an invoice manually.</p></button></div>
+      </>}
+    </DialogContent>
+  </Dialog>;
+}
+
 export default function InvoicePage() {
   const bookingData = useBookings(); const customerData = useCustomers(); const serviceData = useServices(); const paymentData = usePayments();
   const currentTodayKey = todayKey(bookingData.timezone);
   const [invoices, setInvoices] = useState<Invoice[]>([]); const [settings, setSettings] = useState<InvoiceSettings>(DEFAULT_INVOICE_SETTINGS);
   const [invoicesLoaded, setInvoicesLoaded] = useState(false); const handledDeepLink = useRef(false);
-  const [filter, setFilter] = useState<Filter>("All"); const [search, setSearch] = useState(""); const [sort, setSort] = useState<InvoiceSort>("updated-desc"); const [newOpen, setNewOpen] = useState(false); const [bookingChoiceOpen, setBookingChoiceOpen] = useState(false);
+  const [filter, setFilter] = useState<Filter>("All"); const [search, setSearch] = useState(""); const [sort, setSort] = useState<InvoiceSort>("updated-desc"); const [newInvoiceFlow, setNewInvoiceFlow] = useState<NewInvoiceFlow>("closed");
   const [settingsOpen, setSettingsOpen] = useState(false); const [settingsDraft, setSettingsDraft] = useState(settings); const [editing, setEditing] = useState<Invoice | null>(null);
   const [preview, setPreview] = useState<Invoice | null>(null); const [share, setShare] = useState<{ invoice: Invoice; channel: ShareChannel } | null>(null);
   const [shareMessage, setShareMessage] = useState(""); const [shareSubject, setShareSubject] = useState("");
@@ -168,10 +204,10 @@ export default function InvoicePage() {
     const booking = bookingData.bookings.find((item) => item.id === bookingId); const customer = booking && customerData.customers.find((item) => item.id === booking.customerId); const service = booking && serviceData.services.find((item) => item.id === booking.serviceId);
     if (!booking || !customer || !service) return notify.error("Could not find the booking details.");
     const existing = latestInvoiceVersions(invoices.filter((item) => item.bookingId === bookingId))[0];
-    if (existing) { setPreview(existing); setBookingChoiceOpen(false); setNewOpen(false); notify.info("This booking already has an invoice."); return; }
+    if (existing) { setPreview(existing); setNewInvoiceFlow("closed"); notify.info("This booking already has an invoice."); return; }
     const draft = createBookingInvoiceDraft({ booking, customer, service, settings }); invoiceRepository.save(draft);
     if (openMode === "review") setPreview(draft); else setEditing(draft);
-    setBookingChoiceOpen(false); setNewOpen(false);
+    setNewInvoiceFlow("closed");
   }, [bookingData.bookings, customerData.customers, invoices, serviceData.services, settings]);
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -183,7 +219,7 @@ export default function InvoicePage() {
 
       if (params.get("new") === "1") {
         handledDeepLink.current = true;
-        setNewOpen(true);
+        setNewInvoiceFlow("choose-source");
         return;
       }
 
@@ -239,16 +275,34 @@ export default function InvoicePage() {
   }
 
   return <main className="min-h-screen"><div className="page-shell">
-    <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><h1 className="page-title">Invoices</h1><p className="mt-2 text-sm text-muted-foreground sm:text-base">Create, issue, download, and share professional invoices.</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => { setSettingsDraft(settings); setSettingsOpen(true); }}><Settings2 className="size-4" /> Invoice settings</Button><Button onClick={() => setNewOpen(true)}><Plus className="size-4" /> New invoice</Button></div></header>
+    <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><h1 className="page-title">Invoices</h1><p className="mt-2 text-sm text-muted-foreground sm:text-base">Create, issue, download, and share professional invoices.</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => { setSettingsDraft(settings); setSettingsOpen(true); }}><Settings2 className="size-4" /> Invoice settings</Button><Button onClick={() => setNewInvoiceFlow("choose-source")}><Plus className="size-4" /> New invoice</Button></div></header>
     <div className="filter-bar flex-col"><div className="flex w-full flex-col gap-3 lg:flex-row"><label className="relative min-w-0 flex-1"><span className="sr-only">Search invoices</span><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" /><Input className="pl-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search invoice, client, or service…" /></label><ListSortControl className="lg:w-56" value={sort} onChange={setSort} options={[{ value: "updated-desc", label: "Recently updated" }, { value: "invoice-asc", label: "Invoice · A–Z" }, { value: "client-asc", label: "Client · A–Z" }, { value: "date-desc", label: "Date · latest" }, { value: "due-asc", label: "Due · earliest" }, { value: "total-desc", label: "Total · highest" }, { value: "remaining-desc", label: "Remaining · highest" }, { value: "status-asc", label: "Status · A–Z" }]} /></div><div className="grid w-full grid-cols-3 gap-1 sm:grid-cols-6 lg:flex lg:gap-2" role="group" aria-label="Invoice filters">{(["All", "Draft", "Unpaid", "Part paid", "Overdue", "Paid"] as Filter[]).map((value) => <Button key={value} type="button" size="sm" className="min-w-0 px-1 text-xs lg:shrink-0 lg:px-3 lg:text-sm" variant={filter === value ? "default" : "outline"} onClick={() => setFilter(value)}>{value}</Button>)}</div></div>
-    {rows.length === 0 ? <EmptyState icon={ReceiptText} title={invoices.length ? "No matching invoices" : "No invoices yet"} description={invoices.length ? "Choose another filter." : "Create an invoice from a booking or make a custom invoice."} actionLabel={!invoices.length ? "New invoice" : undefined} onAction={!invoices.length ? () => setNewOpen(true) : undefined} /> : <>
+    {rows.length === 0 ? <EmptyState icon={ReceiptText} title={invoices.length ? "No matching invoices" : "No invoices yet"} description={invoices.length ? "Choose another filter." : "Create an invoice from a booking or make a custom invoice."} actionLabel={!invoices.length ? "New invoice" : undefined} onAction={!invoices.length ? () => setNewInvoiceFlow("choose-source") : undefined} /> : <>
       <div className="hidden overflow-hidden rounded-xl border border-border bg-card shadow-sm xl:block"><Table className="table-fixed"><TableHeader><TableRow><SortableTableHeader className="w-[15%] px-4" label="Invoice" sort={sort} ascending="invoice-asc" descending="invoice-desc" onSortChange={setSort} /><SortableTableHeader className="w-[17%]" label="Client" sort={sort} ascending="client-asc" descending="client-desc" onSortChange={setSort} /><SortableTableHeader className="w-[11%]" label="Date" sort={sort} ascending="date-asc" descending="date-desc" onSortChange={setSort} /><SortableTableHeader className="w-[11%]" label="Due" sort={sort} ascending="due-asc" descending="due-desc" onSortChange={setSort} /><SortableTableHeader className="w-[13%]" label="Total" sort={sort} ascending="total-asc" descending="total-desc" onSortChange={setSort} align="right" /><SortableTableHeader className="w-[13%]" label="Remaining" sort={sort} ascending="remaining-asc" descending="remaining-desc" onSortChange={setSort} align="right" /><SortableTableHeader className="w-[12%]" label="Status" sort={sort} ascending="status-asc" descending="status-desc" onSortChange={setSort} /><TableHead className="w-[8%] px-4 text-right">Actions</TableHead></TableRow></TableHeader><TableBody>{rows.map((invoice) => <TableRow key={invoice.id} tabIndex={0} onClick={() => setPreview(invoice)} onKeyDown={(event) => { if (event.key === "Enter") setPreview(invoice); }} className="cursor-pointer"><TableCell className="px-4 py-4 font-semibold">{invoice.invoiceNumber ?? "Draft"}</TableCell><TableCell className="truncate py-4">{invoice.clientName}</TableCell><TableCell className="py-4">{formatInvoiceDate(invoice.invoiceDate)}</TableCell><TableCell className="py-4">{formatInvoiceDate(invoice.dueDate)}</TableCell><TableCell className="py-4 text-right font-semibold tabular-nums">{formatRupiah(invoiceTotals(invoice.snapshot ?? invoice).total)}</TableCell><TableCell className="py-4 text-right font-semibold tabular-nums">{formatRupiah(invoiceRemainingAmount(invoice, paymentData.payments))}</TableCell><TableCell className="py-4"><InvoiceStatus invoice={invoice} payments={paymentData.payments} currentTodayKey={currentTodayKey} /></TableCell><TableCell className="px-4 py-3 text-right"><RowActionsMenu recordLabel={invoice.invoiceNumber ?? `draft for ${invoice.clientName}`} actions={invoiceRowActions(invoice)} /></TableCell></TableRow>)}</TableBody></Table></div>
       <div className="space-y-3 xl:hidden">{rows.map((invoice) => <article key={invoice.id} role="button" tabIndex={0} className="surface-card cursor-pointer p-4" onClick={() => setPreview(invoice)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setPreview(invoice); } }}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="font-semibold">{invoice.invoiceNumber ?? "Draft"}</p><p className="mt-1 truncate text-sm text-muted-foreground">{invoice.clientName}</p></div><div className="flex shrink-0 items-start gap-2"><p className="pt-2 font-bold">{formatRupiah(invoiceTotals(invoice.snapshot ?? invoice).total)}</p><RowActionsMenu recordLabel={invoice.invoiceNumber ?? `draft for ${invoice.clientName}`} actions={invoiceRowActions(invoice)} /></div></div><div className="mt-3"><p className="text-xs text-muted-foreground">{formatInvoiceDate(invoice.invoiceDate)} · due {formatInvoiceDate(invoice.dueDate)}</p><div className="mt-2"><InvoiceStatus invoice={invoice} payments={paymentData.payments} currentTodayKey={currentTodayKey} /></div><p className="mt-2 text-xs font-medium text-muted-foreground">{formatRupiah(invoiceRemainingAmount(invoice, paymentData.payments))} remaining</p></div></article>)}</div>
     </>}
   </div>
 
-  <Dialog open={newOpen} onOpenChange={setNewOpen}><DialogContent><DialogHeader><DialogTitle>New invoice</DialogTitle><DialogDescription>Choose how you want to start.</DialogDescription></DialogHeader><div className="grid gap-3"><button type="button" onClick={() => setBookingChoiceOpen(true)} className="rounded-xl border border-border p-4 text-left hover:bg-muted"><p className="font-semibold">From a booking</p><p className="mt-1 text-sm text-muted-foreground">Use an existing booking and its payment details.</p></button><button type="button" onClick={() => { setEditing(customDraft(settings, customerData.customers[0], bookingData.timezone)); setNewOpen(false); }} className="rounded-xl border border-border p-4 text-left hover:bg-muted"><p className="font-semibold">Custom invoice</p><p className="mt-1 text-sm text-muted-foreground">Create an invoice manually.</p></button></div></DialogContent></Dialog>
-  <Dialog open={bookingChoiceOpen} onOpenChange={setBookingChoiceOpen}><DialogContent className="sm:max-w-xl"><DialogHeader><DialogTitle>Choose a booking</DialogTitle><DialogDescription>The invoice will use its client, service, schedules, price, and recorded payments.</DialogDescription></DialogHeader><div className="max-h-[55vh] space-y-2 overflow-y-auto">{bookingData.bookings.length ? bookingData.bookings.map((booking) => { const customer = customerData.customers.find((item) => item.id === booking.customerId); const service = serviceData.services.find((item) => item.id === booking.serviceId); return <button type="button" key={booking.id} onClick={() => createFromBooking(booking.id)} className="w-full rounded-xl border border-border p-4 text-left hover:bg-muted"><p className="font-semibold">{customer?.name ?? "Client not found"}</p><p className="mt-1 text-sm text-muted-foreground">{service?.name ?? "Service not found"} · {booking.sessions.length} {booking.sessions.length === 1 ? "schedule" : "schedules"} · {formatRupiah(booking.servicePrice)}</p></button>; }) : <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">Add a booking before creating a booking-linked invoice.</p>}</div></DialogContent></Dialog>
+  <NewInvoiceFlowDialog
+    flow={newInvoiceFlow}
+    bookings={bookingData.bookings.map((booking) => {
+      const customer = customerData.customers.find((item) => item.id === booking.customerId);
+      const service = serviceData.services.find((item) => item.id === booking.serviceId);
+      return {
+        id: booking.id,
+        customerName: customer?.name ?? "Client not found",
+        serviceName: service?.name ?? "Service not found",
+        sessionCount: booking.sessions.length,
+        servicePrice: booking.servicePrice,
+      };
+    })}
+    onFlowChange={setNewInvoiceFlow}
+    onSelectBooking={createFromBooking}
+    onCreateFromScratch={() => {
+      setEditing(customDraft(settings, customerData.customers[0], bookingData.timezone));
+      setNewInvoiceFlow("closed");
+    }}
+  />
   <InvoiceEditor key={editing?.id ?? "closed"} invoice={editing} customers={customerData.customers} settings={settings} payments={paymentData.payments} onClose={() => setEditing(null)} onSave={saveDraft} />
   <Dialog open={Boolean(preview)} onOpenChange={(open) => { if (!open) setPreview(null); }}><DialogContent initialFocus={false} className="max-h-[calc(100dvh-1rem)] max-w-[calc(100%-1rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden p-3 sm:max-w-5xl sm:p-6"><DialogHeader className="px-1"><DialogTitle>Invoice preview</DialogTitle><DialogDescription>{preview?.lifecycle !== "Issued" ? `${preview?.lifecycle} · review before issuing` : `${preview?.invoiceNumber} · Version ${preview?.version} · ${preview && paymentLabel(preview, paymentData.payments, currentTodayKey)}`}</DialogDescription></DialogHeader>{preview && <><div className="min-h-0 min-w-0 overflow-y-auto rounded-xl bg-muted/40 p-2 sm:p-4"><InvoicePreview invoice={preview} settings={settings} payments={paymentData.payments} /></div><DialogFooter className="flex-wrap sm:justify-between"><div className="flex flex-wrap gap-2">{preview.lifecycle !== "Issued" ? <><Button variant="outline" onClick={() => { setEditing(preview); setPreview(null); }}><FilePenLine className="size-4" /> Edit</Button><Button variant="destructive" onClick={() => remove(preview)}><Trash2 className="size-4" /> Delete</Button></> : <><Button variant="outline" onClick={() => void generateInvoicePdf(preview, settings, paymentData.payments)}><Download className="size-4" /> Download PDF</Button><Button variant="outline" onClick={() => revise(preview, Date.now())}><History className="size-4" /> Edit &amp; reissue</Button><Button variant="outline" onClick={() => beginShare(preview, "whatsapp")} disabled={!preview.clientPhone}><MessageCircle className="size-4" /> WhatsApp</Button><Button variant="outline" onClick={() => beginShare(preview, "email")} disabled={!preview.clientEmail}><Mail className="size-4" /> Email</Button></>}</div>{preview.lifecycle !== "Issued" && <Button onClick={() => void issue(preview)}>Issue {preview.lifecycle === "Revision Draft" ? `version ${preview.version}` : "invoice"}</Button>}</DialogFooter>{preview.lifecycle === "Issued" && (!preview.clientPhone || !preview.clientEmail) && <div className="px-1 text-xs text-muted-foreground">{!preview.clientPhone && <p>No phone number saved for this client.</p>}{!preview.clientEmail && <p>No email saved for this client.</p>}</div>}</>}</DialogContent></Dialog>
   <Dialog open={Boolean(share)} onOpenChange={(open) => { if (!open) setShare(null); }}><DialogContent className="sm:max-w-xl"><DialogHeader><DialogTitle>Share invoice</DialogTitle><DialogDescription>{share?.channel === "whatsapp" ? "Review this one-time WhatsApp message before opening WhatsApp." : "Review this one-time email before opening your email app."}</DialogDescription></DialogHeader>{share?.channel === "email" && <div><Label htmlFor="share-subject">Subject</Label><Input id="share-subject" className="mt-2" value={shareSubject} onChange={(event) => setShareSubject(event.target.value)} /></div>}<div><Label htmlFor="share-message">{share?.channel === "whatsapp" ? "WhatsApp message" : "Message"}</Label><Textarea id="share-message" className="mt-2 min-h-56 resize-y" value={shareMessage} onChange={(event) => setShareMessage(event.target.value)} /></div>{share?.channel === "whatsapp" && <p className="text-xs text-muted-foreground">Download the invoice first if you want to attach the PDF. Opening WhatsApp does not confirm delivery.</p>}{share?.channel === "email" && <p className="text-xs text-muted-foreground">Your email app cannot attach the PDF automatically.</p>}<DialogFooter><Button variant="outline" onClick={() => setShare(null)}>Cancel</Button><Button onClick={openTransport}>{share?.channel === "whatsapp" ? "Open WhatsApp" : "Open email"}</Button></DialogFooter></DialogContent></Dialog>
