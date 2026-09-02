@@ -18,7 +18,7 @@ async function synchronizeLocalQaiPages(previous: Service[], next: Service[]): P
   }));
 }
 
-export function useServices(): {
+export function useServices(options: { enabled?: boolean } = {}): {
   services: Service[];
   createService: (input: CreateServiceInput) => Promise<boolean>;
   createServiceAndReturn: (input: CreateServiceInput) => Promise<Service | null>;
@@ -32,7 +32,14 @@ export function useServices(): {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
+  const enabled = options.enabled ?? true;
   const retry = useCallback(async () => {
+    if (!enabled) {
+      setServices([]);
+      setLoadError(false);
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     try {
       const loaded = isCloudModeEnabled()
@@ -45,7 +52,7 @@ export function useServices(): {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
     const refresh = () => { void retry(); };

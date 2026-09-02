@@ -9,7 +9,7 @@ import { usePayments } from "@/features/payment/hooks/usePayments";
 import type { Payment } from "@/features/payment/types";
 import { summarizeBookingPayments } from "@/features/payment/utils/paymentCalculations";
 import { partitionPaymentsByBookingIntegrity } from "@/features/payment/utils/paymentIntegrity";
-import { validationClient, type PublicRequest } from "@/features/qai-page/validation";
+import { qaiSpaceClient, type PublicRequest } from "@/features/qai-page/validation";
 import { isPaymentReminderEligible } from "@/features/reminder/reminderTransport";
 
 export function isPendingPublicRequest(request: PublicRequest): boolean {
@@ -49,7 +49,7 @@ export default function useOperationalAttention() {
     let active = true;
     async function loadRequests() {
       try {
-        const store = await validationClient.owner();
+        const store = await qaiSpaceClient.owner();
         if (active) {
           setPendingRequests(store.requests.filter(isPendingPublicRequest).sort((left, right) => right.submittedAt - left.submittedAt));
         }
