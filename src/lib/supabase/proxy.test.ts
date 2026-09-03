@@ -8,6 +8,7 @@ describe("cloud public routes", () => {
     "/q/testtt",
     "/api/qai-space",
     "/api/qai-space/public-media",
+    "/api/qai-space/public-media/6f7bdd95-a3d6-4a9f-b27b-f6e4de71af3f",
     "/api/qai-space/media/6f7bdd95-a3d6-4a9f-b27b-f6e4de71af3f",
   ])("keeps %s publicly reachable", (pathname) => {
     expect(isCloudPublicRoute(pathname)).toBe(true);

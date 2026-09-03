@@ -4,6 +4,7 @@ import { z } from "zod";
 import { validateQuestionnaireResponses } from "@/features/booking-questionnaire/questionnaire";
 import { LOCAL_VALIDATION_BACKEND_CAPABILITIES } from "@/features/qai-page/backendCapabilities";
 import { cloudBookingsForCapacity, materializeCloudPage } from "@/features/qai-page/cloudMapping";
+import { withPublicQaiSpaceMediaUrls } from "@/features/qai-page/cloudMedia";
 import { availableServiceSlotsForDate } from "@/features/qai-page/serviceCapacity";
 import {
   defaultQaiPage,
@@ -120,7 +121,7 @@ async function publicPageBySlug(slug: string) {
 
 function publicPagePayload(page: QaiPageConfig): QaiPageConfig {
   return {
-    ...page,
+    ...withPublicQaiSpaceMediaUrls(page),
     businessId: "public",
     slots: page.slots.map((slot) => ({ ...slot, requestId: null })),
   };

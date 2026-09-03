@@ -18,7 +18,8 @@ export function isCloudPublicRoute(pathname: string): boolean {
     || pathname.startsWith("/q/")
     || pathname === "/api/qai-space"
     || pathname.startsWith("/api/qai-space/media/")
-    || pathname === "/api/qai-space/public-media";
+    || pathname === "/api/qai-space/public-media"
+    || pathname.startsWith("/api/qai-space/public-media/");
 }
 
 function copyAuthState(source: NextResponse, target: NextResponse): NextResponse {
