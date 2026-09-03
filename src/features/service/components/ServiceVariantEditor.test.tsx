@@ -60,4 +60,58 @@ describe("ServiceVariantEditor", () => {
       expect.objectContaining({ optionValueIds: expect.arrayContaining(["one"]) }),
     ]);
   });
+
+  it("stores and visibly selects a real value immediately when adding a second choice", async () => {
+    const user = userEvent.setup();
+    const onOptionGroupsChange = vi.fn();
+    const onVariantsChange = vi.fn();
+    const initialGroups = [groups[0]];
+    const initialVariant = { ...existing, optionValueIds: ["owner"] };
+    const view = render(<ServiceVariantEditor optionGroups={initialGroups} variants={[initialVariant]} basePrice={1_000_000} baseDuration={60} baseSessionCount={1} onOptionGroupsChange={onOptionGroupsChange} onVariantsChange={onVariantsChange} />);
+
+    await user.click(screen.getByRole("button", { name: "Add another choice type" }));
+    const nextGroups = onOptionGroupsChange.mock.lastCall?.[0];
+    const nextVariants = onVariantsChange.mock.lastCall?.[0];
+    expect(nextGroups).toHaveLength(2);
+    expect(nextVariants[0].optionValueIds).toEqual(["owner", nextGroups[1].values[0].id]);
+
+    view.rerender(<ServiceVariantEditor optionGroups={nextGroups} variants={nextVariants} basePrice={1_000_000} baseDuration={60} baseSessionCount={1} onOptionGroupsChange={onOptionGroupsChange} onVariantsChange={onVariantsChange} />);
+    const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
+    expect(selects[1].value).toBe(nextVariants[0].optionValueIds[1]);
+  });
+
+  it("changes one combination choice without removing the other stored choice", async () => {
+    const user = userEvent.setup();
+    const onVariantsChange = vi.fn();
+    render(<ServiceVariantEditor optionGroups={groups} variants={[existing]} basePrice={1_000_000} baseDuration={60} baseSessionCount={1} onOptionGroupsChange={vi.fn()} onVariantsChange={onVariantsChange} />);
+
+    const selects = screen.getAllByRole("combobox");
+    await user.selectOptions(selects[1], "two");
+    expect(onVariantsChange).toHaveBeenLastCalledWith([{ ...existing, optionValueIds: ["owner", "two"] }]);
+  });
+
+  it("preserves a combination and its metadata when removing a choice", async () => {
+    const user = userEvent.setup();
+    const onOptionGroupsChange = vi.fn();
+    const onVariantsChange = vi.fn();
+    render(<ServiceVariantEditor optionGroups={groups} variants={[existing]} basePrice={1_000_000} baseDuration={60} baseSessionCount={1} onOptionGroupsChange={onOptionGroupsChange} onVariantsChange={onVariantsChange} />);
+
+    await user.click(screen.getByRole("button", { name: "Remove choice type 2" }));
+    expect(onVariantsChange).toHaveBeenLastCalledWith([{ ...existing, optionValueIds: ["owner"] }]);
+  });
+
+  it("replaces a removed selected option and keeps the visible select aligned", async () => {
+    const user = userEvent.setup();
+    const onOptionGroupsChange = vi.fn();
+    const onVariantsChange = vi.fn();
+    const view = render(<ServiceVariantEditor optionGroups={groups} variants={[existing]} basePrice={1_000_000} baseDuration={60} baseSessionCount={1} onOptionGroupsChange={onOptionGroupsChange} onVariantsChange={onVariantsChange} />);
+
+    await user.click(screen.getAllByRole("button", { name: "Remove value 1" })[0]);
+    const nextGroups = onOptionGroupsChange.mock.lastCall?.[0];
+    const nextVariants = onVariantsChange.mock.lastCall?.[0];
+    expect(nextVariants).toEqual([{ ...existing, optionValueIds: ["mentor", "one"] }]);
+
+    view.rerender(<ServiceVariantEditor optionGroups={nextGroups} variants={nextVariants} basePrice={1_000_000} baseDuration={60} baseSessionCount={1} onOptionGroupsChange={onOptionGroupsChange} onVariantsChange={onVariantsChange} />);
+    expect((screen.getAllByRole("combobox")[0] as HTMLSelectElement).value).toBe("mentor");
+  });
 });

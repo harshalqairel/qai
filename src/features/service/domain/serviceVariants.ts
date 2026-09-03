@@ -22,6 +22,40 @@ export function variantCombinationKey(optionValueIds: readonly string[]): string
   return [...optionValueIds].sort().join(":");
 }
 
+export function hasExactlyOneOptionValuePerGroup(
+  optionGroups: readonly ServiceOptionGroup[],
+  optionValueIds: readonly string[],
+): boolean {
+  if (optionValueIds.length !== optionGroups.length || new Set(optionValueIds).size !== optionValueIds.length) return false;
+  const knownValueIds = new Set(optionGroups.flatMap((group) => group.values.map((value) => value.id)));
+  return optionValueIds.every((id) => knownValueIds.has(id))
+    && optionGroups.every((group) => optionValueIds.filter((id) => group.values.some((value) => value.id === id)).length === 1);
+}
+
+export function synchronizeServiceVariants(
+  optionGroups: readonly ServiceOptionGroup[],
+  variants: readonly ServiceVariant[],
+): ServiceVariant[] {
+  if (optionGroups.length === 0) return [];
+  const combinations = new Set<string>();
+
+  return variants.flatMap((variant) => {
+    const optionValueIds = optionGroups.flatMap((group) => {
+      const currentValue = group.values.find((value) => variant.optionValueIds.includes(value.id));
+      if (currentValue) return [currentValue.id];
+
+      const fallback = group.values.find((value) => value.active) ?? group.values[0];
+      return fallback ? [fallback.id] : [];
+    });
+
+    if (!hasExactlyOneOptionValuePerGroup(optionGroups, optionValueIds)) return [];
+    const key = variantCombinationKey(optionValueIds);
+    if (combinations.has(key)) return [];
+    combinations.add(key);
+    return [{ ...variant, optionValueIds }];
+  });
+}
+
 export function resolveServiceVariant(
   service: Pick<Service, "optionGroups" | "variants">,
   selectedValueIds: readonly string[],
@@ -29,14 +63,18 @@ export function resolveServiceVariant(
   const groups = orderedOptionGroups(service);
   if (groups.length === 0 || selectedValueIds.length !== groups.length) return null;
   const key = variantCombinationKey(selectedValueIds);
-  return activeServiceVariants(service).find((variant) => variantCombinationKey(variant.optionValueIds) === key) ?? null;
+  return activeServiceVariants(service).find((variant) =>
+    hasExactlyOneOptionValuePerGroup(groups, variant.optionValueIds)
+    && variantCombinationKey(variant.optionValueIds) === key,
+  ) ?? null;
 }
 
 export function defaultServiceVariant(service: Pick<Service, "optionGroups" | "variants">): ServiceVariant | null {
   const groups = orderedOptionGroups(service);
   if (groups.length === 0) return null;
   return activeServiceVariants(service).find((variant) =>
-    groups.every((group) => variant.optionValueIds.some((id) => group.values.some((value) => value.id === id && value.active))),
+    hasExactlyOneOptionValuePerGroup(groups, variant.optionValueIds)
+    && groups.every((group) => variant.optionValueIds.some((id) => group.values.some((value) => value.id === id && value.active))),
   ) ?? null;
 }
 
@@ -137,9 +175,8 @@ export function validateServiceVariantConfiguration(
     if (!Number.isFinite(variant.price) || variant.price < 0) return `${combinationLabel} → Enter a valid price.`;
     if (!Number.isFinite(variant.duration) || variant.duration < 1) return `${combinationLabel} → Duration must be at least 1 minute.`;
     if (!Number.isInteger(variant.defaultSessionCount) || variant.defaultSessionCount < 1) return `${combinationLabel} → Schedules must be a whole number of at least 1.`;
-    if (variant.optionValueIds.length !== optionGroups.length || variant.optionValueIds.some((id) => !allValueIds.has(id))) return `${combinationLabel} → Select one value from every choice.`;
-    const hasOnePerGroup = optionGroups.every((group) => variant.optionValueIds.filter((id) => group.values.some((value) => value.id === id)).length === 1);
-    if (!hasOnePerGroup) return `${combinationLabel} → Select exactly one value from every choice.`;
+    if (variant.optionValueIds.some((id) => !allValueIds.has(id))) return `${combinationLabel} → Select one value from every choice.`;
+    if (!hasExactlyOneOptionValuePerGroup(optionGroups, variant.optionValueIds)) return `${combinationLabel} → Select exactly one value from every choice.`;
     const key = variantCombinationKey(variant.optionValueIds);
     if (combinations.has(key)) return `${combinationLabel} → This combination already exists. Every client-facing combination must be unique.`;
     combinations.add(key);

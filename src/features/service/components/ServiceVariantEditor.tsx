@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { MoneyInput } from "@/components/ui/money-input";
 import { EditableNumberInput } from "@/components/ui/editable-number-input";
 import type { ServiceOptionGroup, ServiceVariant } from "@/features/service/types";
-import { variantCombinationKey } from "@/features/service/domain/serviceVariants";
+import { synchronizeServiceVariants, variantCombinationKey } from "@/features/service/domain/serviceVariants";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
 import { formatDuration } from "@/features/service/utils/duration";
 
@@ -60,13 +60,15 @@ export default function ServiceVariantEditor({
   }
 
   function changeGroup(groupId: string, changes: Partial<ServiceOptionGroup>) {
-    onOptionGroupsChange(optionGroups.map((group) => group.id === groupId ? { ...group, ...changes } : group));
+    const nextGroups = optionGroups.map((group) => group.id === groupId ? { ...group, ...changes } : group);
+    onOptionGroupsChange(nextGroups);
+    onVariantsChange(synchronizeServiceVariants(nextGroups, variants));
   }
 
   function removeGroup(group: ServiceOptionGroup) {
-    const removedIds = new Set(group.values.map((value) => value.id));
-    onOptionGroupsChange(optionGroups.filter((item) => item.id !== group.id).map((item, position) => ({ ...item, position })));
-    onVariantsChange(variants.filter((variant) => !variant.optionValueIds.some((id) => removedIds.has(id))));
+    const nextGroups = optionGroups.filter((item) => item.id !== group.id).map((item, position) => ({ ...item, position }));
+    onOptionGroupsChange(nextGroups);
+    onVariantsChange(synchronizeServiceVariants(nextGroups, variants));
   }
 
   function changeValue(group: ServiceOptionGroup, valueId: string, label: string) {
@@ -75,7 +77,6 @@ export default function ServiceVariantEditor({
 
   function removeValue(group: ServiceOptionGroup, valueId: string) {
     changeGroup(group.id, { values: group.values.filter((value) => value.id !== valueId).map((value, position) => ({ ...value, position })) });
-    onVariantsChange(variants.filter((variant) => !variant.optionValueIds.includes(valueId)));
   }
 
   function addInlineValue(group: ServiceOptionGroup, variant: ServiceVariant) {
@@ -160,7 +161,11 @@ export default function ServiceVariantEditor({
         </article>
       ))}
 
-      <Button type="button" variant="outline" size="sm" disabled={optionGroups.length >= 4} onClick={() => onOptionGroupsChange([...optionGroups, newGroup(optionGroups.length)])}><Plus className="size-4" /> Add another choice type</Button>
+      <Button type="button" variant="outline" size="sm" disabled={optionGroups.length >= 4} onClick={() => {
+        const nextGroups = [...optionGroups, newGroup(optionGroups.length)];
+        onOptionGroupsChange(nextGroups);
+        onVariantsChange(synchronizeServiceVariants(nextGroups, variants));
+      }}><Plus className="size-4" /> Add another choice type</Button>
 
       <div className="border-t border-border pt-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
