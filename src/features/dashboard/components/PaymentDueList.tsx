@@ -7,6 +7,7 @@ import { formatDashboardDate, getOverdueAgeDays } from "@/features/dashboard/uti
 import ReminderActions from "@/features/reminder/components/ReminderActions";
 import LastReminderStatus from "@/features/reminder/components/LastReminderStatus";
 import { firstBookingSession, formatSessionDate, nextBookingSession } from "@/features/booking/utils/bookingSessions";
+import { bookingPaymentHref } from "@/features/booking/domain/bookingDeepLinks";
 
 type PaymentDueListProps = {
   title: "Payments due soon" | "Overdue payments";
@@ -30,7 +31,7 @@ export default function PaymentDueList({
   timezone,
 }: PaymentDueListProps) {
   const router = useRouter();
-  const openBooking = (id: string) => router.push(`/bookings?booking=${encodeURIComponent(id)}`);
+  const openBooking = (booking: EnrichedBooking) => router.push(bookingPaymentHref(booking.paymentStatus, booking.id));
   return (
     <section>
       <div className="flex items-start justify-between gap-3">
@@ -60,7 +61,7 @@ export default function PaymentDueList({
           {items.map((booking) => {
             const overdueDays = late ? getOverdueAgeDays(booking.fullPaymentDueDate, todayKey) : 0;
             return (
-            <article key={booking.id} role="link" tabIndex={0} onClick={() => openBooking(booking.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openBooking(booking.id); } }} className="cursor-pointer rounded-xl py-4 transition hover:bg-[var(--dashboard-surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring first:pt-0 last:pb-0 sm:px-2">
+            <article key={booking.id} role="link" tabIndex={0} onClick={() => openBooking(booking)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openBooking(booking); } }} className="cursor-pointer rounded-xl py-4 transition hover:bg-[var(--dashboard-surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring first:pt-0 last:pb-0 sm:px-2">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <p className="truncate font-semibold text-[var(--dashboard-text)]">
@@ -81,7 +82,7 @@ export default function PaymentDueList({
                   {late && <p className="text-xs text-[var(--dashboard-muted-text)]">Due {formatDashboardDate(booking.fullPaymentDueDate)}</p>}
                 </div>
               </div>
-              <ReminderActions bookingId={booking.id} customerId={booking.customerId} customerName={booking.customerName} customerPhone={booking.customerPhone} customerEmail={booking.customerEmail} serviceName={booking.serviceName} businessName={businessName} remainingAmount={booking.remainingAmount} dueDate={formatDashboardDate(booking.fullPaymentDueDate)} reminderType={late ? "overdue" : "due-soon"} bookingDate={formatSessionDate(firstBookingSession(booking), timezone)} bookingValue={booking.servicePrice} totalPaid={booking.totalPaid} nextSessionDate={nextBookingSession(booking) ? formatSessionDate(nextBookingSession(booking)!, timezone) : ""} />
+              <ReminderActions bookingId={booking.id} customerId={booking.customerId} customerName={booking.customerName} customerPhone={booking.customerPhone} customerEmail={booking.customerEmail} serviceName={booking.serviceName} businessName={businessName} remainingAmount={booking.remainingAmount} dueDate={formatDashboardDate(booking.fullPaymentDueDate)} reminderType={late ? "overdue" : "due-soon"} paymentStatus={booking.paymentStatus} bookingDate={formatSessionDate(firstBookingSession(booking), timezone)} bookingValue={booking.servicePrice} totalPaid={booking.totalPaid} nextSessionDate={nextBookingSession(booking) ? formatSessionDate(nextBookingSession(booking)!, timezone) : ""} />
             </article>
           );})}
         </div>

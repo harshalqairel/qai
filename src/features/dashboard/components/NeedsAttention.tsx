@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
+import { bookingPaymentHref } from "@/features/booking/domain/bookingDeepLinks";
 import { qaiSpaceHref } from "@/lib/qaiSpaceRouting";
 
 type NeedsAttentionProps = {
@@ -22,7 +23,7 @@ export default function NeedsAttention({ overdueCount, overdueAmount, requestCou
       </div>
 
       {attentionCount === 0 ? <div className="mt-4 py-2"><p className="font-semibold text-[var(--dashboard-text)]">You’re up to date.</p><p className="mt-1 text-sm text-[var(--dashboard-muted-text)]">No overdue payments or booking requests need action.</p></div> : <div className="mt-3 divide-y divide-[var(--dashboard-border)] border-y border-[var(--dashboard-border)]">
-        {overdueCount > 0 && <Link href="/bookings?payment=outstanding" className="flex min-h-17 items-center gap-3 py-3">
+        {overdueCount > 0 && <Link href={bookingPaymentHref("Overdue")} className="flex min-h-17 items-center gap-3 py-3">
           <span className="min-w-0 flex-1"><span className="block font-semibold text-[var(--dashboard-text)]">Overdue payments</span><span className="mt-1 block text-sm text-[var(--dashboard-muted-text)]">{overdueCount} {overdueCount === 1 ? "booking" : "bookings"} · {formatRupiah(overdueAmount)}</span></span>
           <ChevronRight className="size-5 shrink-0 text-[var(--dashboard-muted-text)]" aria-hidden="true" />
         </Link>}

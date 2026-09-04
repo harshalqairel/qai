@@ -6,6 +6,8 @@ import { Mail, MessageCircle, Eye } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
+import type { DerivedPaymentStatus } from "@/features/payment/types";
+import { bookingPaymentHref } from "@/features/booking/domain/bookingDeepLinks";
 import { notify } from "@/lib/notifications";
 import { addReminderHistory } from "../reminderRepository";
 import { LOCAL_BUSINESS_ID, renderReminderTemplate, scenarioTemplate } from "../reminderTemplates";
@@ -13,9 +15,10 @@ import { buildEmailReminderUrl, buildWhatsAppReminderUrl, normalizePhoneForWhats
 import type { ReminderMethod, ReminderType } from "../types";
 import { useReminderTemplates } from "../useReminderTemplates";
 
-export default function ReminderActions({ bookingId, customerId, customerName, customerPhone, customerEmail, serviceName, businessName, remainingAmount, dueDate, reminderType, bookingDate = "", bookingValue = 0, totalPaid = 0, nextSessionDate = "", businessId = LOCAL_BUSINESS_ID }: {
+export default function ReminderActions({ bookingId, customerId, customerName, customerPhone, customerEmail, serviceName, businessName, remainingAmount, dueDate, reminderType, paymentStatus, bookingDate = "", bookingValue = 0, totalPaid = 0, nextSessionDate = "", businessId = LOCAL_BUSINESS_ID }: {
   bookingId: string; customerId: string; customerName: string; customerPhone: string; customerEmail: string;
   serviceName: string; businessName: string; remainingAmount: number; dueDate: string; reminderType: ReminderType;
+  paymentStatus: DerivedPaymentStatus;
   bookingDate?: string; bookingValue?: number; totalPaid?: number; nextSessionDate?: string; businessId?: string;
 }) {
   const [pendingMethod, setPendingMethod] = useState<ReminderMethod | null>(null);
@@ -89,7 +92,7 @@ export default function ReminderActions({ bookingId, customerId, customerName, c
         <Button type="button" variant="outline" className="min-h-11 px-2 text-xs sm:text-sm" disabled={!emailAvailable} title={emailAvailable ? "Open email reminder" : "No email saved"} onClick={() => openReminder("Email")}>
           <Mail className="size-4" aria-hidden="true" /> Email
         </Button>
-        <Link href={`/bookings?booking=${encodeURIComponent(bookingId)}`} className={buttonVariants({ variant: "outline", className: "min-h-11 px-2 text-xs sm:text-sm" })}>
+        <Link href={bookingPaymentHref(paymentStatus, bookingId)} className={buttonVariants({ variant: "outline", className: "min-h-11 px-2 text-xs sm:text-sm" })}>
           <Eye className="size-4" aria-hidden="true" /> View booking
         </Link>
       </div>

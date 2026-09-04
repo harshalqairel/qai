@@ -12,7 +12,7 @@ describe("NeedsAttention", () => {
     expect(screen.getByText("2 bookings · Rp 4.500.000")).toBeTruthy();
 
     const overdue = screen.getByRole("link", { name: /Overdue payments/ });
-    expect(overdue.getAttribute("href")).toBe("/bookings?payment=outstanding");
+    expect(overdue.getAttribute("href")).toBe("/bookings?payment=overdue");
     expect(screen.getByRole("link", { name: /Booking requests/ }).getAttribute("href")).toBe("/space?tab=Requests");
     unmount();
   });

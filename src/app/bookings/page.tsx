@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import BookingHeader from "@/features/booking/components/BookingHeader";
 import BookingToolbar from "@/features/booking/components/BookingToolbar";
 import type { BookingSort } from "@/features/booking/components/BookingToolbar";
@@ -40,8 +41,19 @@ import { toggleSelectedId, toggleVisibleSelection } from "@/components/system/se
 import BulkServiceChangeDialog, { type BulkServiceNamedBooking } from "@/features/booking/components/BulkServiceChangeDialog";
 import { buildBulkServiceChangeInput } from "@/features/booking/domain/serviceChange";
 import type { Service } from "@/features/service/types";
+import { paymentStatusFromQuery, paymentStatusToQuery } from "@/features/booking/domain/bookingDeepLinks";
 
 export default function BookingsPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen"><PageSkeleton variant="list" /></main>}>
+      <BookingsPageContent />
+    </Suspense>
+  );
+}
+
+function BookingsPageContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const bookingData = useBookings();
   const customerData = useCustomers();
   const serviceData = useServices();
@@ -75,7 +87,7 @@ export default function BookingsPage() {
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [paymentStatusFilter, setPaymentStatusFilter] = useState("");
+  const paymentStatusFilter = paymentStatusFromQuery(searchParams.get("payment"));
   const [sort, setSort] = useState<BookingSort>("newest");
   const handledDeepLink = useRef(false);
 
@@ -117,15 +129,13 @@ export default function BookingsPage() {
   useEffect(() => {
     if (handledDeepLink.current || bookingData.isLoading) return;
     const timeoutId = window.setTimeout(() => {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("new") === "1") {
+      if (searchParams.get("new") === "1") {
         setSelectedBooking(null);
-        const customerId = params.get("customer");
+        const customerId = searchParams.get("customer");
         setInitialBookingValues(customerId && customers.some((customer) => customer.id === customerId) ? { customerId } : undefined);
         setDialogOpen(true);
       }
-      if (params.get("payment") === "outstanding") setPaymentStatusFilter("Outstanding");
-      const bookingId = params.get("booking");
+      const bookingId = searchParams.get("booking");
       if (bookingId) {
         const booking = bookingsWithNames.find((item) => item.id === bookingId);
         if (booking) {
@@ -136,7 +146,7 @@ export default function BookingsPage() {
       handledDeepLink.current = true;
     }, 0);
     return () => window.clearTimeout(timeoutId);
-  }, [bookingData.isLoading, bookingsWithNames, customers]);
+  }, [bookingData.isLoading, bookingsWithNames, customers, searchParams]);
 
   const filteredBookings = bookingsWithNames.filter((booking) => {
     const matchesSearch =
@@ -216,7 +226,11 @@ export default function BookingsPage() {
   }
 
   function changePaymentStatusFilter(value: string) {
-    setPaymentStatusFilter(value);
+    const params = new URLSearchParams(searchParams.toString());
+    const queryValue = paymentStatusToQuery(value);
+    if (queryValue) params.set("payment", queryValue);
+    else params.delete("payment");
+    router.replace(`/bookings${params.size ? `?${params.toString()}` : ""}`, { scroll: false });
     setSelectedBookingIds(new Set());
   }
 

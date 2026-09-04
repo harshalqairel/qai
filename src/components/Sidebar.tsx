@@ -27,6 +27,7 @@ import { QaiLogo, QaiMark } from "@/components/brand/QaiLogo";
 import AuthControls from "@/components/auth/AuthControls";
 import useOperationalAttention from "@/features/dashboard/hooks/useOperationalAttention";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
+import { bookingPaymentHref } from "@/features/booking/domain/bookingDeepLinks";
 import { qaiSpaceHref } from "@/lib/qaiSpaceRouting";
 
 type NavItem = { href: string; label: string; Icon: LucideIcon };
@@ -187,7 +188,7 @@ function MobileSheet({ title, onClose, children }: { title: string; onClose: () 
 function AttentionPanel({ attention, onNavigate }: { attention: ReturnType<typeof useOperationalAttention>; onNavigate: () => void }) {
   if (attention.attentionCount === 0) return <div className="border-y border-border py-5"><p className="font-semibold">You’re up to date.</p><p className="mt-1 text-sm text-muted-foreground">No overdue payments or booking requests need action.</p></div>;
   return <div className="divide-y divide-border border-y border-border">
-    {attention.overdueCount > 0 && <Link href="/bookings?payment=outstanding" onClick={onNavigate} className="flex min-h-18 items-center gap-3 py-3"><span className="min-w-0 flex-1"><span className="block font-semibold">Overdue payments</span><span className="mt-1 block text-sm text-muted-foreground">{attention.overdueCount} {attention.overdueCount === 1 ? "booking" : "bookings"} · {formatRupiah(attention.overdueAmount)}</span></span><ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" /></Link>}
+    {attention.overdueCount > 0 && <Link href={bookingPaymentHref("Overdue")} onClick={onNavigate} className="flex min-h-18 items-center gap-3 py-3"><span className="min-w-0 flex-1"><span className="block font-semibold">Overdue payments</span><span className="mt-1 block text-sm text-muted-foreground">{attention.overdueCount} {attention.overdueCount === 1 ? "booking" : "bookings"} · {formatRupiah(attention.overdueAmount)}</span></span><ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" /></Link>}
     {attention.requestCount > 0 && <Link href={qaiSpaceHref("Requests")} onClick={onNavigate} className="flex min-h-18 items-center gap-3 py-3"><span className="min-w-0 flex-1"><span className="block font-semibold">Booking requests</span><span className="mt-1 block text-sm text-muted-foreground">{attention.requestCount} waiting</span></span><ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" /></Link>}
   </div>;
 }

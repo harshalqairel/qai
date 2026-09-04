@@ -5,6 +5,7 @@ import type { ScheduledSessionItem } from "@/features/dashboard/hooks/useDashboa
 import { formatSessionTime } from "@/features/booking/utils/bookingSessions";
 import { BookingStatusBadge, PaymentStatusBadge } from "./DashboardStatusBadge";
 import { paymentStatusLabel } from "@/features/payment/utils/paymentCalculations";
+import { bookingPaymentHref } from "@/features/booking/domain/bookingDeepLinks";
 
 type TodayScheduleProps = {
   items: ScheduledSessionItem[];
@@ -13,7 +14,7 @@ type TodayScheduleProps = {
 
 export default function TodaySchedule({ items, timezone }: TodayScheduleProps) {
   const router = useRouter();
-  const openBooking = (id: string) => router.push(`/bookings?booking=${encodeURIComponent(id)}`);
+  const openBooking = (booking: ScheduledSessionItem) => router.push(bookingPaymentHref(booking.paymentStatus, booking.id));
   const first = items[0];
   return (
     <section>
@@ -35,7 +36,7 @@ export default function TodaySchedule({ items, timezone }: TodayScheduleProps) {
         </div>
       ) : (
         <>
-          {first && <article role="link" tabIndex={0} onClick={() => openBooking(first.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openBooking(first.id); } }} className="mt-4 grid cursor-pointer grid-cols-[3.75rem_minmax(0,1fr)] gap-3 border-y border-[var(--dashboard-border)] py-4 lg:hidden">
+          {first && <article role="link" tabIndex={0} onClick={() => openBooking(first)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openBooking(first); } }} className="mt-4 grid cursor-pointer grid-cols-[3.75rem_minmax(0,1fr)] gap-3 border-y border-[var(--dashboard-border)] py-4 lg:hidden">
             <p className="font-semibold tabular-nums text-[var(--dashboard-text)]">{formatSessionTime(first.session, timezone).split("–")[0]}</p>
             <div className="min-w-0">
               <p className="truncate font-semibold text-[var(--dashboard-text)]">{first.customerName}</p>
@@ -53,11 +54,11 @@ export default function TodaySchedule({ items, timezone }: TodayScheduleProps) {
               key={booking.session.id}
               role="link"
               tabIndex={0}
-              onClick={() => openBooking(booking.id)}
+              onClick={() => openBooking(booking)}
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
-                  openBooking(booking.id);
+                  openBooking(booking);
                 }
               }}
               className="cursor-pointer rounded-xl border border-[var(--dashboard-border)] bg-white p-4 transition hover:border-[var(--brand)] hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
