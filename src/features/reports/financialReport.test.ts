@@ -8,7 +8,7 @@ import type { Payment } from "@/features/payment/types";
 import type { Service } from "@/features/service/types";
 import type { ExpenseCategory } from "@/features/expense-category/types";
 import { createInvoiceRevision, DEFAULT_INVOICE_SETTINGS, issueInvoice, type Invoice } from "@/features/invoice/invoice";
-import { buildFinancialReport } from "./financialReport";
+import { buildFinancialReport, rankTopServices } from "./financialReport";
 import { buildFinancialReportWorkbook } from "./excelExport";
 import { uploadFinancialReportWorkbookToGoogleDrive, uploadFinancialReportWorkbookToGoogleSheets } from "./googleSheetsExport";
 
@@ -100,6 +100,104 @@ function report(period: Parameters<typeof buildFinancialReport>[0]["period"] = {
   });
 }
 
+function validationBooking(args: {
+  id: string;
+  serviceId: string;
+  serviceName: string;
+  date: string;
+  servicePrice: number;
+  additionalCharge?: number;
+  dueDate?: string;
+  status?: Booking["bookingStatus"];
+}): Booking {
+  return {
+    id: args.id,
+    customerId: "customer-1",
+    serviceId: args.serviceId,
+    sessions: [session(args.id, 1, args.date)],
+    servicePrice: args.servicePrice,
+    serviceSnapshot: {
+      serviceName: args.serviceName,
+      variantId: null,
+      variantLabel: "",
+      options: [],
+      price: args.servicePrice,
+      duration: 60,
+      defaultSessionCount: 1,
+    },
+    additionalCharges: args.additionalCharge ? [{
+      id: `${args.id}-charge`,
+      bookingId: args.id,
+      sessionId: null,
+      categoryId: "travel",
+      categoryName: "Travel",
+      description: "Client-facing travel charge",
+      amount: args.additionalCharge,
+      createdAt: 1,
+      updatedAt: 1,
+    }] : [],
+    bookingStatus: args.status ?? "Scheduled",
+    fullPaymentDueDate: args.dueDate ?? "2026-09-30",
+    notes: "",
+    createdAt: 1,
+    updatedAt: 1,
+  };
+}
+
+function controlledReport(period: Parameters<typeof buildFinancialReport>[0]["period"] = { preset: "specific-month", selectedMonth: "2026-09" }) {
+  const controlledBookings = [
+    validationBooking({ id: "report-a", serviceId: "service-a", serviceName: "REPORT-VALIDATION-WEDDING", date: "2026-09-05", servicePrice: 7_500_000, additionalCharge: 500_000 }),
+    validationBooking({ id: "report-b", serviceId: "service-a", serviceName: "REPORT-VALIDATION-WEDDING", date: "2026-09-06", servicePrice: 5_000_000, additionalCharge: 1_000_000 }),
+    validationBooking({ id: "report-c", serviceId: "service-b", serviceName: "REPORT-VALIDATION-STUDIO", date: "2026-09-07", servicePrice: 3_000_000 }),
+    validationBooking({ id: "report-d", serviceId: "service-c", serviceName: "REPORT-VALIDATION-CLASS", date: "2026-09-08", servicePrice: 4_000_000, dueDate: "2026-09-10" }),
+    validationBooking({ id: "report-e", serviceId: "service-c", serviceName: "REPORT-VALIDATION-CLASS", date: "2026-09-09", servicePrice: 9_000_000, status: "Cancelled" }),
+    validationBooking({ id: "report-f", serviceId: "service-b", serviceName: "REPORT-VALIDATION-STUDIO", date: "2026-08-31", servicePrice: 10_000_000 }),
+  ];
+  const controlledPayments: Payment[] = [
+    { id: "pay-b", bookingId: "report-b", date: "2026-09-06", amount: 2_000_000, method: "Bank Transfer", notes: "", createdAt: 1 },
+    { id: "pay-c", bookingId: "report-c", date: "2026-09-07", amount: 3_000_000, method: "Cash", notes: "", createdAt: 1 },
+    { id: "pay-d", bookingId: "report-d", date: "2026-09-08", amount: 1_000_000, method: "QRIS", notes: "", createdAt: 1 },
+    { id: "pay-e", bookingId: "report-e", date: "2026-09-09", amount: 500_000, method: "Cash", notes: "Cancelled history", createdAt: 1 },
+  ];
+  const controlledExpenses: Expense[] = [
+    { id: "expense-b", date: "2026-09-06", categoryId: "expense-category-1", amount: 500_000, paymentMethod: "Cash", expenseType: "Booking Expense", bookingId: "report-b", vendor: "Artist", notes: "", createdAt: 1, updatedAt: 1 },
+    { id: "expense-c", date: "2026-09-07", categoryId: "expense-category-1", amount: 250_000, paymentMethod: "Cash", expenseType: "Booking Expense", bookingId: "report-c", vendor: "Studio", notes: "", createdAt: 1, updatedAt: 1 },
+    { id: "expense-e", date: "2026-09-09", categoryId: "expense-category-1", amount: 100_000, paymentMethod: "Cash", expenseType: "Booking Expense", bookingId: "report-e", vendor: "Cancelled", notes: "", createdAt: 1, updatedAt: 1 },
+    { id: "expense-business", date: "2026-09-10", categoryId: "expense-category-1", amount: 200_000, paymentMethod: "Cash", expenseType: "Business Expense", bookingId: null, vendor: "Office", notes: "", createdAt: 1, updatedAt: 1 },
+  ];
+  return buildFinancialReport({
+    businessName: "Qai Report Validation",
+    currency: "IDR",
+    timezone: "Asia/Jakarta",
+    period,
+    bookings: controlledBookings,
+    customers,
+    services: [
+      { id: "service-a", name: "RENAMED-LIVE-SERVICE", categoryId: "service-category-1", price: 1, duration: 60, defaultSessionCount: 1, description: "", active: true },
+      { id: "service-c", name: "REPORT-VALIDATION-CLASS", categoryId: "service-category-1", price: 4_000_000, duration: 60, defaultSessionCount: 1, description: "", active: false },
+    ],
+    payments: controlledPayments,
+    expenses: controlledExpenses,
+    expenseCategories,
+    generatedAt: new Date("2026-09-15T17:30:00.000Z"),
+  });
+}
+
+async function uploadedWorkbook(body: Blob): Promise<Workbook> {
+  const multipart = Buffer.from(await body.arrayBuffer());
+  const workbookStart = multipart.indexOf(Buffer.from([0x50, 0x4b, 0x03, 0x04]));
+  const workbookEnd = multipart.indexOf(Buffer.from("\r\n--qai_"), workbookStart);
+  expect(workbookStart).toBeGreaterThan(-1);
+  expect(workbookEnd).toBeGreaterThan(workbookStart);
+  const workbook = new Workbook();
+  const workbookBytes = multipart.subarray(workbookStart, workbookEnd);
+  await workbook.xlsx.load(workbookBytes.buffer.slice(
+    workbookBytes.byteOffset,
+    workbookBytes.byteOffset + workbookBytes.byteLength,
+  ) as ArrayBuffer);
+  return workbook;
+}
+
 describe("financial reporting domain", () => {
   it("applies This Month, This Year, All Time, and inclusive custom boundaries", () => {
     expect(report().summary.moneyReceived).toBe(500_000);
@@ -115,6 +213,15 @@ describe("financial reporting domain", () => {
     const selected = report({ preset: "specific-month", selectedMonth: "2025-12" });
     expect(selected.period.label).toBe("December 2025");
     expect(() => report({ preset: "specific-month", selectedMonth: "2026-09" })).toThrow(/Future months/);
+  });
+
+  it("resolves the current business-local quarter", () => {
+    expect(report({ preset: "this-quarter" }).period).toEqual({
+      preset: "this-quarter",
+      fromDate: "2026-07-01",
+      toDate: "2026-09-30",
+      label: "Q3 2026",
+    });
   });
 
   it("keeps cancelled financial history but excludes cancelled outstanding and job profit", () => {
@@ -147,6 +254,95 @@ describe("financial reporting domain", () => {
   });
 });
 
+describe("canonical report reconciliation", () => {
+  it("uses persisted service price plus Additional Charges for Client Total", () => {
+    const result = controlledReport();
+    const row = result.bookings.find((booking) => booking.bookingId === "report-a");
+    expect(row).toMatchObject({ servicePrice: 7_500_000, additionalCharges: 500_000, bookingValue: 8_000_000 });
+  });
+
+  it("does not classify Additional Charges as Expenses", () => {
+    const result = controlledReport();
+    expect(result.expenses.map((expense) => expense.expenseId)).not.toContain("report-a-charge");
+    expect(result.summary.expenses).toBe(1_050_000);
+  });
+
+  it("reconciles Paid and Outstanding from persisted Payment rows", () => {
+    const result = controlledReport();
+    expect(result.summary.paid).toBe(6_000_000);
+    expect(result.summary.outstanding).toBe(15_000_000);
+    expect(result.bookings.find((row) => row.bookingId === "report-b")).toMatchObject({ totalPaid: 2_000_000, outstanding: 4_000_000 });
+  });
+
+  it("derives Overdue without changing any financial total", () => {
+    const result = controlledReport();
+    expect(result.bookings.find((row) => row.bookingId === "report-d")).toMatchObject({ paymentStatus: "Overdue", bookingValue: 4_000_000, totalPaid: 1_000_000, outstanding: 3_000_000, estimatedJobProfit: 4_000_000 });
+  });
+
+  it("uses direct Booking Expenses for Profit and excludes general business Expenses", () => {
+    const result = controlledReport();
+    expect(result.summary).toMatchObject({ clientTotal: 21_000_000, directExpenses: 750_000, profit: 20_250_000 });
+    expect(result.summary.estimatedJobProfit).toBe(result.summary.profit);
+  });
+
+  it("keeps cancelled transaction history but excludes cancelled booking value, profit, outstanding, and service ranking", () => {
+    const result = controlledReport();
+    expect(result.summary.moneyReceived).toBe(6_500_000);
+    expect(result.summary.realizedProfit).toBe(5_450_000);
+    expect(result.bookings.find((row) => row.bookingId === "report-e")?.paymentStatus).toBe("Cancelled");
+    expect(result.topServices.find((service) => service.serviceId === "service-c")).toMatchObject({ bookingCount: 1, revenue: 4_000_000 });
+  });
+
+  it("ranks Top Services by Client Total, then booking count and stable name", () => {
+    const result = controlledReport();
+    expect(result.topServices).toEqual([
+      { serviceId: "service-a", service: "REPORT-VALIDATION-WEDDING", bookingCount: 2, revenue: 14_000_000 },
+      { serviceId: "service-c", service: "REPORT-VALIDATION-CLASS", bookingCount: 1, revenue: 4_000_000 },
+      { serviceId: "service-b", service: "REPORT-VALIDATION-STUDIO", bookingCount: 1, revenue: 3_000_000 },
+    ]);
+  });
+
+  it("applies deterministic Top Services tie-breakers", () => {
+    const rows = controlledReport().bookings.filter((row) => row.status !== "Cancelled").map((row) => ({ ...row, bookingValue: 1_000 }));
+    expect(rankTopServices(rows).map((row) => row.serviceId)).toEqual(["service-a", "service-c", "service-b"]);
+  });
+
+  it("uses service snapshots when a live Service is renamed, deleted, or deactivated", () => {
+    const result = controlledReport();
+    expect(result.bookings.find((row) => row.bookingId === "report-a")?.service).toBe("REPORT-VALIDATION-WEDDING");
+    expect(result.bookings.find((row) => row.bookingId === "report-c")?.service).toBe("REPORT-VALIDATION-STUDIO");
+    expect(result.bookings.find((row) => row.bookingId === "report-d")?.service).toBe("REPORT-VALIDATION-CLASS");
+  });
+
+  it("never replaces persisted Booking revenue with the live Service price", () => {
+    expect(controlledReport().topServices[0]?.revenue).toBe(14_000_000);
+  });
+
+  it("excludes Bookings outside the selected month and includes them in quarter and year periods", () => {
+    expect(controlledReport().bookings.map((row) => row.bookingId)).not.toContain("report-f");
+    expect(controlledReport({ preset: "this-quarter" }).bookings.map((row) => row.bookingId)).toContain("report-f");
+    expect(controlledReport({ preset: "this-year" }).bookings.map((row) => row.bookingId)).toContain("report-f");
+  });
+
+  it("uses the active Booking cohort for average-value inputs", () => {
+    const result = controlledReport();
+    const activeBookings = result.bookings.filter((row) => row.status !== "Cancelled");
+    expect(result.summary.clientTotal / activeBookings.length).toBe(5_250_000);
+  });
+
+  it("returns an empty service ranking and zero booking totals for an empty period", () => {
+    const result = controlledReport({ preset: "specific-month", selectedMonth: "2026-07" });
+    expect(result.topServices).toEqual([]);
+    expect(result.summary).toMatchObject({ clientTotal: 0, paid: 0, outstanding: 0, directExpenses: 0, profit: 0 });
+  });
+
+  it("uses the business-local generated date for exported payment status", () => {
+    const dueToday = validationBooking({ id: "boundary", serviceId: "service-a", serviceName: "Boundary", date: "2026-09-16", servicePrice: 1_000, dueDate: "2026-09-16" });
+    const result = buildFinancialReport({ businessName: "Qai", currency: "IDR", timezone: "Asia/Jakarta", period: { preset: "this-month" }, bookings: [dueToday], customers, services, payments: [], expenses: [], expenseCategories, generatedAt: new Date("2026-09-15T17:30:00.000Z") });
+    expect(result.bookings[0]?.paymentStatus).toBe("Outstanding");
+  });
+});
+
 describe("Excel export", () => {
   it("creates a readable workbook with numeric currency cells, real dates, and equivalent totals", async () => {
     const source = report();
@@ -157,7 +353,7 @@ describe("Excel export", () => {
     const workbook = new Workbook();
     await workbook.xlsx.load(bytes);
     expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual([
-      "Summary", "Income", "Expenses", "Job Profit", "Outstanding", "Bookings", "Schedule", "Invoices",
+      "Summary", "Top Services", "Income", "Expenses", "Job Profit", "Outstanding", "Bookings", "Schedule", "Invoices",
     ]);
     expect(workbook.getWorksheet("Income")?.getCell("F6").value).toBeTypeOf("number");
     expect(workbook.getWorksheet("Income")?.getCell("A6").value).toBeInstanceOf(Date);
@@ -166,6 +362,9 @@ describe("Excel export", () => {
     expect(workbook.getWorksheet("Schedule")?.getCell("B6").value).toBeInstanceOf(Date);
     expect(workbook.getWorksheet("Invoices")?.getCell("A6").value).toBeInstanceOf(Date);
     expect(workbook.getWorksheet("Invoices")?.getCell("L6").value).toBeTypeOf("number");
+    expect(workbook.getWorksheet("Bookings")?.getRow(5).values).toContain("Payment Status");
+    expect(workbook.getWorksheet("Bookings")?.getRow(5).values).toContain("Additional Charges");
+    expect(workbook.getWorksheet("Top Services")?.getCell("D6").value).toBe(source.topServices[0]?.revenue);
 
     for (const sheet of workbook.worksheets) {
       const headers = sheet.getRow(5).values as unknown[];
@@ -196,6 +395,27 @@ describe("Excel export", () => {
       "Schedule",
       "Notes",
     ]);
+  });
+
+  it("maps the canonical Booking financial fields and Overdue status as typed values", async () => {
+    const source = controlledReport();
+    const workbook = new Workbook();
+    const bytes = await buildFinancialReportWorkbook(source);
+    if (process.env.QAI_CONTROLLED_REPORT_FIXTURE_PATH) {
+      await writeFile(process.env.QAI_CONTROLLED_REPORT_FIXTURE_PATH, Buffer.from(bytes));
+    }
+    await workbook.xlsx.load(bytes);
+    const bookingSheet = workbook.getWorksheet("Bookings")!;
+    const headers = bookingSheet.getRow(5).values as unknown[];
+    const column = (name: string) => headers.indexOf(name);
+    const overdueRow = bookingSheet.getRows(6, source.bookings.length)?.find((row) => row.getCell(column("Service")).value === "REPORT-VALIDATION-CLASS" && row.getCell(column("Booking Status")).value !== "Cancelled");
+    expect(overdueRow?.getCell(column("Payment Status")).value).toBe("Overdue");
+    expect(overdueRow?.getCell(column("Service Price")).value).toBe(4_000_000);
+    const firstRow = bookingSheet.getRow(6);
+    expect(firstRow.getCell(column("Additional Charges")).value).toBe(500_000);
+    expect(firstRow.getCell(column("Client Total")).value).toBe(8_000_000);
+    expect(bookingSheet.getRow(11).getCell(column("Client Total")).value).toBe(source.summary.clientTotal);
+    expect(workbook.getWorksheet("Summary")?.getCell("B13").value).toBe(source.summary.profit);
   });
 });
 
@@ -240,5 +460,22 @@ describe("Google Sheets snapshot export", () => {
     expect(url).toContain("/drive-file/view");
     expect(await body!.text()).toContain("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     expect(await body!.text()).not.toContain("application/vnd.google-apps.spreadsheet");
+  });
+
+  it("uses the same canonical workbook rows for Google Sheets and Drive", async () => {
+    const bodies: Blob[] = [];
+    const fakeFetch = (async (_url: string | URL | Request, options?: RequestInit) => {
+      bodies.push(options?.body as Blob);
+      return new Response(JSON.stringify({ id: `file-${bodies.length}` }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }) as typeof fetch;
+    const source = controlledReport();
+    await uploadFinancialReportWorkbookToGoogleSheets(source, "test-token", fakeFetch);
+    await uploadFinancialReportWorkbookToGoogleDrive(source, "test-token", fakeFetch);
+    const [sheetsWorkbook, driveWorkbook] = await Promise.all(bodies.map(uploadedWorkbook));
+    for (const workbook of [sheetsWorkbook, driveWorkbook]) {
+      expect(workbook.getWorksheet("Summary")?.getCell("B13").value).toBe(source.summary.profit);
+      expect(workbook.getWorksheet("Top Services")?.getCell("D6").value).toBe(14_000_000);
+      expect(workbook.getWorksheet("Bookings")?.getRow(5).values).toContain("Payment Status");
+    }
   });
 });

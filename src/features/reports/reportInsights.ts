@@ -8,7 +8,7 @@ import { nextDateKey } from "@/features/reports/financialReport";
 export type FinancialReportInsights = {
   averageBookingValue: number;
   financiallyActiveBookings: number;
-  topService: { name: string; amount: number } | null;
+  topService: FinancialReport["topServices"][number] | null;
   busiestScheduleDay: { label: string; schedules: number } | null;
   upcomingPayments: { amount: number; bookings: number; throughDate: string };
 };
@@ -23,11 +23,6 @@ export function buildFinancialReportInsights(args: {
 }): FinancialReportInsights {
   const activeRows = args.report.bookings.filter((booking) => booking.status !== "Cancelled");
   const activeValue = activeRows.reduce((sum, booking) => sum + booking.bookingValue, 0);
-  const serviceRevenue = new Map<string, number>();
-  for (const payment of args.report.moneyReceived) {
-    serviceRevenue.set(payment.service, (serviceRevenue.get(payment.service) ?? 0) + payment.amount);
-  }
-  const topServiceEntry = [...serviceRevenue].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))[0];
 
   const dayCounts = new Map<number, number>();
   for (const schedule of args.report.schedule) {
@@ -48,7 +43,7 @@ export function buildFinancialReportInsights(args: {
   return {
     averageBookingValue: activeRows.length ? activeValue / activeRows.length : 0,
     financiallyActiveBookings: activeRows.length,
-    topService: topServiceEntry ? { name: topServiceEntry[0], amount: topServiceEntry[1] } : null,
+    topService: args.report.topServices[0] ?? null,
     busiestScheduleDay: busiestEntry ? { label: dayLabel, schedules: busiestEntry[1] } : null,
     upcomingPayments: {
       amount: upcoming.reduce((sum, item) => sum + (item.outstanding ?? 0), 0),

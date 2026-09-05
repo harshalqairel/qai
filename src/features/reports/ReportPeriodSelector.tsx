@@ -18,6 +18,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 export function reportPeriodDisplayLabel(value: ReportPeriodInput, fallback?: string): string {
   if (value.preset === "this-month") return "This month";
   if (value.preset === "last-month") return "Last month";
+  if (value.preset === "this-quarter") return "This quarter";
   if (value.preset === "this-year") return "This year";
   if (value.preset === "all-time") return "All time";
   if (value.preset === "custom") return "Choose dates";
@@ -78,6 +79,7 @@ export default function ReportPeriodSelector({
           {value.preset === "specific-month" && (
             <SelectItem value="specific-month">{reportPeriodDisplayLabel(value, resolvedLabel)}</SelectItem>
           )}
+          <SelectItem value="this-quarter">This quarter</SelectItem>
           <SelectItem value="this-year">This year</SelectItem>
           <SelectItem value="all-time">All time</SelectItem>
           {includeCustom && <SelectItem value="custom">Choose dates</SelectItem>}

@@ -3,16 +3,18 @@ import { firstBookingSession, instantParts } from "@/features/booking/utils/book
 import type { Customer } from "@/features/customer/types";
 import type { ExpenseCategory } from "@/features/expense-category/types";
 import type { Expense } from "@/features/expense/types";
-import type { Payment } from "@/features/payment/types";
+import type { DerivedPaymentStatus, Payment } from "@/features/payment/types";
+import { derivePaymentStatus } from "@/features/payment/utils/paymentCalculations";
 import { calculateBookingFinancials } from "@/features/booking/domain/bookingFinancials";
 import type { Service } from "@/features/service/types";
 import type { Invoice } from "@/features/invoice/invoice";
-import { invoicePaidAmount, invoiceRemainingAmount, invoiceTotals, latestReportableInvoiceVersions } from "@/features/invoice/invoice";
+import { invoicePaidAmount, invoicePaymentStatus, invoiceRemainingAmount, invoiceTotals, latestReportableInvoiceVersions } from "@/features/invoice/invoice";
 
 export type ReportPeriodPreset =
   | "this-month"
   | "last-month"
   | "specific-month"
+  | "this-quarter"
   | "this-year"
   | "all-time"
   | "custom";
@@ -48,11 +50,15 @@ export type FinancialReportInput = {
 
 export type BookingReportRow = {
   bookingId: string;
+  serviceId: string;
   firstSessionDate: string;
   customer: string;
   service: string;
   status: BookingStatus;
+  paymentStatus: DerivedPaymentStatus;
   sessionCount: number;
+  servicePrice: number;
+  additionalCharges: number;
   bookingValue: number;
   totalPaid: number;
   outstanding: number | null;
@@ -107,7 +113,14 @@ export type ScheduleReportRow = {
 export type InvoiceReportRow = {
   rootInvoiceId: string; invoiceId: string; invoiceNumber: string; version: number; lifecycle: Invoice["lifecycle"];
   invoiceDate: string; dueDate: string; client: string; service: string; style: string; subtotal: number; discount: number; tax: number;
-  total: number; paid: number; remaining: number; bookingId: string | null;
+  total: number; paid: number; remaining: number; paymentStatus: string; bookingId: string | null;
+};
+
+export type TopServiceReportRow = {
+  serviceId: string;
+  service: string;
+  bookingCount: number;
+  revenue: number;
 };
 
 export type FinancialReport = {
@@ -123,6 +136,10 @@ export type FinancialReport = {
     expectedBookingValue: number;
     estimatedJobProfit: number;
     outstanding: number;
+    clientTotal: number;
+    paid: number;
+    directExpenses: number;
+    profit: number;
     bookings: number;
     scheduledSessions: number;
   };
@@ -131,6 +148,7 @@ export type FinancialReport = {
   jobProfit: BookingReportRow[];
   outstanding: BookingReportRow[];
   bookings: BookingReportRow[];
+  topServices: TopServiceReportRow[];
   schedule: ScheduleReportRow[];
   invoices: InvoiceReportRow[];
 };
@@ -171,6 +189,16 @@ export function resolveReportPeriod(
     if (fromDate > toDate) throw new Error("Custom report start date must not be after its end date.");
     return { preset: input.preset, fromDate, toDate, label: `${fromDate} – ${toDate}` };
   }
+  if (input.preset === "this-quarter") {
+    const year = today.slice(0, 4);
+    const month = Number(today.slice(5, 7));
+    const quarter = Math.ceil(month / 3);
+    const firstMonth = (quarter - 1) * 3 + 1;
+    const lastMonth = firstMonth + 2;
+    const fromDate = `${year}-${String(firstMonth).padStart(2, "0")}-01`;
+    const lastMonthKey = `${year}-${String(lastMonth).padStart(2, "0")}-01`;
+    return { preset: input.preset, fromDate, toDate: endOfMonth(lastMonthKey), label: `Q${quarter} ${year}` };
+  }
   if (input.preset === "this-year") {
     const year = today.slice(0, 4);
     return { preset: input.preset, fromDate: `${year}-01-01`, toDate: `${year}-12-31`, label: year };
@@ -201,6 +229,31 @@ export function dateIsInReportPeriod(date: string, period: ReportPeriod): boolea
   return date >= period.fromDate && date <= period.toDate;
 }
 
+export function rankTopServices(rows: readonly BookingReportRow[]): TopServiceReportRow[] {
+  const byService = new Map<string, TopServiceReportRow>();
+  for (const row of rows) {
+    if (row.status === "Cancelled") continue;
+    const current = byService.get(row.serviceId);
+    if (current) {
+      current.bookingCount += 1;
+      current.revenue += row.bookingValue;
+      continue;
+    }
+    byService.set(row.serviceId, {
+      serviceId: row.serviceId,
+      service: row.service,
+      bookingCount: 1,
+      revenue: row.bookingValue,
+    });
+  }
+  return [...byService.values()].sort((left, right) =>
+    right.revenue - left.revenue ||
+    right.bookingCount - left.bookingCount ||
+    left.service.localeCompare(right.service) ||
+    left.serviceId.localeCompare(right.serviceId),
+  );
+}
+
 export function buildFinancialReport(input: FinancialReportInput): FinancialReport {
   const generatedAt = input.generatedAt ?? new Date();
   const period = resolveReportPeriod(input.period, input.timezone, generatedAt);
@@ -215,8 +268,9 @@ export function buildFinancialReport(input: FinancialReportInput): FinancialRepo
 
   const nameForBooking = (booking: Booking) => ({
     customer: customerById.get(booking.customerId)?.name ?? "Client not found",
-    service: serviceById.get(booking.serviceId)?.name ?? "Service not found",
+    service: booking.serviceSnapshot?.serviceName || serviceById.get(booking.serviceId)?.name || "Service not found",
   });
+  const todayKey = instantParts(generatedAt.toISOString(), input.timezone).date;
 
   const bookingRows = input.bookings
     .map((booking): BookingReportRow | null => {
@@ -225,10 +279,20 @@ export function buildFinancialReport(input: FinancialReportInput): FinancialRepo
       const financials = calculateBookingFinancials(booking, validPayments, validExpenses);
       return {
         bookingId: booking.id,
+        serviceId: booking.serviceId,
         firstSessionDate,
         ...nameForBooking(booking),
         status: booking.bookingStatus,
+        paymentStatus: derivePaymentStatus(
+          booking.bookingStatus,
+          financials.totalPaid,
+          financials.clientTotal,
+          booking.fullPaymentDueDate,
+          todayKey,
+        ),
         sessionCount: booking.sessions.length,
+        servicePrice: financials.servicePrice,
+        additionalCharges: financials.additionalCharges,
         bookingValue: financials.clientTotal,
         totalPaid: financials.totalPaid,
         outstanding: financials.outstanding,
@@ -309,13 +373,19 @@ export function buildFinancialReport(input: FinancialReportInput): FinancialRepo
       return { rootInvoiceId: invoice.rootInvoiceId || invoice.id, invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber ?? "Draft", version: invoice.version,
         lifecycle: invoice.lifecycle, invoiceDate: source.invoiceDate, dueDate: source.dueDate, client: source.clientName, service: source.serviceName,
         style: source.invoiceStyle, subtotal: totals.subtotal, discount: totals.discount, tax: totals.tax, total: totals.total, paid,
-        remaining: invoiceRemainingAmount(invoice, validPayments), bookingId: invoice.bookingId };
+        remaining: invoiceRemainingAmount(invoice, validPayments), paymentStatus: invoicePaymentStatus(totals.total, paid, source.dueDate, todayKey), bookingId: invoice.bookingId };
     }).sort((left, right) => left.invoiceDate.localeCompare(right.invoiceDate));
 
   const jobProfit = bookingRows.filter((row) => row.estimatedJobProfit !== null);
   const outstanding = bookingRows.filter((row) => row.outstanding !== null && row.outstanding > 0);
   const moneyReceivedTotal = moneyReceived.reduce((sum, row) => sum + row.amount, 0);
   const expenseTotal = expenses.reduce((sum, row) => sum + row.amount, 0);
+  const activeBookingRows = bookingRows.filter((row) => row.status !== "Cancelled");
+  const clientTotal = activeBookingRows.reduce((sum, row) => sum + row.bookingValue, 0);
+  const paid = activeBookingRows.reduce((sum, row) => sum + row.totalPaid, 0);
+  const directExpenses = activeBookingRows.reduce((sum, row) => sum + row.directExpenses, 0);
+  const profit = clientTotal - directExpenses;
+  const topServices = rankTopServices(bookingRows);
 
   return {
     businessName: input.businessName,
@@ -327,11 +397,13 @@ export function buildFinancialReport(input: FinancialReportInput): FinancialRepo
       moneyReceived: moneyReceivedTotal,
       expenses: expenseTotal,
       realizedProfit: moneyReceivedTotal - expenseTotal,
-      expectedBookingValue: bookingRows
-        .filter((row) => row.status !== "Cancelled")
-        .reduce((sum, row) => sum + row.bookingValue, 0),
-      estimatedJobProfit: jobProfit.reduce((sum, row) => sum + (row.estimatedJobProfit ?? 0), 0),
+      expectedBookingValue: clientTotal,
+      estimatedJobProfit: profit,
       outstanding: outstanding.reduce((sum, row) => sum + (row.outstanding ?? 0), 0),
+      clientTotal,
+      paid,
+      directExpenses,
+      profit,
       bookings: bookingRows.length,
       scheduledSessions: schedule.length,
     },
@@ -340,6 +412,7 @@ export function buildFinancialReport(input: FinancialReportInput): FinancialRepo
     jobProfit,
     outstanding,
     bookings: bookingRows,
+    topServices,
     schedule,
     invoices,
   };

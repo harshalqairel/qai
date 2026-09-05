@@ -48,6 +48,7 @@ function addDataSheet(
   columns: SheetColumn[],
   rows: Record<string, unknown>[],
   totalKeys: string[] = [],
+  totalFilter?: { key: string; exclude: string },
 ) {
   const sheet = workbook.addWorksheet(name, { views: [{ state: "frozen", ySplit: 5 }] });
   sheet.properties.defaultRowHeight = 20;
@@ -95,8 +96,9 @@ function addDataSheet(
       const index = columns.findIndex((column) => column.key === key);
       if (index < 0) continue;
       const cell = totalRow.getCell(index + 1);
-      const letter = sheet.getColumn(index + 1).letter;
-      cell.value = { formula: `SUM(${letter}6:${letter}${5 + rows.length})` };
+      cell.value = rows
+        .filter((row) => !totalFilter || row[totalFilter.key] !== totalFilter.exclude)
+        .reduce((sum, row) => sum + (typeof row[key] === "number" ? row[key] : 0), 0);
       cell.numFmt = `"${report.currency}" #,##0.00;[Red]-"${report.currency}" #,##0.00`;
       cell.font = { bold: true };
     }
@@ -126,15 +128,24 @@ export async function buildFinancialReportWorkbook(report: FinancialReport): Pro
     { header: `Amount (${report.currency})`, key: "value", width: 22, kind: "currency" },
     { header: "Count", key: "count", width: 14, kind: "number" },
   ], [
-    { metric: "Income", value: report.summary.moneyReceived },
-    { metric: "Expenses", value: report.summary.expenses },
-    { metric: "Profit", value: report.summary.realizedProfit },
-    { metric: "Expected Booking Value", value: report.summary.expectedBookingValue },
-    { metric: "Estimated Job Profit", value: report.summary.estimatedJobProfit },
-    { metric: "Unpaid Amount", value: report.summary.outstanding },
+    { metric: "Money Received", value: report.summary.moneyReceived },
+    { metric: "Period Expenses", value: report.summary.expenses },
+    { metric: "Cash Position", value: report.summary.realizedProfit },
+    { metric: "Client Total", value: report.summary.clientTotal },
+    { metric: "Paid", value: report.summary.paid },
+    { metric: "Outstanding", value: report.summary.outstanding },
+    { metric: "Direct Expenses", value: report.summary.directExpenses },
+    { metric: "Profit", value: report.summary.profit },
     { metric: "Bookings", count: report.summary.bookings },
     { metric: "Schedules", count: report.summary.scheduledSessions },
   ]);
+
+  addDataSheet(workbook, report, "Top Services", [
+    { header: "Rank", key: "rank", width: 10, kind: "number" },
+    { header: "Service", key: "service", width: 32 },
+    { header: "Bookings", key: "bookingCount", width: 14, kind: "number" },
+    { header: "Client Total", key: "revenue", width: 22, kind: "currency" },
+  ], report.topServices.map((row, index) => ({ ...row, rank: index + 1 })), ["revenue"]);
 
   addDataSheet(workbook, report, "Income", [
     { header: "Date", key: "date", width: 14, kind: "date" },
@@ -162,19 +173,22 @@ export async function buildFinancialReportWorkbook(report: FinancialReport): Pro
     { header: "First Schedule", key: "firstSessionDate", width: 14, kind: "date" },
     { header: "Client", key: "customer", width: 24 },
     { header: "Service", key: "service", width: 26 },
-    { header: "Status", key: "status", width: 14 },
+    { header: "Booking Status", key: "status", width: 16 },
+    { header: "Payment Status", key: "paymentStatus", width: 16 },
     { header: "Schedules", key: "sessionCount", width: 12, kind: "number" },
-    { header: "Booking Value", key: "bookingValue", width: 20, kind: "currency" },
+    { header: "Service Price", key: "servicePrice", width: 20, kind: "currency" },
+    { header: "Additional Charges", key: "additionalCharges", width: 20, kind: "currency" },
+    { header: "Client Total", key: "bookingValue", width: 20, kind: "currency" },
     { header: "Paid", key: "totalPaid", width: 20, kind: "currency" },
-    { header: "Unpaid Amount", key: "outstanding", width: 20, kind: "currency" },
+    { header: "Outstanding", key: "outstanding", width: 20, kind: "currency" },
     { header: "Direct Expenses", key: "directExpenses", width: 20, kind: "currency" },
     { header: "Est. Job Profit", key: "estimatedJobProfit", width: 20, kind: "currency" },
     { header: "Payment Due", key: "paymentDueDate", width: 14, kind: "date" },
     { header: "Notes", key: "notes", width: 32 },
   ];
-  addDataSheet(workbook, report, "Job Profit", bookingColumns, report.jobProfit, ["bookingValue", "directExpenses", "estimatedJobProfit"]);
-  addDataSheet(workbook, report, "Outstanding", bookingColumns, report.outstanding, ["bookingValue", "totalPaid", "outstanding"]);
-  addDataSheet(workbook, report, "Bookings", bookingColumns, report.bookings, ["bookingValue", "totalPaid", "directExpenses"]);
+  addDataSheet(workbook, report, "Job Profit", bookingColumns, report.jobProfit, ["servicePrice", "additionalCharges", "bookingValue", "directExpenses", "estimatedJobProfit"]);
+  addDataSheet(workbook, report, "Outstanding", bookingColumns, report.outstanding, ["servicePrice", "additionalCharges", "bookingValue", "totalPaid", "outstanding"]);
+  addDataSheet(workbook, report, "Bookings", bookingColumns, report.bookings, ["servicePrice", "additionalCharges", "bookingValue", "totalPaid", "directExpenses", "estimatedJobProfit"], { key: "status", exclude: "Cancelled" });
 
   addDataSheet(workbook, report, "Schedule", [
     { header: "Date", key: "date", width: 14, kind: "date" },
@@ -203,6 +217,7 @@ export async function buildFinancialReportWorkbook(report: FinancialReport): Pro
     { header: "Invoice Total", key: "total", width: 18, kind: "currency" },
     { header: "Recorded Payments", key: "paid", width: 20, kind: "currency" },
     { header: "Remaining", key: "remaining", width: 18, kind: "currency" },
+    { header: "Payment Status", key: "paymentStatus", width: 16 },
   ], report.invoices, ["subtotal", "discount", "tax", "total", "paid", "remaining"]);
 
   const buffer = await workbook.xlsx.writeBuffer();
