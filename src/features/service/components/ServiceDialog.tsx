@@ -110,6 +110,7 @@ export default function ServiceDialog({
   const durationValue = useWatch({ control, name: "duration" });
   const priceValue = useWatch({ control, name: "price" });
   const sessionCountValue = useWatch({ control, name: "defaultSessionCount" });
+  const activeValue = useWatch({ control, name: "active" });
 
   useEffect(() => {
     if (!open) {
@@ -215,7 +216,7 @@ export default function ServiceDialog({
       variants: values.variants,
       availability: values.availability,
       description: values.description.trim(),
-      active: service?.active ?? true,
+      active: values.active,
     };
 
     const succeeded = await action.run(() => isEdit ? onUpdate(serviceData) : onCreate(serviceData));
@@ -461,6 +462,38 @@ export default function ServiceDialog({
               <p className="mt-2 text-sm text-destructive">{errors.defaultSessionCount.message}</p>
             )}
           </div>
+
+          <Controller
+            control={control}
+            name="active"
+            render={({ field }) => (
+              <label className="flex min-h-20 cursor-pointer items-start justify-between gap-4 rounded-xl border border-border bg-muted/25 p-4">
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-foreground">Service active</span>
+                  <span id="service-active-help" className="mt-1 block text-sm leading-5 text-muted-foreground">
+                    {activeValue
+                      ? "Available for new bookings and applicable public surfaces."
+                      : "Hidden from new bookings and public availability. Existing bookings and history are preserved."}
+                  </span>
+                </span>
+                <span className="relative mt-0.5 inline-flex h-6 w-11 shrink-0">
+                  <input
+                    ref={field.ref}
+                    name={field.name}
+                    type="checkbox"
+                    role="switch"
+                    aria-describedby="service-active-help"
+                    checked={field.value}
+                    onBlur={field.onBlur}
+                    onChange={(event) => field.onChange(event.target.checked)}
+                    className="peer sr-only"
+                  />
+                  <span className="absolute inset-0 rounded-full bg-muted-foreground/35 transition peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2" aria-hidden="true" />
+                  <span className="absolute left-1 top-1 size-4 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5" aria-hidden="true" />
+                </span>
+              </label>
+            )}
+          />
 
           <div>
             <Label className="mb-2 block font-semibold">Service location</Label>

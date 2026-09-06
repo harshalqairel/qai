@@ -1,5 +1,6 @@
 import type { ServiceCategory } from "@/features/service-category/types";
 import ListSortControl from "@/components/system/ListSortControl";
+import type { ServiceStatusFilter } from "@/features/service/domain/serviceFilters";
 
 export type ServiceSort =
   | "newest"
@@ -16,6 +17,8 @@ type ServiceToolbarProps = {
   onSearchChange: (value: string) => void;
   category: string;
   onCategoryChange: (value: string) => void;
+  status: ServiceStatusFilter;
+  onStatusChange: (value: ServiceStatusFilter) => void;
   sort: ServiceSort;
   onSortChange: (value: ServiceSort) => void;
   categories: ServiceCategory[];
@@ -26,6 +29,8 @@ export default function ServiceToolbar({
   onSearchChange,
   category,
   onCategoryChange,
+  status,
+  onStatusChange,
   sort,
   onSortChange,
   categories,
@@ -51,8 +56,18 @@ export default function ServiceToolbar({
           <option key={item.id} value={item.id}>{item.name}</option>
         ))}
       </select>
+      <select
+        aria-label="Filter services by status"
+        className="native-control min-w-0 lg:w-auto"
+        value={status}
+        onChange={(event) => onStatusChange(event.target.value as ServiceStatusFilter)}
+      >
+        <option value="all">All</option>
+        <option value="active">Active</option>
+        <option value="inactive">Inactive</option>
+      </select>
       <ListSortControl
-        className="min-w-0 lg:w-56"
+        className="col-span-2 min-w-0 lg:w-56"
         value={sort}
         onChange={onSortChange}
         options={[

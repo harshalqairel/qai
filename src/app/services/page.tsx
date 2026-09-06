@@ -10,6 +10,7 @@ import ServiceDialog from "@/features/service/components/ServiceDialog";
 
 import { Service } from "@/features/service/types";
 import { serviceCreateInputFromRecord } from "@/features/service/domain/serviceCreateInput";
+import { filterServices, type ServiceStatusFilter } from "@/features/service/domain/serviceFilters";
 import { useServices } from "@/features/service/hooks/useServices";
 import { useServiceCategories } from "@/features/service-category/hooks/useServiceCategories";
 import PageSkeleton from "@/components/system/PageSkeleton";
@@ -28,22 +29,17 @@ export default function ServicesPage() {
 
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
+  const [status, setStatus] = useState<ServiceStatusFilter>("all");
   const [sort, setSort] = useState<ServiceSort>("newest");
 
-  const keyword = search.trim().toLowerCase();
   const categoryNameById = new Map(categories.map((item) => [item.id, item.name]));
   const categoryColorById = new Map(categories.map((item) => [item.id, item.color]));
 
-  const filteredServices = services.filter((service) => {
-    const matchesSearch =
-      keyword === "" ||
-      service.name.toLowerCase().includes(keyword) ||
-      (categoryNameById.get(service.categoryId) ?? "Category not found").toLowerCase().includes(keyword) ||
-      service.description.toLowerCase().includes(keyword);
-
-    const matchesCategory = category === "" || service.categoryId === category;
-
-    return matchesSearch && matchesCategory;
+  const filteredServices = filterServices(services, {
+    search,
+    categoryId: category,
+    status,
+    categoryNameById,
   });
 
   const sortedServices = [...filteredServices];
@@ -132,6 +128,8 @@ export default function ServicesPage() {
             onSearchChange={setSearch}
             category={category}
             onCategoryChange={setCategory}
+            status={status}
+            onStatusChange={setStatus}
             sort={sort}
             onSortChange={setSort}
             categories={categories}
@@ -152,6 +150,7 @@ export default function ServicesPage() {
               setDialogOpen(true);
             }}
             onDelete={(service) => deleteService(service.id)}
+            onActiveChange={(service, active) => updateService({ ...service, active })}
           />
 
         </div>

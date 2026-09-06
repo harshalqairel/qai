@@ -48,6 +48,7 @@ import { clientSearchText, clientSecondaryIdentity, findClientMatches } from "@/
 import { defaultServiceVariant, snapshotServiceSelection } from "@/features/service/domain/serviceVariants";
 import type { Invoice } from "@/features/invoice/invoice";
 import { recommendedServiceChangePriceMode, serviceUsesManagedAvailability } from "@/features/booking/domain/serviceChange";
+import { serviceCanBeSelectedForBooking } from "@/features/booking/domain/serviceSelection";
 import { bookingSaveErrorMessage } from "@/features/booking/domain/bookingSaveError";
 
 type BookingDialogProps = {
@@ -282,13 +283,14 @@ export default function BookingDialog({
     description: clientSecondaryIdentity(customer) || "No contact details",
     keywords: clientSearchText(customer),
   })), [customers]);
-  const serviceItems = useMemo(() => services.map((service) => ({
+  const serviceItems = useMemo(() => services
+    .filter((service) => serviceCanBeSelectedForBooking(service, booking?.serviceId))
+    .map((service) => ({
     value: service.id,
     label: service.name,
     description: [serviceCategories.find((category) => category.id === service.categoryId)?.name, service.active ? "Active" : "Hidden"].filter(Boolean).join(" · "),
     keywords: [service.name, service.description, ...(service.optionGroups ?? []).flatMap((group) => [group.name, ...group.values.map((value) => value.label)])].join(" "),
-    disabled: !service.active && service.id !== selectedServiceId,
-  })), [services, serviceCategories, selectedServiceId]);
+  })), [services, serviceCategories, booking?.serviceId]);
 
   // Booking Profit — computed from payments and expenses for this booking
   const totalPaid = bookingPayments.reduce((sum, p) => sum + p.amount, 0);

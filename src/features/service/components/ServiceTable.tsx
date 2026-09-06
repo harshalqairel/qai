@@ -1,18 +1,30 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { CircleCheck, CircleOff, LoaderCircle, Pencil, Trash2 } from "lucide-react";
 
 import DeleteAction from "@/components/system/DeleteAction";
 import StatusBadge from "@/components/system/StatusBadge";
 import RowActionsMenu from "@/components/system/RowActionsMenu";
 import SortableTableHeader from "@/components/system/SortableTableHeader";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { categoryColorCss } from "@/features/category/constants";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
 import type { Service } from "@/features/service/types";
 import { formatDuration } from "@/features/service/utils/duration";
 import type { ServiceSort } from "./ServiceToolbar";
+import { useActionGuard } from "@/hooks/useActionGuard";
+import { notify } from "@/lib/notifications";
 
 type ServiceTableProps = {
   services: Service[];
@@ -22,10 +34,23 @@ type ServiceTableProps = {
   getCategoryColor: (categoryId: string) => string;
   onEdit: (service: Service) => void;
   onDelete: (service: Service) => boolean | Promise<boolean>;
+  onActiveChange: (service: Service, active: boolean) => boolean | Promise<boolean>;
 };
 
-function ServiceActions({ service, onEdit, onDelete }: Pick<ServiceTableProps, "onEdit" | "onDelete"> & { service: Service }) {
+function ServiceActions({ service, onEdit, onDelete, onActiveChange }: Pick<ServiceTableProps, "onEdit" | "onDelete" | "onActiveChange"> & { service: Service }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deactivateOpen, setDeactivateOpen] = useState(false);
+  const action = useActionGuard();
+
+  async function setActive(active: boolean) {
+    const succeeded = await action.run(() => onActiveChange(service, active));
+    if (!succeeded) {
+      notify.error(`Could not ${active ? "activate" : "deactivate"} the service. Try again.`);
+      return;
+    }
+    notify.success(active ? "Service activated." : "Service deactivated.");
+    setDeactivateOpen(false);
+  }
 
   return (
     <>
@@ -33,6 +58,9 @@ function ServiceActions({ service, onEdit, onDelete }: Pick<ServiceTableProps, "
         recordLabel={service.name}
         actions={[
           { label: "Edit service", icon: Pencil, onSelect: () => onEdit(service) },
+          service.active
+            ? { label: "Deactivate service", icon: CircleOff, onSelect: () => setDeactivateOpen(true), disabled: action.pending }
+            : { label: "Activate service", icon: CircleCheck, onSelect: () => void setActive(true), disabled: action.pending },
           { label: "Delete service", icon: Trash2, onSelect: () => setDeleteOpen(true), destructive: true, separatorBefore: true },
         ]}
       />
@@ -45,6 +73,21 @@ function ServiceActions({ service, onEdit, onDelete }: Pick<ServiceTableProps, "
         onOpenChange={setDeleteOpen}
         hideTrigger
       />
+      <AlertDialog open={deactivateOpen} onOpenChange={(open) => { if (!action.pending) setDeactivateOpen(open); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deactivate this service?</AlertDialogTitle>
+            <AlertDialogDescription>It will no longer be available for new bookings. Existing bookings and history will stay unchanged.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={action.pending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction type="button" disabled={action.pending} onClick={() => void setActive(false)}>
+              {action.pending && <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
+              {action.pending ? "Deactivating…" : "Deactivate"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
@@ -58,7 +101,7 @@ function Category({ name, color, id }: { name: string; color: string; id: string
   );
 }
 
-export default function ServiceTable({ services, sort, onSortChange, getCategoryName, getCategoryColor, onEdit, onDelete }: ServiceTableProps) {
+export default function ServiceTable({ services, sort, onSortChange, getCategoryName, getCategoryColor, onEdit, onDelete, onActiveChange }: ServiceTableProps) {
   const openService = (service: Service) => onEdit(service);
 
   return (
@@ -105,7 +148,7 @@ export default function ServiceTable({ services, sort, onSortChange, getCategory
                   <StatusBadge tone={service.active ? "success" : "neutral"}>{service.active ? "Active" : "Inactive"}</StatusBadge>
                 </TableCell>
                 <TableCell className="pr-4 text-right" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
-                  <ServiceActions service={service} onEdit={onEdit} onDelete={onDelete} />
+                  <ServiceActions service={service} onEdit={onEdit} onDelete={onDelete} onActiveChange={onActiveChange} />
                 </TableCell>
               </TableRow>
             ))}
@@ -122,7 +165,7 @@ export default function ServiceTable({ services, sort, onSortChange, getCategory
                 <div className="mt-1.5 text-sm text-muted-foreground"><Category name={getCategoryName(service.categoryId)} color={getCategoryColor(service.categoryId)} id={service.categoryId} /></div>
               </div>
               <div onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
-                <ServiceActions service={service} onEdit={onEdit} onDelete={onDelete} />
+                <ServiceActions service={service} onEdit={onEdit} onDelete={onDelete} onActiveChange={onActiveChange} />
               </div>
             </div>
             <div className="mt-4 flex items-end justify-between gap-4 border-t border-border pt-3">

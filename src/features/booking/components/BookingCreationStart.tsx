@@ -22,6 +22,7 @@ import { BOOKING_CORE_FIELD_LABELS, DEFAULT_BOOKING_QUESTIONNAIRE, type BookingQ
 import { getBookingQuestionnaire, loadBookingQuestionnaire, saveBookingQuestionnaire } from "@/features/booking-questionnaire/questionnaireRepository";
 import { HistoricalQuestionnaireResponses } from "@/features/booking-questionnaire/QuestionnaireFields";
 import { notify } from "@/lib/notifications";
+import { servicesAvailableForNewBooking } from "@/features/booking/domain/serviceSelection";
 
 type StartMode = "choose" | "paste" | "template";
 type ParsedReview = {
@@ -49,22 +50,23 @@ export default function BookingCreationStart({ mode, customers, services, onMode
   const [preferences, setPreferences] = useState<BookingQuestionnaireDefinition>(() => typeof window === "undefined" ? structuredClone(DEFAULT_BOOKING_QUESTIONNAIRE) : getBookingQuestionnaire());
   const saveTimer = useRef<number | null>(null);
   const pendingPreferences = useRef<BookingQuestionnaireDefinition | null>(null);
+  const activeServices = useMemo(() => servicesAvailableForNewBooking(services), [services]);
   const customerMatch = useMemo(() => parsed ? matchExistingCustomer(parsed, customers) : null, [parsed, customers]);
-  const serviceMatch = useMemo(() => parsed ? matchExistingService(parsed.service, services) : null, [parsed, services]);
-  const selectedParsedService = services.find((service) => service.id === serviceChoice) ?? (serviceMatch?.kind === "exact" ? serviceMatch.matches[0] : null);
+  const serviceMatch = useMemo(() => parsed ? matchExistingService(parsed.service, activeServices) : null, [parsed, activeServices]);
+  const selectedParsedService = activeServices.find((service) => service.id === serviceChoice) ?? (serviceMatch?.kind === "exact" ? serviceMatch.matches[0] : null);
   const variantMatch = useMemo(() => parsed ? matchParsedServiceVariant(parsed, selectedParsedService) : null, [parsed, selectedParsedService]);
-  const templateService = services.find((service) => service.id === templateServiceId);
+  const templateService = activeServices.find((service) => service.id === templateServiceId);
   const template = useMemo(() => formatBookingClientTemplate("Qai", preferences, templateService ?? ""), [preferences, templateService]);
-  const serviceItems = useMemo(() => services.map((service) => ({ value: service.id, label: service.name, description: service.optionGroups?.length ? `${service.optionGroups.length} option group${service.optionGroups.length === 1 ? "" : "s"}` : "Standard service", keywords: [service.name, service.description].join(" ") })), [services]);
+  const serviceItems = useMemo(() => activeServices.map((service) => ({ value: service.id, label: service.name, description: service.optionGroups?.length ? `${service.optionGroups.length} option group${service.optionGroups.length === 1 ? "" : "s"}` : "Standard service", keywords: [service.name, service.description].join(" ") })), [activeServices]);
   const orderedFields = [...preferences.enabledCoreFields, ...BOOKING_TEMPLATE_FIELDS.filter((field) => !preferences.enabledCoreFields.includes(field))];
 
   useEffect(() => { let active = true; void loadBookingQuestionnaire().then((loaded) => { if (active) setPreferences(loaded); }).catch(() => undefined); return () => { active = false; if (saveTimer.current !== null) window.clearTimeout(saveTimer.current); if (pendingPreferences.current) void saveBookingQuestionnaire(pendingPreferences.current).catch(() => undefined); }; }, []);
 
   function parse() {
     if (!source.trim()) return notify.error("Paste the completed booking text first.");
-    const result = parseBookingText(source, preferences.questions, services);
+    const result = parseBookingText(source, preferences.questions, activeServices);
     const nextCustomer = matchExistingCustomer(result, customers);
-    const nextService = matchExistingService(result.service, services);
+    const nextService = matchExistingService(result.service, activeServices);
     setParsed(result);
     setCustomerChoice(nextCustomer.kind === "exact" ? nextCustomer.matches[0].id : "");
     setServiceChoice(nextService.kind === "exact" ? nextService.matches[0].id : "");
