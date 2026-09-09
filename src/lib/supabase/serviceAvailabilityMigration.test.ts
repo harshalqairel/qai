@@ -6,7 +6,8 @@ const migration = readFileSync(path.join(process.cwd(), "supabase/migrations/202
 
 describe("service availability and Web Push migration security", () => {
   it("keeps the capacity claim RPC service-role only and workspace scoped", () => {
-    expect(migration).toContain("security definer\nset search_path = ''");
+    const normalizedMigration = migration.replace(/\r\n?/g, "\n");
+    expect(normalizedMigration).toContain("security definer\nset search_path = ''");
     expect(migration).toContain("request.workspace_id = target_workspace_id");
     expect(migration).toContain("where workspace_id = target_workspace_id");
     expect(migration).toContain("request.payload->>'serviceId' = request_service_id");

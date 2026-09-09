@@ -28,7 +28,7 @@ Set these for the validation deployment. Generate independent high-entropy value
 ```text
 NEXT_PUBLIC_SUPABASE_URL=https://zoovtjqjqvhfuhlxaiwx.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<project publishable key>
-SUPABASE_SERVICE_ROLE_KEY=<server-only service role key>
+SUPABASE_SECRET_KEY=<server-only Supabase secret key>
 NEXT_PUBLIC_QAI_CLOUD_ENABLED=false
 NEXT_PUBLIC_QAI_VALIDATION_ENABLED=true
 NEXT_PUBLIC_APP_URL=https://qai-two.vercel.app

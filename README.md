@@ -59,8 +59,8 @@ Configure `NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY`, the server-only
 user must open Qai from an installed Home Screen web app and enable notifications
 from Settings through an explicit tap.
 
-Never expose `SUPABASE_SERVICE_ROLE_KEY` to client code. It is reserved for
-verified server jobs and webhooks in later launch phases.
+Never expose `SUPABASE_SECRET_KEY` to client code. It bypasses Row Level
+Security and is reserved for verified server operations.
 
 ## Quality checks
 
