@@ -14,6 +14,7 @@ import AppearanceSettings from "@/features/appearance/AppearanceSettings";
 import InvoiceSharingSettings from "@/features/invoice/InvoiceSharingSettings";
 import NotificationSettings from "@/features/notifications/NotificationSettings";
 import BookingQuestionnaireSettings from "@/features/booking-questionnaire/BookingQuestionnaireSettings";
+import GoogleCalendarSyncCard from "@/features/calendar/components/GoogleCalendarSyncCard";
 import {
   ArrowLeft,
   CircleHelp,
@@ -29,6 +30,7 @@ import {
   Waypoints,
   Bell,
   ListChecks,
+  Plug,
 } from "lucide-react";
 import PageSkeleton from "@/components/system/PageSkeleton";
 import { QaiLogo } from "@/components/brand/QaiLogo";
@@ -42,6 +44,7 @@ const SECTIONS = [
   { id: "payment-reminders", label: "Payment reminders", description: "Customize WhatsApp and email wording", Icon: MessagesSquare },
   { id: "invoice-sharing", label: "Invoice sharing", description: "Customize invoice WhatsApp and email wording", Icon: MessagesSquare },
   { id: "notifications", label: "Notifications", description: "Choose optional browser alerts", Icon: Bell },
+  { id: "integrations", label: "Integrations", description: "Connect Qai to the tools you use", Icon: Plug },
   { id: "appearance", label: "Appearance", description: "Choose your Qai visual mood", Icon: Palette },
   { id: "about", label: "About Qai", description: "Product information", Icon: Info },
 ] as const;
@@ -51,6 +54,7 @@ type SectionId = (typeof SECTIONS)[number]["id"];
 const MOBILE_GROUPS: Array<{ label: string; sections: SectionId[] }> = [
   { label: "Management", sections: ["booking-questions", "service-categories", "expense-categories"] },
   { label: "Communication", sections: ["payment-reminders", "invoice-sharing", "notifications"] },
+  { label: "Connections", sections: ["integrations"] },
   { label: "Preferences", sections: ["appearance"] },
   { label: "Data", sections: ["data-backup"] },
   { label: "Product", sections: ["about"] },
@@ -209,6 +213,15 @@ export default function SettingsPage() {
             {activeSection === "payment-reminders" && <PaymentReminderSettings />}
             {activeSection === "invoice-sharing" && <InvoiceSharingSettings />}
             {activeSection === "notifications" && <NotificationSettings />}
+            {activeSection === "integrations" && (
+              <div>
+                <div className="mb-5">
+                  <h2 className="text-lg font-bold text-foreground">Connected tools</h2>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">Keep Qai schedules available in the tools you already use.</p>
+                </div>
+                <GoogleCalendarSyncCard />
+              </div>
+            )}
             {activeSection === "appearance" && <AppearanceSettings />}
             {activeSection === "about" && (
               <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">

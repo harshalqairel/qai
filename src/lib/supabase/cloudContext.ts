@@ -9,7 +9,7 @@ export async function requireCloudBusinessContext() {
 
   const { data: membership, error: membershipError } = await client
     .from("business_memberships")
-    .select("business_id")
+    .select("business_id, role")
     .eq("user_id", auth.user.id)
     .order("created_at", { ascending: true })
     .limit(1)
@@ -30,5 +30,14 @@ export async function requireCloudBusinessContext() {
     businessId: String(business.id),
     businessName: typeof business.name === "string" ? business.name : "Qai Business",
     timezone: typeof business.timezone === "string" ? business.timezone : "Asia/Jakarta",
+    membershipRole: membership.role === "owner" || membership.role === "admin" ? membership.role : "member",
   };
+}
+
+export async function requireCloudBusinessAdminContext() {
+  const context = await requireCloudBusinessContext();
+  if (context.membershipRole !== "owner" && context.membershipRole !== "admin") {
+    throw new Error("BUSINESS_ADMIN_REQUIRED");
+  }
+  return context;
 }

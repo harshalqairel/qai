@@ -4,6 +4,7 @@ import { z } from "zod";
 import { validateQuestionnaireResponses } from "@/features/booking-questionnaire/questionnaire";
 import { LOCAL_VALIDATION_BACKEND_CAPABILITIES } from "@/features/qai-page/backendCapabilities";
 import { cloudBookingsForCapacity, materializeCloudPage } from "@/features/qai-page/cloudMapping";
+import { withPublicQaiSpaceMediaUrls } from "@/features/qai-page/cloudMedia";
 import { availableServiceSlotsForDate } from "@/features/qai-page/serviceCapacity";
 import {
   defaultQaiPage,
@@ -119,6 +120,14 @@ async function publicPageBySlug(slug: string) {
   };
 }
 
+function publicPagePayload(page: QaiPageConfig): QaiPageConfig {
+  return {
+    ...withPublicQaiSpaceMediaUrls(page),
+    businessId: "public",
+    slots: page.slots.map((slot) => ({ ...slot, requestId: null })),
+  };
+}
+
 async function capacityDocuments(admin: ReturnType<typeof createCloudAdminClient>, businessId: string) {
   const [requestResult, bookingResult, sessionResult] = await Promise.all([
     admin.from("qai_space_requests").select("payload").eq("business_id", businessId),
@@ -158,7 +167,7 @@ export async function GET(request: NextRequest) {
   try {
     if (scope === "page") {
       const { page } = await publicPageBySlug(request.nextUrl.searchParams.get("slug") ?? "");
-      return NextResponse.json({ data: page }, { headers: { "Cache-Control": "no-store" } });
+      return NextResponse.json({ data: publicPagePayload(page) }, { headers: { "Cache-Control": "no-store" } });
     }
     if (scope === "availability") {
       const slug = request.nextUrl.searchParams.get("slug") ?? "";

@@ -12,7 +12,6 @@ import { useExpenses } from "@/features/expense/hooks/useExpenses";
 import { useState } from "react";
 import PageSkeleton from "@/components/system/PageSkeleton";
 import DataErrorState from "@/components/system/DataErrorState";
-import GoogleCalendarSyncCard from "@/features/calendar/components/GoogleCalendarSyncCard";
 
 export default function CalendarPage() {
   const {
@@ -122,7 +121,6 @@ export default function CalendarPage() {
             />
           </div>
 
-          <GoogleCalendarSyncCard />
         </div>
       </main>
 

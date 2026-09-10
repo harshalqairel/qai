@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { CloudCalendarError, completeCloudGoogleCalendarOAuth } from "@/lib/google-calendar/cloudConnection";
+import { isCloudModeEnabled } from "@/lib/supabase/config";
+import { requireCloudBusinessAdminContext } from "@/lib/supabase/cloudContext";
 import { createValidationAdminClient } from "@/lib/validation/admin";
 import { decryptValidationSecret, encryptValidationSecret } from "@/lib/validation/encryption";
 import { exchangeGoogleCode, googleApi } from "@/lib/validation/googleCalendar";
@@ -9,7 +12,34 @@ type CalendarList = { items?: Array<{ id: string; summary: string; primary?: boo
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code"); const state = request.nextUrl.searchParams.get("state");
-  if (!code || !state || request.nextUrl.searchParams.get("error")) return NextResponse.redirect(new URL("/calendar?calendar=cancelled", request.url));
+  if (isCloudModeEnabled()) {
+    const destination = new URL("/settings", request.url);
+    destination.searchParams.set("section", "integrations");
+    if (!code || !state || request.nextUrl.searchParams.get("error")) {
+      destination.searchParams.set("calendar", "cancelled");
+      return NextResponse.redirect(destination);
+    }
+    try {
+      const context = await requireCloudBusinessAdminContext();
+      await completeCloudGoogleCalendarOAuth({
+        businessId: context.businessId,
+        userId: context.userId,
+        code,
+        state,
+      });
+      destination.searchParams.set("calendar", "connected");
+    } catch (error) {
+      destination.searchParams.set(
+        "calendar",
+        error instanceof CloudCalendarError && error.code === "account_mismatch"
+          ? "account-mismatch"
+          : "error",
+      );
+    }
+    return NextResponse.redirect(destination);
+  }
+
+  if (!code || !state || request.nextUrl.searchParams.get("error")) return NextResponse.redirect(new URL("/settings?section=integrations&calendar=cancelled", request.url));
   try {
     const admin = createValidationAdminClient(); const now = new Date().toISOString(); const stateHash = await hashValidationSecret(state);
     const { data: oauth } = await admin.from("validation_google_oauth_states").select("id, workspace_id, encrypted_code_verifier").eq("state_hash", stateHash).is("consumed_at", null).gt("expires_at", now).maybeSingle();
@@ -23,6 +53,6 @@ export async function GET(request: NextRequest) {
     if (accountChanged) { const { error } = await admin.from("validation_calendar_event_links").delete().eq("workspace_id", oauth.workspace_id); if (error) throw error; }
     const { error: stateError } = await admin.from("validation_google_oauth_states").update({ consumed_at: now }).eq("id", oauth.id);
     if (stateError) throw stateError;
-    return NextResponse.redirect(new URL("/calendar?calendar=connected", request.url));
-  } catch { return NextResponse.redirect(new URL("/calendar?calendar=error", request.url)); }
+    return NextResponse.redirect(new URL("/settings?section=integrations&calendar=connected", request.url));
+  } catch { return NextResponse.redirect(new URL("/settings?section=integrations&calendar=error", request.url)); }
 }

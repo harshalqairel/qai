@@ -1,5 +1,5 @@
 import type { Booking } from "@/features/booking/types";
-import { isValidationModeEnabled } from "@/lib/supabase/config";
+import { isCloudModeEnabled, isValidationModeEnabled } from "@/lib/supabase/config";
 import { flushWorkspaceDocuments } from "@/lib/validation/workspaceSync";
 
 const BOOKING_STORAGE_KEY = "qai:bookings";
@@ -36,19 +36,25 @@ function wait(milliseconds: number): Promise<void> {
 
 export async function synchronizeAffectedCalendarSessions(scheduleIds: readonly string[]): Promise<void> {
   const uniqueIds = [...new Set(scheduleIds.filter(Boolean))];
-  if (!uniqueIds.length || !isValidationModeEnabled() || typeof window === "undefined") return;
+  const cloudMode = isCloudModeEnabled();
+  const validationMode = isValidationModeEnabled();
+  if (!uniqueIds.length || (!cloudMode && !validationMode) || typeof window === "undefined") return;
 
   let lastError: unknown;
   for (const delay of [0, 1_000, 4_000]) {
     if (delay) await wait(delay);
     try {
-      await flushWorkspaceDocuments([BOOKING_STORAGE_KEY]);
+      if (validationMode) await flushWorkspaceDocuments([BOOKING_STORAGE_KEY]);
       const response = await fetch("/api/integrations/google-calendar/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ scheduleIds: uniqueIds }),
       });
-      if (!response.ok) throw new Error(`Calendar sync request failed (${response.status}).`);
+      if (!response.ok) {
+        const result = await response.json().catch(() => null) as { code?: string } | null;
+        if (result?.code === "not_connected" || result?.code === "reconnect_required") return;
+        throw new Error(`Calendar sync request failed (${response.status}).`);
+      }
       return;
     } catch (error) {
       lastError = error;

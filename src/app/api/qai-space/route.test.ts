@@ -22,7 +22,7 @@ vi.mock("@/features/notifications/webPushServer", () => ({
   sendCloudBusinessPush: vi.fn(),
 }));
 
-import { GET } from "./route";
+import { GET, POST } from "./route";
 
 type QueryResult = { data: unknown; error: unknown };
 
@@ -31,6 +31,7 @@ function query(result: QueryResult) {
   builder.select = vi.fn(() => builder);
   builder.eq = vi.fn(() => builder);
   builder.not = vi.fn(() => builder);
+  builder.order = vi.fn(() => builder);
   builder.maybeSingle = vi.fn(() => Promise.resolve(result));
   builder.then = (resolve: (value: QueryResult) => unknown, reject: (reason: unknown) => unknown) =>
     Promise.resolve(result).then(resolve, reject);
@@ -64,6 +65,18 @@ function publishedPage(): QaiPageConfig {
       featured: false,
     }],
   };
+}
+
+function ownerRequest(scope = "owner") {
+  return new NextRequest(`https://qai.example/api/qai-space?scope=${scope}`);
+}
+
+function post(body: unknown) {
+  return new NextRequest("https://qai.example/api/qai-space", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
 }
 
 const operationalService = {
@@ -108,7 +121,65 @@ describe("public Qai Space page GET", () => {
       durationMinutes: 90,
       visible: true,
     }]);
+    expect(body.data.businessId).toBe("public");
     expect(mocks.requireCloudBusinessContext).not.toHaveBeenCalled();
+  });
+
+  it("does not expose private reservation identifiers in the public page payload", async () => {
+    const page = {
+      ...publishedPage(),
+      slots: [{
+        id: "slot-id",
+        serviceId: "service-id",
+        startAt: "2026-09-02T03:00:00.000Z",
+        endAt: "2026-09-02T04:00:00.000Z",
+        location: "Studio",
+        status: "Reserved" as const,
+        requestId: "private-request-id",
+      }],
+    };
+    mocks.from.mockImplementation((table: string) => table === "qai_space_pages"
+      ? query({ data: { id: "page-id", business_id: "business-id", payload: page }, error: null })
+      : query({ data: [operationalService], error: null }));
+
+    const response = await GET(request());
+    const body = await response.json() as { data: QaiPageConfig };
+
+    expect(response.status).toBe(200);
+    expect(body.data.businessId).toBe("public");
+    expect(body.data.slots[0]).toMatchObject({ id: "slot-id", status: "Reserved", requestId: null });
+    expect(JSON.stringify(body)).not.toContain("private-request-id");
+  });
+
+  it("returns public presentation URLs instead of private owner media URLs", async () => {
+    const mediaId = "09e711d6-9af7-4eb9-900c-f77799ffe262";
+    const page = {
+      ...publishedPage(),
+      logo: `/api/qai-space/media/${mediaId}`,
+      coverImage: "/api/qai-space/media/6f7bdd95-a3d6-4a9f-b27b-f6e4de71af3f",
+      portfolio: [{
+        id: "portfolio-item",
+        imageUrl: "/api/qai-space/media/15523cec-7ca2-4fc4-b7a7-a37ae6e02c7c",
+        caption: "Published work",
+        serviceId: null,
+        visible: true,
+        position: 0,
+      }],
+    };
+    mocks.from.mockImplementation((table: string) => table === "qai_space_pages"
+      ? query({ data: { id: "page-id", business_id: "business-id", payload: page }, error: null })
+      : query({ data: [operationalService], error: null }));
+
+    const response = await GET(request());
+    const body = await response.json() as { data: QaiPageConfig };
+    const serialized = JSON.stringify(body);
+
+    expect(response.status).toBe(200);
+    expect(body.data.logo).toBe(`/api/qai-space/public-media/${mediaId}`);
+    expect(body.data.coverImage).toBe("/api/qai-space/public-media/6f7bdd95-a3d6-4a9f-b27b-f6e4de71af3f");
+    expect(body.data.portfolio[0].imageUrl).toBe("/api/qai-space/public-media/15523cec-7ca2-4fc4-b7a7-a37ae6e02c7c");
+    expect(serialized).not.toContain("/api/qai-space/media/");
+    expect(serialized).not.toContain(process.env.SUPABASE_SECRET_KEY ?? "not-configured");
   });
 
   it("does not hide an operational Service permission defect behind the published snapshot", async () => {
@@ -179,5 +250,77 @@ describe("public Qai Space page GET", () => {
       expect.objectContaining({ stage: "payload validation" }),
     );
     expect(mocks.from).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("owner Qai Space API", () => {
+  beforeEach(() => {
+    mocks.from.mockReset();
+    mocks.logCloudFailure.mockReset();
+    mocks.requireCloudBusinessContext.mockReset();
+  });
+
+  it("loads only the authenticated owner's workspace and preserves the stored template", async () => {
+    const ownerFrom = vi.fn((table: string) => {
+      if (table === "qai_space_pages") return query({ data: { id: "page-id", payload: { ...publishedPage(), businessId: "business-a", template: "Editorial" } }, error: null });
+      if (table === "qai_space_requests") return query({ data: [], error: null });
+      return query({ data: [operationalService], error: null });
+    });
+    mocks.requireCloudBusinessContext.mockResolvedValue({
+      client: { from: ownerFrom },
+      businessId: "business-a",
+      businessName: "Business A",
+      timezone: "Asia/Jakarta",
+    });
+
+    const response = await GET(new NextRequest("https://qai.example/api/qai-space?scope=owner&businessId=business-b"));
+    const body = await response.json() as { data: { pages: QaiPageConfig[] } };
+
+    expect(response.status).toBe(200);
+    expect(body.data.pages[0]).toMatchObject({ businessId: "business-a", template: "Editorial" });
+    const pageQuery = ownerFrom.mock.results[0].value as { eq: ReturnType<typeof vi.fn> };
+    expect(pageQuery.eq).toHaveBeenCalledWith("business_id", "business-a");
+    expect(pageQuery.eq).not.toHaveBeenCalledWith("business_id", "business-b");
+  });
+
+  it("forces the authenticated workspace on save and returns the persisted template", async () => {
+    const upsert = vi.fn(async () => ({ error: null }));
+    const pageTable = {
+      select: vi.fn(() => pageTable),
+      eq: vi.fn(() => pageTable),
+      maybeSingle: vi.fn(async () => ({ data: { id: "existing-page-id" }, error: null })),
+      upsert,
+    };
+    const ownerFrom = vi.fn(() => pageTable);
+    mocks.requireCloudBusinessContext.mockResolvedValue({
+      client: { from: ownerFrom },
+      businessId: "business-a",
+      businessName: "Business A",
+      timezone: "Asia/Jakarta",
+    });
+    const forged = { ...publishedPage(), businessId: "business-b", template: "Editorial" as const };
+
+    const response = await POST(post({ action: "save-page", page: forged }));
+    const body = await response.json() as { data: QaiPageConfig };
+
+    expect(response.status).toBe(200);
+    expect(body.data).toMatchObject({ id: "existing-page-id", businessId: "business-a", template: "Editorial" });
+    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
+      id: "existing-page-id",
+      business_id: "business-a",
+      payload: expect.objectContaining({ businessId: "business-a", template: "Editorial" }),
+    }), { onConflict: "business_id" });
+  });
+
+  it("requires owner authentication for owner reads and saves", async () => {
+    mocks.requireCloudBusinessContext.mockRejectedValue(new Error("AUTH_REQUIRED"));
+
+    const loadResponse = await GET(ownerRequest());
+    const saveResponse = await POST(post({ action: "save-page", page: publishedPage() }));
+
+    expect(loadResponse.status).toBe(401);
+    expect(saveResponse.status).toBe(401);
+    await expect(loadResponse.json()).resolves.toEqual({ error: "Sign in to manage this Qai Space." });
+    await expect(saveResponse.json()).resolves.toEqual({ error: "The Qai Space change could not be completed." });
   });
 });

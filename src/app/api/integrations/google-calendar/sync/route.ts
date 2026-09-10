@@ -5,6 +5,10 @@ import { z } from "zod";
 import { bookingRecordSchema } from "@/features/booking/schema";
 import { customerRecordSchema } from "@/features/customer/schema";
 import { serviceRecordSchema } from "@/features/service/schema";
+import { CloudCalendarError } from "@/lib/google-calendar/cloudConnection";
+import { isPartialCalendarSync, synchronizeCloudGoogleCalendar } from "@/lib/google-calendar/cloudSync";
+import { isCloudModeEnabled } from "@/lib/supabase/config";
+import { requireCloudBusinessAdminContext } from "@/lib/supabase/cloudContext";
 import { createValidationAdminClient } from "@/lib/validation/admin";
 import { googleApi, workspaceGoogleAccessToken } from "@/lib/validation/googleCalendar";
 import { requireValidationSession } from "@/lib/validation/session";
@@ -17,7 +21,7 @@ function payloadHash(value: unknown) { return createHash("sha256").update(JSON.s
 
 const syncInputSchema = z.object({ scheduleIds: z.array(z.string().min(1).max(100)).max(100) }).optional();
 
-export async function POST(request: NextRequest) {
+async function validationPost(request: NextRequest) {
   try {
     const rawInput = await request.json().catch(() => undefined);
     const input = syncInputSchema.parse(rawInput);
@@ -71,4 +75,41 @@ export async function POST(request: NextRequest) {
     if (statusError) throw statusError;
     return NextResponse.json({ data: summary });
   } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Google Calendar sync failed." }, { status: 400 }); }
+}
+
+export async function POST(request: NextRequest) {
+  if (!isCloudModeEnabled()) return validationPost(request);
+
+  try {
+    const rawInput = await request.json().catch(() => undefined);
+    const input = syncInputSchema.parse(rawInput);
+    const context = await requireCloudBusinessAdminContext();
+    const summary = await synchronizeCloudGoogleCalendar({
+      client: context.client,
+      businessId: context.businessId,
+      timezone: context.timezone,
+      requestedSessionIds: input ? new Set(input.scheduleIds) : null,
+    });
+    if (isPartialCalendarSync(summary)) {
+      return NextResponse.json(
+        { data: summary, error: "Some schedules could not be synced." },
+        { status: 502 },
+      );
+    }
+    return NextResponse.json({ data: summary });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: "The Calendar sync selection is invalid." }, { status: 400 });
+    }
+    if (error instanceof CloudCalendarError) {
+      return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
+    }
+    if (error instanceof Error && (error.message === "AUTH_REQUIRED" || error.message === "BUSINESS_REQUIRED")) {
+      return NextResponse.json({ error: "Sign in to sync Google Calendar." }, { status: 401 });
+    }
+    if (error instanceof Error && error.message === "BUSINESS_ADMIN_REQUIRED") {
+      return NextResponse.json({ error: "Only a business owner or admin can sync Google Calendar." }, { status: 403 });
+    }
+    return NextResponse.json({ error: "Google Calendar could not be synced." }, { status: 500 });
+  }
 }
