@@ -12,6 +12,8 @@ const booking = {
   customerId: "customer-1",
   serviceId: "service-1",
   customerName: "Ayu",
+  customerPhone: "08123456789",
+  customerEmail: "ayu@example.com",
   serviceName: "Wedding Makeup",
   sessions: [{ id: "session-1", bookingId: "booking-1", sequence: 1, label: "", startAt: "2026-08-20T02:00:00.000Z", endAt: "2026-08-20T04:00:00.000Z", location: "Studio", notes: "", createdAt: 1, updatedAt: 1 }],
   servicePrice: 7_500_000,

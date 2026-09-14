@@ -140,20 +140,17 @@ export function useDashboard({ period }: UseDashboardArgs) {
     return bookings.map((booking) => {
       const customer = customers.find((item) => item.id === booking.customerId);
       const service = services.find((item) => item.id === booking.serviceId);
-      const effectiveServicePrice = booking.servicePrice > 0
-        ? booking.servicePrice
-        : service?.price ?? 0;
       const paymentSummary = paymentSummaries[booking.id];
 
       return {
         ...booking,
-        servicePrice: effectiveServicePrice,
+        servicePrice: booking.servicePrice,
         customerName: customer?.name ?? "Client not found",
         customerPhone: customer?.phone ?? "",
         customerEmail: customer?.email ?? "",
         serviceName: service?.name ?? "Service not found",
         totalPaid: paymentSummary?.totalPaid ?? 0,
-        remainingAmount: paymentSummary?.remainingAmount ?? effectiveServicePrice,
+        remainingAmount: paymentSummary?.remainingAmount ?? booking.servicePrice,
         paymentStatus: paymentSummary?.paymentStatus ?? "Outstanding",
       };
     });

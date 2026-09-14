@@ -76,9 +76,8 @@ export default function DashboardPage() {
           <div className="grid min-w-0 gap-0 lg:gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(21rem,.65fr)]">
             <div className="-mx-4 min-w-0 border-t border-[var(--dashboard-border)] bg-card px-4 py-5 lg:mx-0 lg:rounded-xl lg:border lg:p-6 lg:shadow-[var(--shadow-surface)]"><TodaySchedule items={dashboard.todaysSchedule} timezone={dashboard.timezone} /></div>
             <NeedsAttention
-              overdueCount={attention.overdueCount}
-              overdueAmount={attention.overdueAmount}
-              requestCount={attention.requestCount}
+              items={attention.items}
+              businessName={dashboard.businessName}
             />
           </div>
         </section>

@@ -39,8 +39,11 @@ import { toggleSelectedId, toggleVisibleSelection } from "@/components/system/se
 import BulkServiceChangeDialog, { type BulkServiceNamedBooking } from "@/features/booking/components/BulkServiceChangeDialog";
 import { buildBulkServiceChangeInput } from "@/features/booking/domain/serviceChange";
 import type { Service } from "@/features/service/types";
+import { getActiveBusinessContext } from "@/lib/supabase/cloudRepositories";
+import { isCloudModeEnabled, isValidationModeEnabled } from "@/lib/supabase/config";
 
 export default function BookingsPage() {
+  const [businessName, setBusinessName] = useState("Qai Business");
   const bookingData = useBookings();
   const customerData = useCustomers();
   const serviceData = useServices();
@@ -78,6 +81,22 @@ export default function BookingsPage() {
   const [mobileSelectionMode, setMobileSelectionMode] = useState(false);
   const [bulkServiceOpen, setBulkServiceOpen] = useState(false);
 
+  useEffect(() => {
+    if (isValidationModeEnabled()) {
+      const timer = window.setTimeout(() => {
+        try {
+          const metadata = JSON.parse(window.localStorage.getItem("qai:validation-workspace") ?? "null") as { label?: string } | null;
+          if (metadata?.label) setBusinessName(metadata.label);
+        } catch { /* Keep the safe fallback. */ }
+      }, 0);
+      return () => window.clearTimeout(timer);
+    }
+    if (!isCloudModeEnabled()) return;
+    let active = true;
+    void getActiveBusinessContext().then((context) => { if (active) setBusinessName(context.businessName); }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState("");
@@ -105,6 +124,8 @@ export default function BookingsPage() {
     return {
       ...booking,
       customerName: customer?.name ?? "Client not found",
+      customerPhone: customer?.phone ?? "",
+      customerEmail: customer?.email ?? "",
       serviceName: [booking.serviceSnapshot?.serviceName || service?.name || "Unknown Service", booking.serviceSnapshot?.variantLabel].filter(Boolean).join(" · "),
       paymentStatus: paymentSummary?.paymentStatus ?? "Outstanding",
       totalPaid: paymentSummary?.totalPaid ?? 0,
@@ -130,8 +151,12 @@ export default function BookingsPage() {
       if (bookingId) {
         const booking = bookingsWithNames.find((item) => item.id === bookingId);
         if (booking) {
-          setSelectedBookingForFinancialDetails(booking);
-          setFinancialDetailsOpen(true);
+          if (params.get("action") === "payment" && (booking.remainingAmount ?? 0) > 0 && booking.bookingStatus !== "Cancelled") {
+            openPaymentDialog(booking.id, undefined, booking.remainingAmount ?? undefined);
+          } else {
+            setSelectedBookingForFinancialDetails(booking);
+            setFinancialDetailsOpen(true);
+          }
         }
       }
       handledDeepLink.current = true;
@@ -403,6 +428,8 @@ export default function BookingsPage() {
         open={financialDetailsOpen}
         booking={selectedBookingForFinancialDetails}
         payments={payments}
+        businessName={businessName}
+        timezone={bookingData.timezone}
         onClose={closeFinancialDetails}
         onAddPayment={(bookingId, remainingAmount) => {
           closeFinancialDetails();

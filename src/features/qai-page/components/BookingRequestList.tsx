@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, Eye, FilePenLine, MessageCircle, RefreshCw, X } from "lucide-react";
 import ListSortControl from "@/components/system/ListSortControl";
 import RowActionsMenu, { type RowAction } from "@/components/system/RowActionsMenu";
@@ -21,6 +21,7 @@ type Props = {
   onAccept: (request: PublicRequest) => void;
   onReview: (request: PublicRequest) => void;
   onDecline: (request: PublicRequest) => void;
+  focusRequestId?: string | null;
 };
 
 function submittedLabel(value: number) {
@@ -45,7 +46,7 @@ function displayedStatus(request: PublicRequest): { label: string; tone: "succes
     : { label: request.status, tone: requestStatusTone(request.status) };
 }
 
-export default function BookingRequestList({ requests, filter, onFilterChange, onRefresh, onAccept, onReview, onDecline }: Props) {
+export default function BookingRequestList({ requests, filter, onFilterChange, onRefresh, onAccept, onReview, onDecline, focusRequestId }: Props) {
   const [sort, setSort] = useState<RequestSort>("submitted-desc");
   const rows = useMemo(() => {
     const visible = requests.filter((request) => filter === "All"
@@ -64,6 +65,16 @@ export default function BookingRequestList({ requests, filter, onFilterChange, o
       default: return visible.sort((a, b) => b.submittedAt - a.submittedAt);
     }
   }, [filter, requests, sort]);
+
+  useEffect(() => {
+    if (!focusRequestId) return;
+    const timeout = window.setTimeout(() => {
+      Array.from(document.querySelectorAll<HTMLElement>("[data-request-id]"))
+        .find((element) => element.dataset.requestId === focusRequestId && element.offsetParent !== null)
+        ?.scrollIntoView?.({ block: "center" });
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, [focusRequestId, rows]);
 
   function actions(request: PublicRequest): RowAction[] {
     const items: RowAction[] = [];
@@ -101,7 +112,7 @@ export default function BookingRequestList({ requests, filter, onFilterChange, o
               <SortableTableHeader label="Status" sort={sort} ascending="status-asc" descending="status-desc" onSortChange={setSort} />
               <TableHead className="w-20 px-4 text-right">Actions</TableHead>
             </TableRow></TableHeader>
-            <TableBody>{rows.map((request) => { const status = displayedStatus(request); return <TableRow key={request.id}>
+            <TableBody>{rows.map((request) => { const status = displayedStatus(request); return <TableRow key={request.id} data-request-id={request.id} className={request.id === focusRequestId ? "bg-amber-50 ring-1 ring-inset ring-amber-300" : undefined}>
               <TableCell className="px-4 py-3"><p className="font-medium">{submittedLabel(request.submittedAt)}</p></TableCell>
               <TableCell className="py-3 whitespace-normal"><p className="font-semibold">{request.clientName}</p><p className="mt-1 text-xs text-muted-foreground">{request.whatsapp}</p></TableCell>
               <TableCell className="py-3 whitespace-normal"><p className="font-medium">{request.serviceName}</p>{request.serviceSnapshot?.variantLabel && <p className="mt-1 text-xs text-muted-foreground">{request.serviceSnapshot.variantLabel}</p>}</TableCell>
@@ -111,7 +122,7 @@ export default function BookingRequestList({ requests, filter, onFilterChange, o
             </TableRow>; })}</TableBody>
           </Table>
         </div>
-        <div className="space-y-3 xl:hidden">{rows.map((request) => { const status = displayedStatus(request); return <article key={request.id} className="surface-card p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{request.clientName}</h3><StatusBadge tone={status.tone}>{status.label}</StatusBadge></div><p className="mt-1 truncate text-sm text-muted-foreground">{request.serviceName}{request.serviceSnapshot?.variantLabel ? ` · ${request.serviceSnapshot.variantLabel}` : ""}</p></div><RowActionsMenu recordLabel={`${request.clientName}'s request`} actions={actions(request)} /></div><dl className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-3 text-sm"><div><dt className="text-xs text-muted-foreground">Submitted</dt><dd className="mt-1 font-medium">{submittedLabel(request.submittedAt)}</dd></div><div><dt className="text-xs text-muted-foreground">Requested</dt><dd className="mt-1 font-medium">{requestedDate(request) || "Not provided"}</dd></div></dl>{(request.need || request.notes) && <p className="mt-3 line-clamp-3 rounded-lg bg-muted/45 p-3 text-sm">{[request.need, request.notes].filter(Boolean).join(" · ")}</p>}</article>; })}</div>
+        <div className="space-y-3 xl:hidden">{rows.map((request) => { const status = displayedStatus(request); return <article key={request.id} data-request-id={request.id} className={`surface-card p-4 ${request.id === focusRequestId ? "ring-2 ring-amber-300" : ""}`}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{request.clientName}</h3><StatusBadge tone={status.tone}>{status.label}</StatusBadge></div><p className="mt-1 truncate text-sm text-muted-foreground">{request.serviceName}{request.serviceSnapshot?.variantLabel ? ` · ${request.serviceSnapshot.variantLabel}` : ""}</p></div><RowActionsMenu recordLabel={`${request.clientName}'s request`} actions={actions(request)} /></div><dl className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-3 text-sm"><div><dt className="text-xs text-muted-foreground">Submitted</dt><dd className="mt-1 font-medium">{submittedLabel(request.submittedAt)}</dd></div><div><dt className="text-xs text-muted-foreground">Requested</dt><dd className="mt-1 font-medium">{requestedDate(request) || "Not provided"}</dd></div></dl>{request.status === "Accepted" && !request.bookingId && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm font-medium text-amber-900">The Booking was saved, but this request still needs to be linked. Review it to safely complete setup.</p>}{(request.need || request.notes) && <p className="mt-3 line-clamp-3 rounded-lg bg-muted/45 p-3 text-sm">{[request.need, request.notes].filter(Boolean).join(" · ")}</p>}</article>; })}</div>
       </>}
     </section>
   );

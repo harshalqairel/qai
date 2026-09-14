@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Trash2, XIcon } from "lucide-react";
+import { CalendarDays, Plus, Trash2, XIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -11,14 +11,18 @@ import { MoneyInput } from "@/components/ui/money-input";
 import type { Booking, BookingAdditionalCharge } from "@/features/booking/types";
 import type { Payment, DerivedPaymentStatus } from "@/features/payment/types";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
-import ReminderHistoryList from "@/features/reminder/components/ReminderHistoryList";
+import CommunicationHistoryList from "@/features/communication/components/CommunicationHistoryList";
+import MessageClientButton from "@/features/communication/components/MessageClientButton";
 import { invoiceRepository, latestInvoiceVersions } from "@/features/invoice/invoice";
 import { bookingAdditionalChargesTotal, bookingClientTotal } from "@/features/booking/domain/bookingFinancials";
 import { createAdditionalChargeCategoryPersistent, getAdditionalChargeCategories, loadAdditionalChargeCategories, type AdditionalChargeCategory } from "@/features/booking/domain/additionalChargeCategories";
 import { notify } from "@/lib/notifications";
+import { formatSessionDate, formatSessionTime, nextBookingSession, sortBookingSessions } from "@/features/booking/utils/bookingSessions";
 
 export type BookingFinancialDetails = Booking & {
   customerName: string;
+  customerPhone: string;
+  customerEmail: string;
   serviceName: string;
   paymentStatus: DerivedPaymentStatus;
   totalPaid: number;
@@ -32,6 +36,8 @@ type BookingFinancialDetailsDialogProps = {
   open: boolean;
   booking: BookingFinancialDetails | null;
   payments: Payment[];
+  businessName: string;
+  timezone: string;
   onClose: () => void;
   onAddPayment: (bookingId: string, remainingAmount: number) => void;
   onAddExpense: (bookingId: string) => void;
@@ -57,6 +63,8 @@ export default function BookingFinancialDetailsDialog({
   open,
   booking,
   payments,
+  businessName,
+  timezone,
   onClose,
   onAddPayment,
   onAddExpense,
@@ -96,6 +104,23 @@ export default function BookingFinancialDetailsDialog({
   const relatedInvoice = latestInvoiceVersions(invoiceRepository.getAll().filter((invoice) => invoice.bookingId === booking.id))[0] ?? null;
   const charges = booking.additionalCharges ?? [];
   const chargesTotal = bookingAdditionalChargesTotal(booking);
+  const primarySession = sortBookingSessions(booking.sessions)[0];
+  const upcomingSession = nextBookingSession(booking);
+  const messageContext = {
+    customerId: booking.customerId,
+    bookingId: booking.id,
+    customerName: booking.customerName,
+    customerPhone: booking.customerPhone,
+    customerEmail: booking.customerEmail,
+    businessName,
+    serviceName: booking.serviceName,
+    bookingDate: primarySession ? formatSessionDate(primarySession, timezone) : "",
+    dueDate: booking.fullPaymentDueDate,
+    bookingValue: bookingClientTotal(booking),
+    totalPaid: booking.totalPaid,
+    remainingAmount: booking.remainingAmount ?? 0,
+    nextSessionDate: upcomingSession ? formatSessionDate(upcomingSession, timezone) : "",
+  };
 
   async function addCharge() {
     const category = categories.find((item) => item.id === categoryId);
@@ -134,10 +159,13 @@ export default function BookingFinancialDetailsDialog({
               {booking.customerName} · {booking.serviceName}
             </p>
           </div>
-          <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close payment details">
-            <XIcon className="size-5" aria-hidden="true" />
-          </Button>
+          <div className="flex shrink-0 items-center gap-1">
+            <MessageClientButton context={messageContext} defaultTemplate={booking.remainingAmount ? "payment_reminder" : "appointment_reminder"} buttonProps={{ className: "hidden sm:inline-flex" }} />
+            <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close payment details"><XIcon className="size-5" aria-hidden="true" /></Button>
+          </div>
         </div>
+
+        <div className="mb-5 sm:hidden"><MessageClientButton context={messageContext} defaultTemplate={booking.remainingAmount ? "payment_reminder" : "appointment_reminder"} buttonProps={{ className: "w-full" }} /></div>
 
         <section className="rounded-xl border border-border bg-muted/30 p-4" aria-label="Booking financial summary">
           <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
@@ -191,6 +219,11 @@ export default function BookingFinancialDetailsDialog({
           )}
         </section>
 
+        <section className="mt-6 border-t border-border pt-6" aria-labelledby="booking-schedules-heading">
+          <div className="flex items-center gap-2"><CalendarDays className="size-4 text-primary" /><h3 id="booking-schedules-heading" className="font-semibold">Schedules</h3></div>
+          <div className="mt-3 space-y-2">{sortBookingSessions(booking.sessions).map((session) => <article key={session.id} className="rounded-xl border border-border p-3 text-sm"><p className="font-semibold">{session.label || `Schedule ${session.sequence}`}</p><p className="mt-1 text-muted-foreground">{formatSessionDate(session, timezone)} · {formatSessionTime(session, timezone)}</p>{session.location && <p className="mt-1 text-muted-foreground">{session.location}</p>}</article>)}</div>
+        </section>
+
         <section className="mt-6">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <h3 className="font-semibold">Payment History</h3>
@@ -228,7 +261,7 @@ export default function BookingFinancialDetailsDialog({
           {addingCharge && <div className="mt-4 space-y-4 rounded-xl bg-muted/50 p-4"><div><Label>Category</Label><select className="native-control mt-2" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select><Button className="mt-2" size="sm" variant="ghost" onClick={() => setNewCategoryOpen((value) => !value)}>+ New category</Button>{newCategoryOpen && <div className="mt-2 flex gap-2"><Input value={newCategoryName} onChange={(event) => setNewCategoryName(event.target.value)} placeholder="Category name" /><Button size="sm" onClick={addCategory}>Add</Button></div>}</div><div><Label>Apply to</Label><select className="native-control mt-2" value={sessionId} onChange={(event) => setSessionId(event.target.value)}><option value="">Overall booking</option>{booking.sessions.map((session) => <option key={session.id} value={session.id}>Schedule {session.sequence}{session.label ? ` · ${session.label}` : ""}</option>)}</select></div><div><Label>Amount</Label><MoneyInput className="mt-2" value={amount} onChange={setAmount} placeholder="0" /></div><div><Label>Description</Label><Input className="mt-2" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Optional detail" /></div><div className="flex gap-2"><Button onClick={() => void addCharge()}>Add charge</Button><Button variant="ghost" onClick={() => setAddingCharge(false)}>Cancel</Button></div></div>}
         </section>
 
-        <ReminderHistoryList bookingId={booking.id} />
+        <CommunicationHistoryList bookingId={booking.id} />
 
         <section className="mt-6 border-t border-border pt-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
