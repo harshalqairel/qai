@@ -8,6 +8,7 @@ vi.mock("@/lib/supabase/config", () => ({
 }));
 
 import { listClientCommunications, recordClientCommunication } from "./communicationRepository";
+import { clientCommunicationSchema } from "./types";
 
 describe("client communication repository", () => {
   beforeEach(() => {
@@ -38,5 +39,25 @@ describe("client communication repository", () => {
       customerId: "customer-1", channel: "email", templateType: "blank", actionStatus: "whatsapp_opened",
       recipientSnapshot: "ayu@example.com", bodySnapshot: "Hi",
     })).rejects.toThrow("does not match");
+  });
+
+  it("accepts PostgreSQL timestamptz values returned by cloud communication reads", () => {
+    expect(clientCommunicationSchema.parse({
+      id: "communication-1",
+      businessId: "business-1",
+      customerId: "customer-1",
+      bookingId: "booking-1",
+      actorUserId: "user-1",
+      channel: "whatsapp",
+      templateType: "overdue_reminder",
+      actionStatus: "whatsapp_opened",
+      recipientSnapshot: "081234567890",
+      subject: null,
+      bodySnapshot: "Hi Ayu",
+      providerReference: null,
+      metadata: {},
+      createdAt: "2026-09-15T06:50:17.548193+00:00",
+      openedAt: "2026-09-15T06:50:17.679+00:00",
+    })).toMatchObject({ id: "communication-1" });
   });
 });

@@ -32,8 +32,8 @@ export const clientCommunicationSchema = z.object({
   bodySnapshot: z.string().min(1).max(4000),
   providerReference: z.string().max(500).nullable(),
   metadata: z.record(z.string(), safeMetadataValueSchema),
-  createdAt: z.string().datetime(),
-  openedAt: z.string().datetime().nullable(),
+  createdAt: z.string().datetime({ offset: true }),
+  openedAt: z.string().datetime({ offset: true }).nullable(),
 });
 
 export type ClientCommunication = z.infer<typeof clientCommunicationSchema>;
