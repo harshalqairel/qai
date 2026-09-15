@@ -136,8 +136,15 @@ export default function BookingsPage() {
     };
   });
 
+  const deepLinkDataLoading =
+    bookingData.isLoading ||
+    customerData.isLoading ||
+    serviceData.isLoading ||
+    paymentData.isLoading ||
+    expenseData.isLoading;
+
   useEffect(() => {
-    if (handledDeepLink.current || bookingData.isLoading) return;
+    if (handledDeepLink.current || deepLinkDataLoading) return;
     const timeoutId = window.setTimeout(() => {
       const params = new URLSearchParams(window.location.search);
       if (params.get("new") === "1") {
@@ -162,7 +169,7 @@ export default function BookingsPage() {
       handledDeepLink.current = true;
     }, 0);
     return () => window.clearTimeout(timeoutId);
-  }, [bookingData.isLoading, bookingsWithNames, customers]);
+  }, [bookingsWithNames, customers, deepLinkDataLoading]);
 
   const filteredBookings = bookingsWithNames.filter((booking) => {
     const matchesSearch =
