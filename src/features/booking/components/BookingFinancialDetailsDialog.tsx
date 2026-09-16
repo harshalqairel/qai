@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MoneyInput } from "@/components/ui/money-input";
@@ -143,21 +144,17 @@ export default function BookingFinancialDetailsDialog({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-[60] flex justify-end bg-black/40 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <section
-        aria-label={`Financial details for ${booking.customerName}`}
-        className="h-dvh w-full max-w-xl overflow-y-auto border-l border-border bg-white p-5 shadow-xl sm:p-8"
-        onClick={(event) => event.stopPropagation()}
+    <Dialog open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
+      <DialogContent
+        showCloseButton={false}
+        className="bottom-0 left-auto right-0 top-0 block h-dvh max-h-dvh w-full max-w-xl translate-x-0 translate-y-0 overflow-y-auto rounded-none border-y-0 border-r-0 border-l border-border bg-white p-5 shadow-xl sm:bottom-0 sm:top-0 sm:max-h-dvh sm:max-w-xl sm:translate-y-0 sm:rounded-none sm:p-8"
       >
         <div className="mb-8 flex items-start justify-between gap-4">
           <div>
-            <h2 className="dialog-title">Payment Details</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <DialogTitle className="dialog-title">Payment Details</DialogTitle>
+            <DialogDescription className="mt-2">
               {booking.customerName} · {booking.serviceName}
-            </p>
+            </DialogDescription>
           </div>
           <div className="flex shrink-0 items-center gap-1">
             <MessageClientButton context={messageContext} defaultTemplate={booking.remainingAmount ? "payment_reminder" : "appointment_reminder"} buttonProps={{ className: "hidden sm:inline-flex" }} />
@@ -286,7 +283,7 @@ export default function BookingFinancialDetailsDialog({
             {relatedInvoice ? "Open invoice" : "Create invoice"}
           </Button>
         </section>
-      </section>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
