@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { notify } from "@/lib/notifications";
@@ -100,21 +101,31 @@ export default function MessageClientDialog({ open, context, defaultTemplate = "
         <div className="grid gap-4">
           <div>
             <Label htmlFor="communication-channel">Channel</Label>
-            <select id="communication-channel" className="native-control mt-2" value={channel} onChange={(event) => changeChannel(event.target.value as CommunicationChannel)}>
-              <option value="whatsapp">WhatsApp</option>
-              <option value="email">Email</option>
-            </select>
+            <Select value={channel} onValueChange={(next) => { if (next) changeChannel(next as CommunicationChannel); }}>
+              <SelectTrigger id="communication-channel" className="mt-2 w-full">
+                <SelectValue>{channel === "whatsapp" ? "WhatsApp" : "Email"}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                <SelectItem value="email">Email</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div>
             <Label htmlFor="communication-template">Template</Label>
-            <select id="communication-template" className="native-control mt-2" value={templateType} onChange={(event) => applyTemplate(event.target.value as CommunicationTemplateType)}>
-              {COMMUNICATION_TEMPLATE_OPTIONS.map((template) => <option key={template.value} value={template.value}>{template.label}</option>)}
-            </select>
+            <Select value={templateType} onValueChange={(next) => { if (next) applyTemplate(next as CommunicationTemplateType); }}>
+              <SelectTrigger id="communication-template" className="mt-2 w-full">
+                <SelectValue>{COMMUNICATION_TEMPLATE_OPTIONS.find((template) => template.value === templateType)?.label}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {COMMUNICATION_TEMPLATE_OPTIONS.map((template) => <SelectItem key={template.value} value={template.value}>{template.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
           {channel === "email" && <div><Label htmlFor="communication-subject">Subject</Label><Input id="communication-subject" className="mt-2" maxLength={200} value={subject} onChange={(event) => setSubject(event.target.value)} /></div>}
-          <div>
+          <div className="min-w-0">
             <div className="flex items-end justify-between gap-3"><Label htmlFor="communication-body">Message</Label><span className="text-xs text-muted-foreground">{body.length}/4000</span></div>
-            <Textarea id="communication-body" className="mt-2 min-h-52" maxLength={4000} value={body} onChange={(event) => setBody(event.target.value)} />
+            <Textarea id="communication-body" className="mt-2 min-h-52 min-w-0 max-w-full [overflow-wrap:anywhere]" maxLength={4000} value={body} onChange={(event) => setBody(event.target.value)} />
           </div>
           <div>
             <p className="text-xs font-semibold text-muted-foreground">Insert booking details</p>

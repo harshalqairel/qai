@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CommunicationContext } from "../types";
@@ -65,5 +65,45 @@ describe("MessageClientDialog", () => {
     await user.type(message, "A carefully edited draft");
     rerender(<MessageClientDialog open context={{ ...context }} defaultTemplate="appointment_reminder" onClose={() => undefined} />);
     expect((screen.getByLabelText("Message") as HTMLTextAreaElement).value).toBe("A carefully edited draft");
+  });
+
+  it("keeps Message Client controls within the dialog and makes every select option accessible", async () => {
+    const user = userEvent.setup();
+    render(<MessageClientDialog open context={context} defaultTemplate="blank" onClose={() => undefined} />);
+
+    const channelTrigger = screen.getByRole("combobox", { name: "Channel" });
+    expect(channelTrigger.tagName).toBe("BUTTON");
+    expect(channelTrigger.className).toContain("w-full");
+    await user.click(channelTrigger);
+    let popup = document.querySelector<HTMLElement>("[data-slot='select-content'][data-open]");
+    expect(popup).toBeTruthy();
+    expect(popup?.className).toContain("w-(--anchor-width)");
+    expect(popup?.className).toContain("max-h-(--available-height)");
+    expect(popup?.className).toContain("overflow-x-hidden");
+    expect(within(popup!).getAllByRole("option")).toHaveLength(2);
+    await user.click(within(popup!).getByRole("option", { name: "Email" }));
+    expect(screen.getByLabelText("Subject")).toBeTruthy();
+
+    const templateTrigger = screen.getByRole("combobox", { name: "Template" });
+    expect(templateTrigger.tagName).toBe("BUTTON");
+    expect(templateTrigger.className).toContain("w-full");
+    await user.click(templateTrigger);
+    popup = document.querySelector<HTMLElement>("[data-slot='select-content'][data-open]");
+    expect(popup).toBeTruthy();
+    expect(popup?.className).toContain("w-(--anchor-width)");
+    expect(popup?.className).toContain("max-h-(--available-height)");
+    expect(popup?.className).toContain("overflow-x-hidden");
+    expect(within(popup!).getAllByRole("option")).toHaveLength(7);
+
+    await user.click(screen.getByRole("option", { name: "Payment received" }));
+    expect(screen.getByRole("combobox", { name: "Template" }).textContent).toContain("Payment received");
+    expect((screen.getByLabelText("Message") as HTMLTextAreaElement).value).toContain("We have recorded your payment.");
+
+    const message = screen.getByLabelText("Message") as HTMLTextAreaElement;
+    expect(message.className).toContain("min-w-0");
+    expect(message.className).toContain("max-w-full");
+    expect(message.className).toContain("[overflow-wrap:anywhere]");
+    fireEvent.change(message, { target: { value: "A".repeat(160) } });
+    expect(message.value).toBe("A".repeat(160));
   });
 });
