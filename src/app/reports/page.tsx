@@ -16,15 +16,18 @@ import { useExpenseCategories } from "@/features/expense-category/hooks/useExpen
 import { useExpenses } from "@/features/expense/hooks/useExpenses";
 import { getInvoiceSettings, invoiceRepository } from "@/features/invoice/invoice";
 import { usePayments } from "@/features/payment/hooks/usePayments";
+import { getRevenueByCategory } from "@/features/payment/utils/reportAggregations";
 import { downloadFinancialReport } from "@/features/reports/excelExport";
 import {
   buildFinancialReport,
+  dateIsInReportPeriod,
   type FinancialReport,
   type ReportPeriodPreset,
 } from "@/features/reports/financialReport";
 import { exportFinancialReportToGoogleDrive, exportFinancialReportToGoogleSheets } from "@/features/reports/googleSheetsExport";
 import { buildFinancialReportInsights } from "@/features/reports/reportInsights";
 import ReportPeriodSelector from "@/features/reports/ReportPeriodSelector";
+import { useServiceCategories } from "@/features/service-category/hooks/useServiceCategories";
 import { useServices } from "@/features/service/hooks/useServices";
 import { notify } from "@/lib/notifications";
 import { getActiveBusinessContext, type ActiveBusinessContext } from "@/lib/supabase/cloudRepositories";
@@ -44,24 +47,39 @@ function Breakdown({ title, subtitle, rows, currency, money = true }: { title: s
   return <section className="surface-card p-5 sm:p-6"><h2 className="font-semibold">{title}</h2><p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>{rows.length === 0 ? <p className="mt-6 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">No activity in this period.</p> : <div className="mt-6 space-y-4">{rows.map((row) => <div key={row.label}><div className="flex items-center justify-between gap-4 text-sm"><span className="min-w-0 truncate font-medium">{row.label}</span><strong className="shrink-0 tabular-nums">{money ? formatMoney(row.value, currency) : row.value.toLocaleString("en-US")}</strong></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(4, (row.value / maximum) * 100)}%` }} /></div></div>)}</div>}</section>;
 }
 
-function MoneyOverview({ report }: { report: FinancialReport }) {
-  return <section aria-label="Financial result" className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(18rem,.65fr)]"><article className="surface-card overflow-hidden"><div className="p-5 sm:p-6"><p className="section-kicker">Financial result</p><div className="mt-3 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-sm text-muted-foreground">Realized profit</p><p className={`mt-2 text-3xl font-bold tracking-tight tabular-nums sm:text-4xl ${report.summary.realizedProfit >= 0 ? "text-emerald-700" : "text-destructive"}`}>{formatMoney(report.summary.realizedProfit, report.currency)}</p></div><p className="max-w-xs text-sm leading-6 text-muted-foreground">Actual money received minus all expenses recorded in {report.period.label}.</p></div></div><dl className="grid grid-cols-2 divide-x divide-border border-t border-border bg-muted/30"><div className="p-4 sm:px-6"><dt className="text-xs text-muted-foreground">Money received</dt><dd className="mt-1 text-lg font-bold tabular-nums text-emerald-700">{formatMoney(report.summary.moneyReceived, report.currency)}</dd></div><div className="p-4 sm:px-6"><dt className="text-xs text-muted-foreground">Expenses</dt><dd className="mt-1 text-lg font-bold tabular-nums">{formatMoney(report.summary.expenses, report.currency)}</dd></div></dl></article><SummaryCard label="Unpaid amount" value={formatMoney(report.summary.outstanding, report.currency)} detail="Balances still due on active bookings in this period" tone="warning" /></section>;
-}
-
-function OperationalSummary({ report }: { report: FinancialReport }) {
+function ReportOverview({ report }: { report: FinancialReport }) {
   const rows = [
-    ["Expected booking value", formatMoney(report.summary.expectedBookingValue, report.currency)],
-    ["Est. job profit", formatMoney(report.summary.estimatedJobProfit, report.currency)],
-    ["Bookings", report.summary.bookings.toLocaleString("en-US")],
-    ["Schedules", report.summary.scheduledSessions.toLocaleString("en-US")],
+    { label: "Client total", value: report.summary.expectedBookingValue, detail: "Active booking value", tone: "text-foreground" },
+    { label: "Money received", value: report.summary.moneyReceived, detail: "Payments recorded", tone: "text-emerald-700" },
+    { label: "Outstanding", value: report.summary.outstanding, detail: "Still to collect", tone: "text-amber-700" },
+    { label: "Expenses", value: report.summary.expenses, detail: "Recorded this period", tone: "text-foreground" },
+    { label: "Profit", value: report.summary.estimatedJobProfit, detail: "Client total minus direct expenses", tone: report.summary.estimatedJobProfit >= 0 ? "text-emerald-700" : "text-destructive" },
   ];
-  return <dl aria-label="Booking financial summary" className="grid grid-cols-2 divide-x divide-y divide-border overflow-hidden rounded-xl border border-border bg-card shadow-sm lg:grid-cols-4 lg:divide-y-0">{rows.map(([label, value]) => <div key={label} className="min-w-0 p-4 sm:p-5"><dt className="text-xs font-medium text-muted-foreground">{label}</dt><dd className="mt-2 truncate text-lg font-bold tabular-nums sm:text-xl">{value}</dd></div>)}</dl>;
+  return <section aria-labelledby="report-overview-heading">
+    <div className="mb-3">
+      <p className="section-kicker">Overview</p>
+      <h2 id="report-overview-heading" className="mt-1 text-xl font-bold tracking-tight">{report.period.label}</h2>
+    </div>
+    <dl className="surface-card grid grid-cols-2 gap-px overflow-hidden bg-border sm:grid-cols-3 xl:grid-cols-5">
+      {rows.map((row, index) => <div key={row.label} className={`min-w-0 bg-card p-4 sm:p-5 ${index === 4 ? "col-span-2 sm:col-span-1" : ""}`}>
+        <dt className="text-xs font-medium text-muted-foreground">{row.label}</dt>
+        <dd className={`mt-2 truncate text-lg font-bold tabular-nums sm:text-xl ${row.tone}`}>{formatMoney(row.value, report.currency)}</dd>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">{row.detail}</p>
+      </div>)}
+    </dl>
+    <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
+      <span>{report.summary.bookings.toLocaleString("en-US")} bookings</span>
+      <span>{report.summary.scheduledSessions.toLocaleString("en-US")} schedules</span>
+      <span>Realized cash result: <strong className="font-semibold text-foreground">{formatMoney(report.summary.realizedProfit, report.currency)}</strong></span>
+    </div>
+  </section>;
 }
 
 export default function ReportsPage() {
   const bookingData = useBookings();
   const customerData = useCustomers();
   const serviceData = useServices();
+  const serviceCategoryData = useServiceCategories();
   const paymentData = usePayments();
   const expenseData = useExpenses();
   const categoryData = useExpenseCategories();
@@ -100,6 +118,21 @@ export default function ReportsPage() {
     for (const expense of report?.expenses ?? []) totals.set(expense.category, (totals.get(expense.category) ?? 0) + expense.amount);
     return [...totals].map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
   }, [report]);
+  const topServices = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const payment of report?.moneyReceived ?? []) totals.set(payment.service, (totals.get(payment.service) ?? 0) + payment.amount);
+    return [...totals].map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
+  }, [report]);
+  const revenueCategories = useMemo(() => {
+    if (!report) return [];
+    const bookingIds = new Set(bookingData.bookings.map((booking) => booking.id));
+    return getRevenueByCategory(
+      bookingData.bookings,
+      serviceData.services,
+      serviceCategoryData.categories,
+      paymentData.payments.filter((payment) => bookingIds.has(payment.bookingId) && dateIsInReportPeriod(payment.date, report.period)),
+    ).filter((item) => item.revenue > 0).sort((a, b) => b.revenue - a.revenue).map((item) => ({ label: item.categoryName, value: item.revenue }));
+  }, [report, bookingData.bookings, serviceData.services, serviceCategoryData.categories, paymentData.payments]);
   const bookingStatuses = useMemo(() => {
     const totals = new Map<string, number>();
     for (const booking of report?.bookings ?? []) totals.set(booking.status, (totals.get(booking.status) ?? 0) + 1);
@@ -140,7 +173,7 @@ export default function ReportsPage() {
     finally { setExporting(null); }
   }
 
-  const dataSources = [bookingData, customerData, serviceData, paymentData, expenseData, categoryData];
+  const dataSources = [bookingData, customerData, serviceData, serviceCategoryData, paymentData, expenseData, categoryData];
   if (dataSources.some((source) => source.isLoading) || !business) return <main className="min-h-screen"><PageSkeleton variant="list" /></main>;
   if (dataSources.some((source) => source.loadError)) return <main className="min-h-screen"><div className="page-shell"><DataErrorState onRetry={() => dataSources.forEach((source) => source.retry())} /></div></main>;
 
@@ -148,10 +181,14 @@ export default function ReportsPage() {
     <header><h1 className="page-title">Financial reports</h1><p className="mt-2 max-w-2xl text-sm text-muted-foreground sm:text-base">A concise view of business performance. Detailed records remain available in your exports.</p></header>
     <section className="surface-card grid gap-4 p-4 sm:p-6 lg:grid-cols-[1fr_auto] lg:items-end"><div className="grid gap-4 sm:grid-cols-3"><div><Label className="mb-2 block">Report period</Label><ReportPeriodSelector value={{ preset, selectedMonth, customFrom, customTo }} currentMonth={instantParts(new Date().toISOString(), business.timezone).date.slice(0, 7)} resolvedLabel={report?.period.label} includeCustom className="w-full" onChange={(next) => { setPreset(next.preset); setSelectedMonth(next.selectedMonth ?? ""); }} /></div>{preset === "custom" && <><div><Label className="mb-2 block">From</Label><Input type="date" value={customFrom} onChange={(event) => setCustomFrom(event.target.value)} /></div><div><Label className="mb-2 block">To</Label><Input type="date" value={customTo} onChange={(event) => setCustomTo(event.target.value)} /></div></>}</div><DropdownMenu><DropdownMenuTrigger render={<Button variant="outline" disabled={!report || exporting !== null} />}><Download className="size-4" />{exporting ? "Exporting…" : "Export"}</DropdownMenuTrigger><DropdownMenuContent align="end" className="w-52"><DropdownMenuItem onClick={() => void exportExcel()}><Download className="size-4" />Excel (.xlsx)</DropdownMenuItem><DropdownMenuItem onClick={() => void exportSheets()}><FileSpreadsheet className="size-4" />Google Sheets</DropdownMenuItem><DropdownMenuItem onClick={() => void exportDrive()}><FolderUp className="size-4" />Google Drive</DropdownMenuItem></DropdownMenuContent></DropdownMenu>{googleExport && googleExport.periodLabel === report?.period.label && <a className="font-semibold text-primary hover:underline lg:col-span-2" href={googleExport.url} target="_blank" rel="noreferrer">Open in Google {googleExport.kind} <ExternalLink className="ml-1 inline size-4" /></a>}</section>
     {!report ? <p className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">Choose a valid custom date range.</p> : <>
-      <MoneyOverview report={report} />
-      <OperationalSummary report={report} />
+      <ReportOverview report={report} />
       {insights && <section aria-labelledby="report-insights-heading"><div className="mb-3 flex flex-wrap items-end justify-between gap-2"><div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Business insights</p><h2 id="report-insights-heading" className="mt-1 text-lg font-bold">What to act on</h2></div><p className="text-xs text-muted-foreground">Period cards use {report.period.label}; upcoming payments use a separate forward window.</p></div><div className="grid grid-cols-2 gap-3 lg:grid-cols-4"><SummaryCard label="Upcoming payments" value={formatMoney(insights.upcomingPayments.amount, report.currency)} detail={`Next 7 days through ${insights.upcomingPayments.throughDate} · ${insights.upcomingPayments.bookings} bookings`} tone="warning" /><SummaryCard label="Average booking value" value={formatMoney(insights.averageBookingValue, report.currency)} detail={`${insights.financiallyActiveBookings} active bookings in ${report.period.label}`} /><SummaryCard label="Top service" value={insights.topService?.name ?? "—"} detail={insights.topService ? `${formatMoney(insights.topService.amount, report.currency)} received in ${report.period.label}` : `No received payments in ${report.period.label}`} /><SummaryCard label="Busiest schedule day" value={insights.busiestScheduleDay?.label ?? "—"} detail={insights.busiestScheduleDay ? `${insights.busiestScheduleDay.schedules} schedules in ${report.period.label}` : `No schedules in ${report.period.label}`} /></div></section>}
-      <div className="grid gap-5 lg:grid-cols-2"><Breakdown title="Expenses" subtitle="Expenses by category" rows={expenseCategories} currency={report.currency} /><Breakdown title="Booking volume" subtitle="Bookings by current status" rows={bookingStatuses} currency={report.currency} money={false} /></div>
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Breakdown title="Top services" subtitle="Money received by service" rows={topServices} currency={report.currency} />
+        <Breakdown title="Revenue" subtitle="Money received by service category" rows={revenueCategories} currency={report.currency} />
+        <Breakdown title="Expenses" subtitle="Expenses by category" rows={expenseCategories} currency={report.currency} />
+        <Breakdown title="Booking volume" subtitle="Bookings by current status" rows={bookingStatuses} currency={report.currency} money={false} />
+      </div>
       <p className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">Exports include transaction-level sheets for Income, Expenses, Job Profit, Outstanding, Bookings, Schedule, and Invoices. Multi-session bookings remain one financial row; each schedule is exported separately.</p>
     </>}
   </div></main>;

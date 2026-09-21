@@ -10,7 +10,18 @@ export const DASHBOARD_SECTION_LABELS: Record<DashboardSectionId, string> = {
   "due-soon": "Payments due soon", overdue: "Overdue payments", requests: "New requests",
 };
 
-export const DEFAULT_DASHBOARD_PREFERENCES: DashboardPreference[] = DASHBOARD_SECTION_IDS.map((id) => ({ id, visible: true }));
+const DEFAULT_HIDDEN_SECTIONS = new Set<DashboardSectionId>([
+  "income",
+  "expenses",
+  "yearly",
+  "due-soon",
+  "overdue",
+]);
+
+export const DEFAULT_DASHBOARD_PREFERENCES: DashboardPreference[] = DASHBOARD_SECTION_IDS.map((id) => ({
+  id,
+  visible: !DEFAULT_HIDDEN_SECTIONS.has(id),
+}));
 const preferenceSchema = z.array(z.object({ id: z.enum(DASHBOARD_SECTION_IDS), visible: z.boolean() }));
 const STORAGE_KEY = "qai:dashboard-preferences";
 

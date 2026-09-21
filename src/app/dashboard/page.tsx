@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import DashboardHeader from "@/features/dashboard/components/DashboardHeader";
 import GettingStartedGuide from "@/features/dashboard/components/GettingStartedGuide";
-import KPICard from "@/features/dashboard/components/KPICard";
 import TodaySchedule from "@/features/dashboard/components/TodaySchedule";
 import UpcomingJobs from "@/features/dashboard/components/UpcomingJobs";
 import RevenueChart from "@/features/dashboard/components/RevenueChart";
@@ -19,7 +18,7 @@ import { loadDashboardPreferences, saveDashboardPreferences, type DashboardPrefe
 import type { PublicRequest } from "@/features/qai-page/validation";
 import { Button } from "@/components/ui/button";
 import NeedsAttention from "@/features/dashboard/components/NeedsAttention";
-import { BookOpenCheck, FileText, ReceiptText, UserPlus } from "lucide-react";
+import { ArrowRight, BookOpenCheck, FileText, ReceiptText, UserPlus } from "lucide-react";
 import useOperationalAttention from "@/features/dashboard/hooks/useOperationalAttention";
 import ReportPeriodSelector from "@/features/reports/ReportPeriodSelector";
 import { formatRupiah } from "@/features/payment/utils/paymentCalculations";
@@ -73,7 +72,7 @@ export default function DashboardPage() {
             </div>
             <Link href="/calendar" className="text-sm font-semibold text-primary hover:underline">Open calendar</Link>
           </div>
-          <div className="grid min-w-0 gap-0 lg:gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(21rem,.65fr)]">
+          <div className="grid min-w-0 items-start gap-0 lg:gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(21rem,.65fr)]">
             <div className="-mx-4 min-w-0 border-t border-[var(--dashboard-border)] bg-card px-4 py-5 lg:mx-0 lg:rounded-xl lg:border lg:p-6 lg:shadow-[var(--shadow-surface)]"><TodaySchedule items={dashboard.todaysSchedule} timezone={dashboard.timezone} /></div>
             <NeedsAttention
               items={attention.items}
@@ -82,25 +81,14 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {(isVisible("income") || isVisible("expenses") || isVisible("profit") || isVisible("unpaid")) && <section aria-labelledby="money-snapshot-heading">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div><p className="section-kicker lg:hidden">Money</p><p className="section-kicker hidden lg:block">Money snapshot</p><h2 id="money-snapshot-heading" className="mt-1 hidden text-xl font-bold tracking-tight lg:block">Know what moved</h2></div>
-            <ReportPeriodSelector value={period} currentMonth={dashboard.currentMonth} resolvedLabel={dashboard.financialReport.period.label} onChange={setPeriod} className="h-10 w-36 border-0 bg-transparent px-2 shadow-none" />
-          </div>
-          <MobileMoneySnapshot metrics={dashboard.metrics.filter((metric) => !["Income", "Expenses"].includes(metric.label) && isVisible(METRIC_SECTION_IDS[metric.label]))} periodQuery={periodQuery} />
-          <div className="mt-4 grid min-w-0 gap-4 sm:grid-cols-2 lg:hidden">
-            {isVisible("income") && <FinancialAnalyticsCard title="Income by category" total={dashboard.financialReport.summary.moneyReceived} period={dashboard.financialReport.period.label} categories={dashboard.incomeByCategory.map((entry) => ({ id: entry.categoryId, name: entry.categoryName, amount: entry.revenue, color: entry.categoryColor }))} href={`/reports?${periodQuery}#income`} emptyMessage="No income recorded in this period." tone="income" />}
-            {isVisible("expenses") && <FinancialAnalyticsCard title="Expenses by category" total={dashboard.financialReport.summary.expenses} period={dashboard.financialReport.period.label} categories={dashboard.expenseByCategory.map((entry) => ({ id: entry.categoryId, name: entry.category, amount: entry.amount, color: entry.categoryColor }))} href={`/reports?${periodQuery}#expenses`} emptyMessage="No expenses recorded in this period." tone="expenses" />}
-          </div>
-          <div className="hidden min-w-0 gap-5 lg:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(17rem,.62fr)]">
-            {isVisible("income") && <FinancialAnalyticsCard title="Income by category" total={dashboard.financialReport.summary.moneyReceived} period={dashboard.financialReport.period.label} categories={dashboard.incomeByCategory.map((entry) => ({ id: entry.categoryId, name: entry.categoryName, amount: entry.revenue, color: entry.categoryColor }))} href={`/reports?${periodQuery}#income`} emptyMessage="No income recorded in this period." tone="income" />}
-            {isVisible("expenses") && <FinancialAnalyticsCard title="Expenses by category" total={dashboard.financialReport.summary.expenses} period={dashboard.financialReport.period.label} categories={dashboard.expenseByCategory.map((entry) => ({ id: entry.categoryId, name: entry.category, amount: entry.amount, color: entry.categoryColor }))} href={`/reports?${periodQuery}#expenses`} emptyMessage="No expenses recorded in this period." tone="expenses" />}
-            <div className="grid min-w-0 gap-5 sm:grid-cols-2 xl:grid-cols-1">
-              {isVisible("profit") && <KPICard metric={dashboard.metrics.find((entry) => entry.label === "Profit")!} periodQuery={periodQuery} />}
-              {isVisible("unpaid") && <KPICard metric={dashboard.metrics.find((entry) => entry.label === "Unpaid amount")!} periodQuery={periodQuery} />}
-            </div>
-          </div>
-        </section>}
+        <MonthlySnapshot
+          metrics={dashboard.metrics.filter((metric) => metric.label === "Income" || (metric.label !== "Expenses" && isVisible(METRIC_SECTION_IDS[metric.label])))}
+          period={period}
+          currentMonth={dashboard.currentMonth}
+          resolvedLabel={dashboard.financialReport.period.label}
+          periodQuery={periodQuery}
+          onPeriodChange={setPeriod}
+        />
 
         {isVisible("setup") && dashboard.showSetupGuide && <GettingStartedGuide {...dashboard.setupGuideProgress} />}
 
@@ -117,7 +105,20 @@ export default function DashboardPage() {
           </div>
         </section>}
 
-        {isVisible("yearly") && <div className={CARD_CLASS}><RevenueChart data={dashboard.revenueSeries} /></div>}
+        {(isVisible("income") || isVisible("expenses") || isVisible("yearly")) && <section aria-labelledby="dashboard-insights-heading">
+          <div className="mb-3 flex items-end justify-between gap-3">
+            <div>
+              <p className="section-kicker">More insights</p>
+              <h2 id="dashboard-insights-heading" className="mt-1 text-xl font-bold tracking-tight">Understand the detail</h2>
+            </div>
+            <Link href={`/reports?${periodQuery}`} className="shrink-0 text-sm font-semibold text-primary hover:underline">View reports</Link>
+          </div>
+          <div className="grid min-w-0 gap-5 lg:grid-cols-2">
+            {isVisible("income") && <FinancialAnalyticsCard title="Income by category" total={dashboard.financialReport.summary.moneyReceived} period={dashboard.financialReport.period.label} categories={dashboard.incomeByCategory.map((entry) => ({ id: entry.categoryId, name: entry.categoryName, amount: entry.revenue, color: entry.categoryColor }))} href={`/reports?${periodQuery}#income`} emptyMessage="No income recorded in this period." tone="income" />}
+            {isVisible("expenses") && <FinancialAnalyticsCard title="Expenses by category" total={dashboard.financialReport.summary.expenses} period={dashboard.financialReport.period.label} categories={dashboard.expenseByCategory.map((entry) => ({ id: entry.categoryId, name: entry.category, amount: entry.amount, color: entry.categoryColor }))} href={`/reports?${periodQuery}#expenses`} emptyMessage="No expenses recorded in this period." tone="expenses" />}
+            {isVisible("yearly") && <div className={`${CARD_CLASS} lg:col-span-2`}><RevenueChart data={dashboard.revenueSeries} /></div>}
+          </div>
+        </section>}
 
       </div>
       <CustomizeDashboardDialog open={customizeOpen} value={preferences} onChange={updatePreferences} onClose={() => setCustomizeOpen(false)} />
@@ -135,15 +136,42 @@ function DashboardQuickActions() {
   return <section aria-label="Quick actions" className="hidden grid-cols-4 gap-2 lg:grid">{actions.map(({ href, label, detail, Icon }) => <Link key={href} href={href} className="group flex min-h-16 items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-sm transition hover:border-primary/40 hover:bg-muted/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/8 text-primary"><Icon className="size-4.5" aria-hidden="true" /></span><span className="min-w-0"><span className="block truncate text-sm font-semibold">{label}</span><span className="block truncate text-xs text-muted-foreground">{detail}</span></span></Link>)}</section>;
 }
 
-function MobileMoneySnapshot({ metrics, periodQuery }: { metrics: KPI[]; periodQuery: string }) {
+function MonthlySnapshot({
+  metrics,
+  period,
+  currentMonth,
+  resolvedLabel,
+  periodQuery,
+  onPeriodChange,
+}: {
+  metrics: KPI[];
+  period: ReportPeriodInput;
+  currentMonth: string;
+  resolvedLabel: string;
+  periodQuery: string;
+  onPeriodChange: (value: ReportPeriodInput) => void;
+}) {
   if (metrics.length === 0) return null;
   const hrefFor = (metric: KPI) => metric.label === "Unpaid amount" ? "/bookings?payment=outstanding" : `/reports?${periodQuery}#${metric.label === "Income" ? "income" : metric.label.toLowerCase()}`;
-  return <div className="-mx-4 grid grid-cols-2 border-y border-border bg-card lg:hidden">
-    {metrics.map((metric, index) => <Link key={metric.label} href={hrefFor(metric)} className={`min-w-0 px-4 py-4 ${index % 2 === 0 ? "border-r border-border" : ""} ${index >= 2 ? "border-t border-border" : ""}`}>
-      <span className="block text-xs font-medium text-muted-foreground">{metric.label === "Income" ? "Received" : metric.label}</span>
-      <span className="mt-1 block truncate text-lg font-bold tabular-nums text-foreground">{formatRupiah(metric.value)}</span>
-    </Link>)}
-  </div>;
+  const labelFor = (metric: KPI) => metric.label === "Income" ? "Money received" : metric.label === "Unpaid amount" ? "Outstanding" : metric.label;
+  return <section aria-labelledby="money-snapshot-heading">
+    <div className="mb-3 flex items-end justify-between gap-3">
+      <div>
+        <p className="section-kicker">This month</p>
+        <h2 id="money-snapshot-heading" className="mt-1 text-xl font-bold tracking-tight">Money overview</h2>
+      </div>
+      <ReportPeriodSelector value={period} currentMonth={currentMonth} resolvedLabel={resolvedLabel} onChange={onPeriodChange} className="h-10 w-36 bg-card px-2 shadow-none" />
+    </div>
+    <div className="surface-card grid min-w-0 grid-cols-2 gap-px overflow-hidden bg-border sm:grid-cols-[repeat(3,minmax(0,1fr))_auto]">
+      {metrics.map((metric, index) => <Link key={metric.label} href={hrefFor(metric)} className={`min-w-0 bg-card px-4 py-4 transition-colors hover:bg-muted/50 sm:px-5 ${index === 2 ? "col-span-2 sm:col-span-1" : ""}`}>
+        <span className="block text-xs font-medium text-muted-foreground">{labelFor(metric)}</span>
+        <span className="mt-1 block truncate text-lg font-bold tabular-nums text-foreground sm:text-xl">{formatRupiah(metric.value)}</span>
+      </Link>)}
+      <Link href={`/reports?${periodQuery}`} className="col-span-2 flex min-h-14 items-center justify-between gap-3 bg-card px-4 text-sm font-semibold text-primary transition-colors hover:bg-muted/50 sm:col-span-1 sm:px-5">
+        View reports <ArrowRight className="size-4" aria-hidden="true" />
+      </Link>
+    </div>
+  </section>;
 }
 
 function NewRequestsCard({ requests }: { requests: PublicRequest[] }) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeQaiSpaceTab, qaiSpaceHref } from "./qaiSpaceRouting";
+import { normalizeQaiSpaceTab, QAI_SPACE_OWNER_STEPS, qaiSpaceHref } from "./qaiSpaceRouting";
 
 describe("Qai Space owner routing", () => {
   it("uses Profile as the safe default", () => {
@@ -20,5 +20,17 @@ describe("Qai Space owner routing", () => {
   it("generates only canonical owner links", () => {
     expect(qaiSpaceHref()).toBe("/space");
     expect(qaiSpaceHref("Requests")).toBe("/space?tab=Requests");
+  });
+
+  it("presents the owner setup in a clear launch sequence without changing route identities", () => {
+    expect(QAI_SPACE_OWNER_STEPS).toEqual([
+      { tab: "Design", label: "Template & style" },
+      { tab: "Profile", label: "Business" },
+      { tab: "Services", label: "Services" },
+      { tab: "Portfolio", label: "Portfolio" },
+      { tab: "Booking", label: "Booking request" },
+      { tab: "Requests", label: "Requests" },
+      { tab: "Preview", label: "Preview & share" },
+    ]);
   });
 });

@@ -40,10 +40,11 @@ export default function PageSkeleton({ variant }: PageSkeletonProps) {
       {variant === "dashboard" && (
         <>
           <HeaderSkeleton />
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {Array.from({ length: 4 }, (_, index) => <Skeleton key={index} className="h-32" />)}
+          <div className="grid gap-5 lg:grid-cols-2">
+            <Skeleton className="h-64" />
+            <Skeleton className="h-64" />
           </div>
-          <Skeleton className="h-72" />
+          <Skeleton className="h-28" />
           <div className="grid gap-5 lg:grid-cols-2">
             <Skeleton className="h-64" />
             <Skeleton className="h-64" />

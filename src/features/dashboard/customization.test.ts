@@ -11,7 +11,20 @@ import {
 describe("dashboard customization", () => {
   it("provides a complete polished default layout", () => {
     expect(DEFAULT_DASHBOARD_PREFERENCES.map((item) => item.id)).toEqual(DASHBOARD_SECTION_IDS);
-    expect(DEFAULT_DASHBOARD_PREFERENCES.every((item) => item.visible)).toBe(true);
+    expect(DEFAULT_DASHBOARD_PREFERENCES.filter((item) => item.visible).map((item) => item.id)).toEqual([
+      "setup",
+      "profit",
+      "unpaid",
+      "upcoming",
+      "requests",
+    ]);
+    expect(DEFAULT_DASHBOARD_PREFERENCES.filter((item) => !item.visible).map((item) => item.id)).toEqual([
+      "income",
+      "expenses",
+      "yearly",
+      "due-soon",
+      "overdue",
+    ]);
   });
 
   it("shows, hides, and reorders sections without changing their identity", () => {
