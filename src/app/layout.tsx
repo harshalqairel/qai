@@ -7,6 +7,7 @@ import { AppearanceThemeProvider } from "@/features/appearance/AppearanceThemePr
 import ServiceWorkerRegistration from "@/components/system/ServiceWorkerRegistration";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://qai-two.vercel.app"),
   title: "Qai",
   description: "Run your business, delight your clients, and grow with one connected workspace.",
   applicationName: "Qai",

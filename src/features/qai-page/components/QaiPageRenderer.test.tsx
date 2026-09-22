@@ -26,6 +26,15 @@ const service = {
   featured: false,
 };
 
+const templateExpectations = {
+  Muse: { structure: "hero-gallery", hero: "immersive-gallery", order: "portfolio,services,about" },
+  Studio: { structure: "editorial-grid", hero: "studio-grid", order: "about,portfolio,services" },
+  Signature: { structure: "minimal-studio", hero: "quiet-split", order: "about,services,portfolio" },
+  Professional: { structure: "service-focus", hero: "service-intro", order: "services,about,portfolio" },
+  Warm: { structure: "full-portfolio", hero: "story-cover", order: "portfolio,about,services" },
+  Editorial: { structure: "magazine-portfolio", hero: "magazine-masthead", order: "about,portfolio,services" },
+} as const;
+
 describe("QaiPageRenderer", () => {
   it.each(QAI_PAGE_TEMPLATES)("renders the %s layout without mutating operational services", async (template) => {
     const user = userEvent.setup();
@@ -35,6 +44,9 @@ describe("QaiPageRenderer", () => {
     const { container, unmount } = render(<QaiPageRenderer page={page} services={page.services} portfolio={[]} onChoose={onChoose} />);
 
     expect(container.querySelector(`[data-template="${template}"]`)).toBeTruthy();
+    expect(container.querySelector("[data-qai-page-root]")?.getAttribute("data-template-structure")).toBe(templateExpectations[template].structure);
+    expect(container.querySelector("[data-qai-page-root]")?.getAttribute("data-section-order")).toBe(templateExpectations[template].order);
+    expect(container.querySelector("[data-qai-hero-layout]")?.getAttribute("data-qai-hero-layout")).toBe(templateExpectations[template].hero);
     expect(container.querySelector("[data-qai-page-root]")?.className).toContain("w-full");
     expect(container.querySelector("[data-qai-page-root]")?.className).toContain("max-w-none");
     expect(screen.getAllByText("Nuyi Studio").length).toBeGreaterThan(0);
@@ -46,6 +58,28 @@ describe("QaiPageRenderer", () => {
     expect(onChoose).toHaveBeenCalledWith(service, null);
     expect(page.services).toEqual(before);
     unmount();
+  });
+
+  it.each(QAI_PAGE_TEMPLATES)("gives the %s portfolio its template-specific structure", (template) => {
+    const page = { ...defaultQaiPage(), template, businessName: "A very long independent studio name that must wrap safely" };
+    const portfolio = [
+      { id: "one", workTitle: "First story", imageUrl: "/one.jpg", caption: "One", serviceId: null, visible: true, position: 0 },
+      { id: "two", workTitle: "Second story", imageUrl: "/two.jpg", caption: "Two", serviceId: null, visible: true, position: 1 },
+      { id: "three", workTitle: "Third story", imageUrl: "/three.jpg", caption: "Three", serviceId: null, visible: true, position: 2 },
+    ];
+    const { container } = render(<QaiPageRenderer page={page} services={[{ ...service, title: "A deliberately long service name that remains readable across narrow screens" }]} portfolio={portfolio} />);
+
+    expect(container.querySelector("[data-portfolio-layout]")?.getAttribute("data-portfolio-layout")).toBe(templateExpectations[template].structure);
+    expect(container.querySelectorAll("[data-portfolio-item]")).toHaveLength(3);
+    expect(container.querySelector("[data-service-layout]")?.getAttribute("data-service-layout")).toBe(templateExpectations[template].structure);
+  });
+
+  it("preserves an explicitly customized section order", () => {
+    const base = defaultQaiPage();
+    const page = { ...base, template: "Professional" as const, style: { ...base.style, sectionOrder: ["about", "services", "portfolio"] as Array<"about" | "services" | "portfolio"> } };
+    const { container } = render(<QaiPageRenderer page={page} services={[service]} portfolio={[]} />);
+
+    expect(container.querySelector("[data-qai-page-root]")?.getAttribute("data-section-order")).toBe("about,services,portfolio");
   });
 
   it("selects only valid service option combinations and updates the public price and duration", async () => {

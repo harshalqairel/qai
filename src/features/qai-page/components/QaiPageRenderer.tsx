@@ -40,6 +40,30 @@ type ServiceGridVariables = CSSProperties & Record<`--qai-service-${string}`, st
 
 const NAV_LINKS = ["about", "portfolio", "services"] as const;
 
+const TEMPLATE_STRUCTURE: Record<QaiPageConfig["template"], string> = {
+  Muse: "hero-gallery",
+  Studio: "editorial-grid",
+  Signature: "minimal-studio",
+  Professional: "service-focus",
+  Warm: "full-portfolio",
+  Editorial: "magazine-portfolio",
+};
+
+const TEMPLATE_DEFAULT_SECTION_ORDER: Record<QaiPageConfig["template"], Array<(typeof NAV_LINKS)[number]>> = {
+  Muse: ["portfolio", "services", "about"],
+  Studio: ["about", "portfolio", "services"],
+  Signature: ["about", "services", "portfolio"],
+  Professional: ["services", "about", "portfolio"],
+  Warm: ["portfolio", "about", "services"],
+  Editorial: ["about", "portfolio", "services"],
+};
+
+function templateSectionOrder(page: QaiPageConfig): Array<(typeof NAV_LINKS)[number]> {
+  const configured = normalizedPageSectionOrder(page.style);
+  const untouchedDefault = configured.join(",") === "portfolio,services,about";
+  return untouchedDefault ? TEMPLATE_DEFAULT_SECTION_ORDER[page.template] : configured;
+}
+
 function TikTokIcon({ className }: { className?: string }) {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true"><path d="M14.5 4v10.1a4.6 4.6 0 1 1-3.9-4.55" /><path d="M14.5 4c.45 2.45 1.85 3.9 4.25 4.35" /></svg>;
 }
@@ -90,12 +114,12 @@ function HeroText({ page, inverse = false, centered = false, onPrimary }: { page
 
 function Hero({ page, onPrimary }: { page: QaiPageConfig; onPrimary?: () => void }) {
   const image = page.coverImage;
-  if (page.template === "Signature") return <><PageNav page={page} /><header className="mx-auto grid max-w-[86rem] gap-8 px-5 py-12 sm:px-8 sm:py-16 lg:grid-cols-[.78fr_1.22fr] lg:items-center lg:py-20"><HeroText page={page} onPrimary={onPrimary} />{image ? <img src={image} alt="" className="max-h-[35rem] w-full object-contain" /> : <div className="aspect-[7/4] bg-[linear-gradient(135deg,var(--page-surface),var(--page-accent))] opacity-65" />}</header></>;
-  if (page.template === "Studio") return <div className="bg-[#090d12] text-white"><PageNav page={page} inverse /><header className="qai-page-immersive-hero relative isolate mx-auto min-h-[34rem] max-w-[86rem] overflow-hidden lg:min-h-[42rem]">{image ? <img src={image} alt="" className="absolute inset-0 -z-20 size-full object-cover" /> : <div className="absolute inset-0 -z-20 bg-[linear-gradient(115deg,#0a0d11,var(--page-accent),#101826)]" />}<div className="absolute inset-0 -z-10 bg-gradient-to-r from-black/90 via-black/55 to-black/15" /><div className="qai-page-immersive-content flex min-h-[34rem] items-end px-5 py-12 sm:px-10 lg:min-h-[42rem] lg:px-14 lg:py-16"><HeroText page={page} inverse onPrimary={onPrimary} /></div></header></div>;
-  if (page.template === "Professional") return <div className="bg-[#0b1119] text-white"><PageNav page={page} inverse /><header className="qai-page-immersive-hero relative isolate min-h-[33rem] overflow-hidden lg:min-h-[41rem]">{image ? <img src={image} alt="" className="absolute inset-0 -z-20 size-full object-cover object-center" /> : <div className="absolute inset-0 -z-20 bg-[linear-gradient(130deg,#071017,var(--page-accent),#1c2736)]" />}<div className="absolute inset-0 -z-10 bg-gradient-to-r from-black/90 via-black/60 to-black/10" /><div className="qai-page-immersive-content mx-auto flex min-h-[33rem] max-w-[86rem] items-center px-5 py-12 sm:px-8 lg:min-h-[41rem]"><HeroText page={page} inverse onPrimary={onPrimary} /></div></header></div>;
-  if (page.template === "Warm") return <div className="bg-[#0b1119] text-white"><PageNav page={page} inverse /><header className="qai-page-immersive-hero relative isolate min-h-[34rem] overflow-hidden lg:min-h-[44rem]">{image ? <img src={image} alt="" className="absolute inset-0 -z-20 size-full object-cover" /> : <div className="absolute inset-0 -z-20 bg-[linear-gradient(120deg,#111622,var(--page-accent),#3f253c)]" />}<div className="absolute inset-0 -z-10 bg-gradient-to-r from-black/90 via-black/45 to-transparent" /><div className="qai-page-immersive-content mx-auto flex min-h-[34rem] max-w-[86rem] items-center px-5 py-12 sm:px-8 lg:min-h-[44rem]"><HeroText page={page} inverse onPrimary={onPrimary} /></div></header></div>;
-  if (page.template === "Editorial") return <><PageNav page={page} /><header className="mx-auto max-w-[86rem] px-5 py-10 sm:px-8"><div className="border-y border-[var(--page-border)] py-6 text-center"><HeroText page={page} centered onPrimary={onPrimary} /></div>{image && <img src={image} alt="" className="mt-8 max-h-[42rem] w-full object-contain" />}</header></>;
-  return <div className="bg-[#0b1119] text-white"><PageNav page={page} inverse /><header className="qai-page-immersive-hero relative isolate min-h-[34rem] overflow-hidden lg:min-h-[43rem]">{image ? <img src={image} alt="" className="absolute inset-0 -z-20 size-full object-cover" /> : <div className="absolute inset-0 -z-20 bg-[linear-gradient(120deg,#0a0e16,var(--page-accent),#293b64)]" />}<div className="absolute inset-0 -z-10 bg-gradient-to-r from-black/90 via-black/50 to-black/10" /><div className="qai-page-immersive-content mx-auto flex min-h-[34rem] max-w-[86rem] items-center px-5 py-12 sm:px-8 lg:min-h-[43rem]"><HeroText page={page} inverse onPrimary={onPrimary} /></div></header></div>;
+  if (page.template === "Signature") return <><PageNav page={page} /><header data-qai-hero-layout="quiet-split" className="mx-auto grid max-w-[78rem] gap-10 px-5 py-14 sm:px-8 sm:py-20 lg:grid-cols-[.72fr_1.28fr] lg:items-center lg:py-28"><HeroText page={page} onPrimary={onPrimary} />{image ? <img src={image} alt="" className="max-h-[34rem] w-full object-contain" /> : <div className="aspect-[7/4] border border-[var(--page-border)] bg-[var(--page-surface)]" />}</header></>;
+  if (page.template === "Studio") return <div className="bg-[#090d12] text-white"><PageNav page={page} inverse /><header data-qai-hero-layout="studio-grid" className="mx-auto grid max-w-[86rem] gap-px bg-white/15 md:grid-cols-[1.08fr_.92fr]"><div className="min-h-[26rem] bg-[#0d1219] p-6 sm:p-10 lg:min-h-[38rem] lg:p-14"><div className="flex h-full items-end"><HeroText page={page} inverse onPrimary={onPrimary} /></div></div>{image ? <img src={image} alt="" className="h-full min-h-[24rem] w-full object-cover" /> : <div className="min-h-[24rem] bg-[linear-gradient(145deg,var(--page-accent),#172231)]" />}</header></div>;
+  if (page.template === "Professional") return <div className="bg-[#0b1119] text-white"><PageNav page={page} inverse /><header data-qai-hero-layout="service-intro" className="relative isolate overflow-hidden border-b border-white/15">{image ? <img src={image} alt="" className="absolute inset-0 -z-20 size-full object-cover opacity-35" /> : null}<div className="absolute inset-0 -z-10 bg-gradient-to-r from-[#0b1119] via-[#0b1119]/95 to-[#0b1119]/65" /><div className="mx-auto flex min-h-[28rem] max-w-[76rem] items-center px-5 py-12 sm:px-8 lg:min-h-[32rem]"><HeroText page={page} inverse onPrimary={onPrimary} /></div></header></div>;
+  if (page.template === "Warm") return <div className="bg-[#0b1119] text-white"><PageNav page={page} inverse /><header data-qai-hero-layout="story-cover" className="qai-page-immersive-hero relative isolate min-h-[34rem] overflow-hidden lg:min-h-[46rem]">{image ? <img src={image} alt="" className="absolute inset-0 -z-20 size-full object-cover" /> : <div className="absolute inset-0 -z-20 bg-[linear-gradient(120deg,#111622,var(--page-accent),#3f253c)]" />}<div className="absolute inset-0 -z-10 bg-gradient-to-t from-black/90 via-black/20 to-black/20" /><div className="qai-page-immersive-content mx-auto flex min-h-[34rem] max-w-[86rem] items-end px-5 py-12 sm:px-8 lg:min-h-[46rem] lg:pb-16"><div className="max-w-3xl rounded-[var(--page-card-radius)] bg-black/35 p-5 backdrop-blur-sm sm:p-8"><HeroText page={page} inverse onPrimary={onPrimary} /></div></div></header></div>;
+  if (page.template === "Editorial") return <><PageNav page={page} /><header data-qai-hero-layout="magazine-masthead" className="mx-auto max-w-[86rem] px-5 py-8 sm:px-8 sm:py-12"><div className="border-y-2 border-[var(--page-text)] py-3 text-center text-[10px] font-bold uppercase tracking-[.3em]">Independent services · Portfolio · Appointments</div><div className="border-b border-[var(--page-border)] py-8 text-center sm:py-12"><HeroText page={page} centered onPrimary={onPrimary} /></div>{image && <img src={image} alt="" className="mt-8 max-h-[42rem] w-full object-cover" />}</header></>;
+  return <div className="bg-[#0b1119] text-white"><PageNav page={page} inverse /><header data-qai-hero-layout="immersive-gallery" className="qai-page-immersive-hero relative isolate min-h-[34rem] overflow-hidden lg:min-h-[43rem]">{image ? <img src={image} alt="" className="absolute inset-0 -z-20 size-full object-cover" /> : <div className="absolute inset-0 -z-20 bg-[linear-gradient(120deg,#0a0e16,var(--page-accent),#293b64)]" />}<div className="absolute inset-0 -z-10 bg-gradient-to-r from-black/90 via-black/50 to-black/10" /><div className="qai-page-immersive-content mx-auto flex min-h-[34rem] max-w-[86rem] items-center px-5 py-12 sm:px-8 lg:min-h-[43rem]"><HeroText page={page} inverse onPrimary={onPrimary} /></div></header></div>;
 }
 
 function Facts({ page }: { page: QaiPageConfig }) {
@@ -130,21 +154,21 @@ function PortfolioSection({ page, services, portfolio, onChoose }: RendererProps
   }, [activeWork]);
 
   if (!page.style.showPortfolio || works.length === 0) return null;
-  const columns = works.length === 1 ? "grid-cols-1 max-w-4xl" : works.length <= 3 ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3";
+  const columns = works.length === 1 ? "grid-cols-1 max-w-4xl" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-12";
   return (
     <section id="portfolio" aria-labelledby="portfolio-heading">
       <div className={page.template === "Editorial" ? "border-b border-[var(--page-border)] pb-5" : ""}>
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--page-accent)]">Portfolio</p>
         <h2 id="portfolio-heading" className="mt-2 font-[var(--page-heading-font)] text-3xl font-semibold tracking-tight sm:text-4xl">Selected work</h2>
       </div>
-      <div className={`mt-7 grid ${columns} gap-4 sm:gap-5`}>
+      <div className={`qai-public-portfolio-grid mt-7 grid ${columns} gap-4 sm:gap-5`} data-portfolio-layout={TEMPLATE_STRUCTURE[page.template]} data-portfolio-count={works.length}>
         {works.map((work, index) => {
           const cover = work.images.find((image) => image.isCover) ?? work.images[0];
           const related = services.find((service) => service.serviceId === work.serviceId);
           return (
-            <figure key={work.id} className="overflow-hidden border border-[var(--page-border)] bg-[var(--page-surface)]" style={{ borderRadius: page.template === "Editorial" || page.template === "Signature" ? 0 : "1rem" }}>
+            <figure key={work.id} className="qai-public-portfolio-item overflow-hidden border border-[var(--page-border)] bg-[var(--page-surface)]" style={{ borderRadius: page.template === "Editorial" || page.template === "Signature" ? 0 : "1rem" }} data-portfolio-item={index + 1}>
               <button type="button" className="group relative block w-full overflow-hidden text-left" onClick={() => { setActiveWorkId(work.id); setActiveImage(0); }} aria-label={`Open ${work.title} gallery`}>
-                <img src={cover.imageUrl} alt={cover.caption || `${page.businessName} ${work.title}`} className="aspect-[4/3] w-full object-cover transition duration-300 group-hover:scale-[1.015]" loading={index < 2 ? "eager" : "lazy"} />
+                <img src={cover.imageUrl} alt={cover.caption || `${page.businessName} ${work.title}`} className="qai-public-portfolio-image aspect-[4/3] w-full object-cover transition duration-300 group-hover:scale-[1.015]" loading={index < 2 ? "eager" : "lazy"} />
                 {work.images.length > 1 && <span className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-full bg-black/70 px-2.5 py-1 text-xs font-semibold text-white"><Images className="size-3.5" />{work.images.length}</span>}
               </button>
               <figcaption className="p-4 sm:p-5">
@@ -252,7 +276,7 @@ function ServicesSection({ page, services, onChoose }: RendererProps) {
     : page.template === "Signature" || page.template === "Editorial"
       ? "max-w-6xl"
       : "max-w-[78rem]";
-  return <section id="services" aria-labelledby="services-heading" className={`mx-auto w-full ${sectionWidth}`}><div className={page.template === "Signature" ? "text-center" : ""}><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--page-accent)]">Services</p><h2 id="services-heading" className="mt-2 font-[var(--page-heading-font)] text-3xl font-semibold tracking-tight sm:text-4xl">Work with {page.businessName}</h2></div>{ordered.length === 0 ? <div className="mt-6 max-w-xl border border-dashed border-[var(--page-border)] bg-[var(--page-surface)] p-6 text-sm text-[var(--page-muted)]">Services are coming soon. Contact {page.businessName} for current availability.</div> : <div className="qai-public-service-grid mt-7" data-service-count={ordered.length} data-service-columns={plans.desktop.columns}>{ordered.map((service, index) => {
+  return <section id="services" aria-labelledby="services-heading" className={`qai-public-services mx-auto w-full ${sectionWidth}`} data-service-layout={TEMPLATE_STRUCTURE[page.template]}><div className={page.template === "Signature" ? "text-center" : ""}><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--page-accent)]">Services</p><h2 id="services-heading" className="mt-2 font-[var(--page-heading-font)] text-3xl font-semibold tracking-tight sm:text-4xl">Work with {page.businessName}</h2>{page.template === "Professional" && <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--page-muted)]">Choose a service to see the details and send a clear booking request.</p>}</div>{ordered.length === 0 ? <div className="mt-6 max-w-xl border border-dashed border-[var(--page-border)] bg-[var(--page-surface)] p-6 text-sm text-[var(--page-muted)]">Services are coming soon. Contact {page.businessName} for current availability.</div> : <div className="qai-public-service-grid mt-7" data-service-count={ordered.length} data-service-columns={plans.desktop.columns}>{ordered.map((service, index) => {
     const mobile = plans.mobile.placements[index];
     const tablet = plans.tablet.placements[index];
     const desktop = plans.desktop.placements[index];
@@ -275,7 +299,7 @@ function ClosingCta({ page, services, onChoose }: RendererProps) {
 }
 
 export default function QaiPageRenderer({ page, services, portfolio, onChoose, preview = false }: RendererProps) {
-  const ordered = useMemo(() => normalizedPageSectionOrder(page.style), [page.style]);
+  const ordered = useMemo(() => templateSectionOrder(page), [page]);
   const first = services.find((service) => service.featured) ?? services[0];
   const [thumbActionVisible, setThumbActionVisible] = useState(false);
   useEffect(() => {
@@ -305,5 +329,5 @@ export default function QaiPageRenderer({ page, services, portfolio, onChoose, p
     portfolio: <PortfolioSection key="portfolio" page={page} services={services} portfolio={portfolio} onChoose={onChoose} />,
     services: <ServicesSection key="services" page={page} services={services} portfolio={portfolio} onChoose={onChoose} />,
   };
-  return <div className={`min-h-full min-w-0 w-full max-w-none overflow-x-hidden bg-[var(--page-bg)] text-[var(--page-text)] ${onChoose && !preview ? "pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0" : ""}`} style={variables} data-template={page.template} data-qai-page-root><Hero page={page} onPrimary={first && onChoose ? () => onChoose(first, first.variants.find((variant) => variant.active)?.id ?? null) : undefined} /><Facts page={page} /><div className={`mx-auto w-full max-w-[86rem] px-4 sm:px-7 lg:px-10 ${sectionClass}`}>{ordered.map((section) => sectionMap[section])}<ClosingCta page={page} services={services} portfolio={portfolio} onChoose={onChoose} /><footer className="border-t border-[var(--page-border)] pt-8 text-center text-xs text-[var(--page-muted)]"><a href={QAI_ATTRIBUTION_HREF} aria-label="Powered by Qai" className="inline-flex min-h-10 items-center gap-1.5 rounded-full px-3 font-medium hover:bg-black/5 hover:text-[var(--page-accent)]"><QaiMark size="sm" tone="monochrome" decorative />Powered by Qai</a>{preview && <p className="mt-1">Preview</p>}</footer></div>{thumbActionVisible && first && onChoose && <div className="fixed inset-x-4 z-40 md:hidden" style={{ bottom: "max(1rem, calc(env(safe-area-inset-bottom) + .5rem))" }} data-qai-page-thumb-action><button type="button" onClick={() => onChoose(first, first.variants.find((variant) => variant.active)?.id ?? null)} className="mx-auto flex min-h-12 w-full max-w-md items-center justify-center gap-2 border border-[var(--page-button-bg)] bg-[var(--page-button-bg)] px-5 text-sm font-semibold text-[var(--page-button-text)] shadow-[0_14px_36px_rgba(9,17,29,.22)] transition hover:brightness-95" style={{ borderRadius: "var(--page-button-radius)" }}>Book now<ArrowRight className="size-4" aria-hidden="true" /></button></div>}</div>;
+  return <div className={`min-h-full min-w-0 w-full max-w-none overflow-x-hidden bg-[var(--page-bg)] text-[var(--page-text)] ${onChoose && !preview ? "pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0" : ""}`} style={variables} data-template={page.template} data-template-structure={TEMPLATE_STRUCTURE[page.template]} data-section-order={ordered.join(",")} data-qai-page-root><Hero page={page} onPrimary={first && onChoose ? () => onChoose(first, first.variants.find((variant) => variant.active)?.id ?? null) : undefined} /><Facts page={page} /><div className={`qai-public-sections mx-auto w-full max-w-[86rem] px-4 sm:px-7 lg:px-10 ${sectionClass}`}>{ordered.map((section) => sectionMap[section])}<ClosingCta page={page} services={services} portfolio={portfolio} onChoose={onChoose} /><footer className="border-t border-[var(--page-border)] pt-8 text-center text-xs text-[var(--page-muted)]"><a href={QAI_ATTRIBUTION_HREF} aria-label="Powered by Qai" className="inline-flex min-h-10 items-center gap-1.5 rounded-full px-3 font-medium hover:bg-black/5 hover:text-[var(--page-accent)]"><QaiMark size="sm" tone="monochrome" decorative />Powered by Qai</a>{preview && <p className="mt-1">Preview</p>}</footer></div>{thumbActionVisible && first && onChoose && <div className="fixed inset-x-4 z-40 md:hidden" style={{ bottom: "max(1rem, calc(env(safe-area-inset-bottom) + .5rem))" }} data-qai-page-thumb-action><button type="button" onClick={() => onChoose(first, first.variants.find((variant) => variant.active)?.id ?? null)} className="mx-auto flex min-h-12 w-full max-w-md items-center justify-center gap-2 border border-[var(--page-button-bg)] bg-[var(--page-button-bg)] px-5 text-sm font-semibold text-[var(--page-button-text)] shadow-[0_14px_36px_rgba(9,17,29,.22)] transition hover:brightness-95" style={{ borderRadius: "var(--page-button-radius)" }}>Book now<ArrowRight className="size-4" aria-hidden="true" /></button></div>}</div>;
 }
