@@ -143,7 +143,7 @@ export default function GoogleCalendarSyncCard() {
   const statusLabel = status?.status === "connected"
     ? "Connected"
     : status?.status === "error"
-      ? "Needs attention"
+      ? "Try again"
       : reconnectRequired
         ? "Reconnect required"
         : "Not connected";

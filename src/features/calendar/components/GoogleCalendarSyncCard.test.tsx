@@ -93,6 +93,34 @@ describe("GoogleCalendarSyncCard", () => {
     expect(screen.getByText(/Last synced/)).toBeTruthy();
   });
 
+  it("presents a retryable connection failure distinctly from reconnect_required", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => response({ data: {
+      ...connected,
+      status: "error",
+      lastError: "Google Calendar could not be reached. Try again.",
+    } })));
+    render(<GoogleCalendarSyncCard />);
+
+    expect(await screen.findByText("Try again")).toBeTruthy();
+    expect(screen.getByText("Google Calendar could not be reached. Try again.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Sync now/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Reconnect$/ })).toBeNull();
+  });
+
+  it("shows Reconnect only when authorization was definitively rejected", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => response({ data: {
+      ...connected,
+      status: "reconnect_required",
+      lastError: "Google Calendar needs to be reconnected.",
+      calendars: [],
+    } })));
+    render(<GoogleCalendarSyncCard />);
+
+    expect(await screen.findByText("Reconnect required")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Reconnect$/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Sync now/ })).toBeNull();
+  });
+
   it("persists a writable calendar selection and reloads server state", async () => {
     const fetchMock = vi.fn()
       .mockImplementationOnce(() => response({ data: connected }))

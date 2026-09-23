@@ -6,6 +6,7 @@ import {
   exchangeGoogleCalendarCode,
   googleCalendarApi,
   googleCalendarAuthorizationUrl,
+  refreshGoogleCalendarToken,
 } from "./googleApi";
 
 describe("Google Calendar API boundary", () => {
@@ -65,5 +66,49 @@ describe("Google Calendar API boundary", () => {
     expect((failure as Error).message).toBe("Google Calendar operation failed.");
     expect(JSON.stringify(failure)).not.toContain("access-token-should-not-leak");
     expect(JSON.stringify(failure)).not.toContain("secret-access-token");
+  });
+
+  it("preserves only the sanitized OAuth error code for an invalid refresh grant", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      error: "invalid_grant",
+      error_description: "refresh-token-should-not-leak was revoked",
+    }), { status: 400 })));
+
+    const failure = await refreshGoogleCalendarToken("refresh-token-should-not-leak")
+      .catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(GoogleCalendarApiError);
+    expect(failure).toMatchObject({
+      status: 400,
+      reason: "authorization",
+      providerCode: "invalid_grant",
+    });
+    expect(JSON.stringify(failure)).not.toContain("refresh-token-should-not-leak");
+    expect(JSON.stringify(failure)).not.toContain("was revoked");
+  });
+
+  it("keeps network and provider failures sanitized and distinguishable", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      throw new Error("private network detail");
+    }));
+    const networkFailure = await refreshGoogleCalendarToken("network-refresh-secret")
+      .catch((error: unknown) => error);
+    expect(networkFailure).toMatchObject({ status: 0, reason: "network", providerCode: null });
+    expect(JSON.stringify(networkFailure)).not.toContain("network-refresh-secret");
+    expect(JSON.stringify(networkFailure)).not.toContain("private network detail");
+
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      error: "server_error",
+      error_description: "provider-internal-detail",
+    }), { status: 500 })));
+    const providerFailure = await refreshGoogleCalendarToken("provider-refresh-secret")
+      .catch((error: unknown) => error);
+    expect(providerFailure).toMatchObject({
+      status: 500,
+      reason: "provider",
+      providerCode: "server_error",
+    });
+    expect(JSON.stringify(providerFailure)).not.toContain("provider-refresh-secret");
+    expect(JSON.stringify(providerFailure)).not.toContain("provider-internal-detail");
   });
 });

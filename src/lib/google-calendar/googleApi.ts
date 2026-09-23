@@ -29,12 +29,14 @@ export type GoogleCalendarList = {
 export class GoogleCalendarApiError extends Error {
   readonly status: number;
   readonly reason: string;
+  readonly providerCode: string | null;
 
-  constructor(status: number, reason: string) {
+  constructor(status: number, reason: string, providerCode: string | null = null) {
     super("Google Calendar operation failed.");
     this.name = "GoogleCalendarApiError";
     this.status = status;
     this.reason = reason;
+    this.providerCode = providerCode;
   }
 }
 
@@ -106,7 +108,15 @@ async function tokenRequest(body: URLSearchParams): Promise<GoogleTokenResponse>
   }).catch(() => {
     throw new GoogleCalendarApiError(0, "network");
   });
-  if (!response.ok) throw new GoogleCalendarApiError(response.status, "authorization");
+  if (!response.ok) {
+    const responseBody = await response.json().catch(() => null);
+    const providerCode = safeGoogleTokenErrorCode(responseBody);
+    throw new GoogleCalendarApiError(
+      response.status,
+      providerCode === "invalid_grant" ? "authorization" : "provider",
+      providerCode,
+    );
+  }
   return response.json() as Promise<GoogleTokenResponse>;
 }
 
@@ -142,6 +152,14 @@ function safeGoogleReason(value: unknown): string {
   return typeof candidate === "string" && /^[A-Za-z0-9_.-]{1,80}$/.test(candidate)
     ? candidate
     : "provider";
+}
+
+function safeGoogleTokenErrorCode(value: unknown): string | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = (value as { error?: unknown }).error;
+  return typeof candidate === "string" && /^[A-Za-z0-9_.-]{1,80}$/.test(candidate)
+    ? candidate
+    : null;
 }
 
 export async function googleCalendarApi<T>(
