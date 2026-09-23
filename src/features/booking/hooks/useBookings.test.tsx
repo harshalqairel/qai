@@ -80,13 +80,51 @@ describe("useBookings cloud save errors", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await expect(result.current.createBookingOrThrow(command)).rejects.toBe(failure);
-    expect(cloudMocks.create).toHaveBeenCalledWith(expect.objectContaining({
-      servicePrice: 50_000,
-      additionalCharges: [expect.objectContaining({
-        categoryId: "charge-category-7",
-        categoryName: "Extra assistant",
-        amount: 25_000,
-      })],
-    }));
+    expect(cloudMocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        servicePrice: 50_000,
+        additionalCharges: [expect.objectContaining({
+          categoryId: "charge-category-7",
+          categoryName: "Extra assistant",
+          amount: 25_000,
+        })],
+      }),
+      null,
+    );
+  });
+
+  it("passes one real Initial Payment with the Booking aggregate to cloud persistence", async () => {
+    cloudMocks.create.mockResolvedValue(undefined);
+    const withInitialPayment: CreateBookingCommand = {
+      ...command,
+      initialPayment: {
+        amount: 20_000,
+        method: "Bank Transfer",
+        date: "2026-09-15",
+        notes: "Deposit",
+      },
+    };
+    const { result } = renderHook(() => useBookings());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await expect(result.current.createBookingOrThrow(withInitialPayment)).resolves.toBe(true);
+
+    expect(cloudMocks.create).toHaveBeenCalledOnce();
+    expect(cloudMocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        servicePrice: 50_000,
+        additionalCharges: [expect.objectContaining({ amount: 25_000 })],
+      }),
+      expect.objectContaining({
+        bookingId: expect.any(String),
+        amount: 20_000,
+        date: "2026-09-15",
+      }),
+    );
+    const [savedBooking, savedPayment] = cloudMocks.create.mock.calls[0] as never as [
+      { id: string },
+      { bookingId: string },
+    ];
+    expect(savedPayment.bookingId).toBe(savedBooking.id);
   });
 });

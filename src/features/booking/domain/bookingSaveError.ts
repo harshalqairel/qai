@@ -6,6 +6,7 @@ type CloudBookingError = {
 };
 
 export type BookingSaveOperation =
+  | "save_booking_with_initial_payment"
   | "save_booking_with_integrity"
   | "save_booking_with_questionnaire";
 
@@ -76,6 +77,12 @@ function safeBookingSaveReason(error: unknown, status?: number | null): string {
   }
   if (/invalid booking payload/.test(text)) {
     return "Some booking details are invalid.";
+  }
+  if (/payment exceeds the booking outstanding amount/.test(text)) {
+    return "The Initial Payment exceeds the booking remaining balance.";
+  }
+  if (/invalid initial payment|initial payment booking mismatch/.test(text)) {
+    return "The Initial Payment could not be saved.";
   }
   if (code === "23503") {
     return "The selected Client or Service is no longer available.";

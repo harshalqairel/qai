@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { Booking } from "@/features/booking/types";
+import type { Booking, CreateBookingCommand } from "@/features/booking/types";
 import type { BookingFormValues } from "@/features/booking/schema";
 import type { Customer } from "@/features/customer/types";
 import type { Payment } from "@/features/payment/types";
@@ -82,12 +82,77 @@ function renderDialog(payments: Payment[] = [], quickCreate = false) {
   return onUpdate;
 }
 
+function renderCreateDialog() {
+  const onCreate = vi.fn<(command: CreateBookingCommand) => Promise<boolean>>(async () => true);
+  render(<BookingDialog
+    open
+    booking={null}
+    initialValues={{
+      customerId: client.id,
+      serviceId: oldService.id,
+      serviceSnapshot: booking.serviceSnapshot,
+      sessions: [{ id: "draft-session", label: "Main", date: "2026-09-12", startTime: "09:00", endTime: "11:00", location: "Studio", notes: "" }],
+      servicePrice: oldService.price,
+      questionnaireResponses: [],
+      capacitySourceRequestId: null,
+      capacitySlotKeys: [],
+      bookingStatus: "Scheduled",
+      fullPaymentDueDate: "2026-09-05",
+      notes: "",
+    }}
+    customers={[client]}
+    services={[oldService, newService]}
+    payments={[]}
+    expenses={[]}
+    timezone="Asia/Jakarta"
+    onClose={vi.fn()}
+    onCreate={onCreate}
+    onUpdate={vi.fn(async () => true)}
+    onAddPaymentClick={vi.fn()}
+    onEditPaymentClick={vi.fn()}
+    onDeletePayment={vi.fn(async () => true)}
+  />);
+  return onCreate;
+}
+
 async function chooseNewService(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("combobox", { name: "Service" }));
   await user.click(screen.getByRole("option", { name: /New service/ }));
 }
 
 describe("BookingDialog service changes", () => {
+  it("edits an additional charge in place before creating the booking", async () => {
+    const user = userEvent.setup();
+    const onCreate = renderCreateDialog();
+    const chargeSection = screen.getByRole("heading", { name: "Additional charges" }).closest("section")!;
+
+    await user.click(screen.getByRole("button", { name: "Add charge" }));
+    const amount = chargeSection.querySelector<HTMLInputElement>('input[inputmode="numeric"]')!;
+    await user.type(amount, "125000");
+    await user.type(screen.getByPlaceholderText("Optional detail"), "Travel");
+    await user.click(screen.getAllByRole("button", { name: "Add charge" }).at(-1)!);
+
+    await user.click(screen.getByRole("button", { name: "Edit Transportation charge" }));
+    const editedAmount = chargeSection.querySelector<HTMLInputElement>('input[inputmode="numeric"]')!;
+    await user.clear(editedAmount);
+    await user.type(editedAmount, "225000");
+    await user.click(screen.getByRole("button", { name: "Save charge" }));
+
+    expect(screen.getByText("Rp 2.725.000")).toBeTruthy();
+    expect(screen.getAllByText("Transportation")).toHaveLength(1);
+    await user.click(screen.getByRole("button", { name: "Add booking" }));
+
+    await waitFor(() => expect(onCreate).toHaveBeenCalledOnce());
+    expect(onCreate.mock.calls[0]![0].additionalCharges).toEqual([
+      expect.objectContaining({
+        categoryId: "charge-category-1",
+        categoryName: "Transportation",
+        amount: 225_000,
+        description: "Travel",
+      }),
+    ]);
+  });
+
   it("keeps actions outside the single scrollable form body", () => {
     renderDialog();
     const form = document.querySelector("#booking-details-form");

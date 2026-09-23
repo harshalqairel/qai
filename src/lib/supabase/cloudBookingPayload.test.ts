@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Booking } from "@/features/booking/types";
+import type { Payment } from "@/features/payment/types";
 import { createClient } from "./client";
 import { bookingToCloudPayload, cloudBookingRepository } from "./cloudRepositories";
 
@@ -21,6 +22,18 @@ function booking(changes: Partial<Booking> = {}): Booking {
     }], additionalCharges: [], questionnaireResponses: [], capacitySourceRequestId: null,
     capacitySlotKeys: [], bookingStatus: "Scheduled", fullPaymentDueDate: "2026-08-31",
     notes: "", createdAt: 1, updatedAt: 1, ...changes,
+  };
+}
+
+function initialPayment(): Payment {
+  return {
+    id: "payment-1",
+    bookingId: "booking-1",
+    date: "2026-08-30",
+    amount: 20_000,
+    method: "Bank Transfer",
+    notes: "Deposit",
+    createdAt: 1,
   };
 }
 
@@ -62,6 +75,49 @@ describe("cloud Booking payload", () => {
     expect(rpc).toHaveBeenCalledWith("save_booking_with_integrity", {
       booking_payload: expect.objectContaining({ service_price: 50_000, additional_charges: [expect.objectContaining({ amount: 25_000 })] }),
     });
+  });
+
+  it("writes the Booking aggregate and Initial Payment through one atomic RPC", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: "booking-1", error: null });
+    vi.mocked(createClient).mockReturnValue({ rpc } as never);
+    const charged = booking({ additionalCharges: [{
+      id: "charge-1", bookingId: "booking-1", sessionId: null,
+      categoryId: "8d90cf82-8166-4557-95b3-0ebbc431cf46", categoryName: "Extra assistant",
+      description: "", amount: 25_000, createdAt: 1, updatedAt: 1,
+    }] });
+
+    await cloudBookingRepository.create(charged, initialPayment());
+
+    expect(rpc).toHaveBeenCalledOnce();
+    expect(rpc).toHaveBeenCalledWith("save_booking_with_initial_payment", {
+      booking_payload: expect.objectContaining({
+        service_price: 50_000,
+        additional_charges: [expect.objectContaining({ amount: 25_000 })],
+      }),
+      initial_payment_payload: expect.objectContaining({
+        id: "payment-1",
+        booking_id: "booking-1",
+        amount: 20_000,
+        payment_date: "2026-08-30",
+      }),
+    });
+  });
+
+  it("does not fall back to separate writes when the atomic Initial Payment RPC fails", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: null,
+      error: { code: "23514", message: "Payment exceeds the booking outstanding amount" },
+      status: 400,
+    });
+    vi.mocked(createClient).mockReturnValue({ rpc } as never);
+
+    await expect(cloudBookingRepository.create(booking(), initialPayment())).rejects.toMatchObject({
+      name: "BookingSaveError",
+      message: "The Initial Payment exceeds the booking remaining balance.",
+      operation: "save_booking_with_initial_payment",
+      status: 400,
+    });
+    expect(rpc).toHaveBeenCalledOnce();
   });
 
   it("preserves safe RPC diagnostics instead of collapsing a cloud save failure", async () => {

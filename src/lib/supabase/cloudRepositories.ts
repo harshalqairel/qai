@@ -448,6 +448,33 @@ async function saveCloudBooking(booking: Booking): Promise<void> {
   );
 }
 
+async function createCloudBooking(
+  booking: Booking,
+  initialPayment: Payment | null,
+): Promise<void> {
+  if (!initialPayment) {
+    await saveCloudBooking(booking);
+    return;
+  }
+  if (initialPayment.bookingId !== booking.id) {
+    throw createCloudBookingSaveError(
+      { message: "Initial payment booking mismatch" },
+      "save_booking_with_initial_payment",
+    );
+  }
+
+  const client = createClient();
+  const result = await client.rpc("save_booking_with_initial_payment", {
+    booking_payload: bookingToCloudPayload(booking),
+    initial_payment_payload: paymentToRow(initialPayment),
+  });
+  throwBookingSaveError(
+    result.error,
+    "save_booking_with_initial_payment",
+    result.status,
+  );
+}
+
 export const cloudBookingRepository = {
   async getAll(): Promise<Booking[]> {
     const { businessId } = await getActiveBusinessContext();
@@ -482,8 +509,8 @@ export const cloudBookingRepository = {
       .filter((booking) => booking.sessions.length > 0)
       .sort((left, right) => left.sessions[0].startAt.localeCompare(right.sessions[0].startAt));
   },
-  async create(booking: Booking) {
-    await saveCloudBooking(booking);
+  async create(booking: Booking, initialPayment: Payment | null = null) {
+    await createCloudBooking(booking, initialPayment);
   },
   async update(booking: Booking) {
     await saveCloudBooking(booking);

@@ -64,15 +64,15 @@ export function useBookings() {
     );
     let savedBooking = prepared.booking;
     if (isCloudModeEnabled()) {
-      if (prepared.initialPayment) throw new Error("Cloud booking transaction is not enabled yet.");
       const sourceRequestId = prepared.booking.capacitySourceRequestId;
       const existing = sourceRequestId
         ? (await cloudBookingRepository.getAll()).find((booking) => booking.capacitySourceRequestId === sourceRequestId)
         : null;
       if (existing) savedBooking = existing;
       else {
-        try { await cloudBookingRepository.create(prepared.booking); }
+        try { await cloudBookingRepository.create(prepared.booking, prepared.initialPayment); }
         catch (error) {
+          if (prepared.initialPayment) throw error;
           const concurrent = sourceRequestId
             ? (await cloudBookingRepository.getAll()).find((booking) => booking.capacitySourceRequestId === sourceRequestId)
             : null;

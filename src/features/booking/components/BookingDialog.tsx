@@ -32,7 +32,7 @@ import DeleteAction from "@/components/system/DeleteAction";
 import { useActionGuard } from "@/hooks/useActionGuard";
 import { notify } from "@/lib/notifications";
 import { isValidationModeEnabled } from "@/lib/supabase/config";
-import { ArrowLeft, Copy, Info, Plus, Trash2, XIcon } from "lucide-react";
+import { ArrowLeft, Copy, Info, Pencil, Plus, Trash2, XIcon } from "lucide-react";
 import BookingCreationStart from "@/features/booking/components/BookingCreationStart";
 import {
   createAdditionalChargeCategoryPersistent,
@@ -170,6 +170,7 @@ export default function BookingDialog({
   const [chargeCategories, setChargeCategories] = useState<AdditionalChargeCategory[]>(getAdditionalChargeCategories);
   const [additionalCharges, setAdditionalCharges] = useState<BookingAdditionalChargeInput[]>([]);
   const [addingCharge, setAddingCharge] = useState(false);
+  const [editingChargeIndex, setEditingChargeIndex] = useState<number | null>(null);
   const [chargeDraft, setChargeDraft] = useState({ categoryId: "", sessionId: "", amount: 0, description: "" });
   const [newChargeCategoryOpen, setNewChargeCategoryOpen] = useState(false);
   const [newChargeCategoryName, setNewChargeCategoryName] = useState("");
@@ -186,6 +187,8 @@ export default function BookingDialog({
     if (booking) {
       setStartMode("manual");
       setParsedReviewNotice("");
+      setAddingCharge(false);
+      setEditingChargeIndex(null);
       setAdditionalCharges((booking.additionalCharges ?? []).map((charge) => ({
         id: charge.id,
         sessionId: charge.sessionId,
@@ -222,6 +225,7 @@ export default function BookingDialog({
     setParsedReviewNotice("");
     setAdditionalCharges([]);
     setAddingCharge(false);
+    setEditingChargeIndex(null);
     setQuickCustomerOpen(false);
     setQuickCustomer({ name: "", phone: "", instagram: "", email: "" });
     setInitialPaymentOpen(false);
@@ -542,16 +546,59 @@ export default function BookingDialog({
       notify.error("Choose a category and enter an amount.");
       return;
     }
-    setAdditionalCharges((current) => [...current, {
-      id: crypto.randomUUID(),
-      sessionId: chargeDraft.sessionId || null,
-      categoryId: category.id,
-      categoryName: category.name,
-      description: chargeDraft.description.trim(),
-      amount: chargeDraft.amount,
-    }]);
+    setAdditionalCharges((current) => {
+      const nextCharge: BookingAdditionalChargeInput = {
+        id: editingChargeIndex === null
+          ? crypto.randomUUID()
+          : current[editingChargeIndex]?.id ?? crypto.randomUUID(),
+        sessionId: chargeDraft.sessionId || null,
+        categoryId: category.id,
+        categoryName: category.name,
+        description: chargeDraft.description.trim(),
+        amount: chargeDraft.amount,
+      };
+      return editingChargeIndex === null
+        ? [...current, nextCharge]
+        : current.map((charge, index) => index === editingChargeIndex ? nextCharge : charge);
+    });
+    setChargeDraft((current) => ({ ...current, sessionId: "", amount: 0, description: "" }));
+    setEditingChargeIndex(null);
+    setAddingCharge(false);
+  }
+
+  function startAddingCharge() {
+    setEditingChargeIndex(null);
+    setChargeDraft((current) => ({
+      categoryId: chargeCategories.some((category) => category.id === current.categoryId)
+        ? current.categoryId
+        : chargeCategories[0]?.id ?? "",
+      sessionId: "",
+      amount: 0,
+      description: "",
+    }));
+    setAddingCharge(true);
+  }
+
+  function startEditingCharge(charge: BookingAdditionalChargeInput, index: number) {
+    setEditingChargeIndex(index);
+    setChargeDraft({
+      categoryId: charge.categoryId,
+      sessionId: charge.sessionId ?? "",
+      amount: charge.amount,
+      description: charge.description,
+    });
+    setAddingCharge(true);
+  }
+
+  function cancelChargeDraft() {
+    setEditingChargeIndex(null);
     setChargeDraft((current) => ({ ...current, sessionId: "", amount: 0, description: "" }));
     setAddingCharge(false);
+  }
+
+  function removeCharge(chargeIndex: number) {
+    setAdditionalCharges((current) => current.filter((_, index) => index !== chargeIndex));
+    if (editingChargeIndex === chargeIndex) cancelChargeDraft();
   }
 
   async function createChargeCategoryInline() {
@@ -576,6 +623,8 @@ export default function BookingDialog({
     setStartMode("choose");
     setParsedReviewNotice("");
     setAdditionalCharges([]);
+    setAddingCharge(false);
+    setEditingChargeIndex(null);
     setQuestionnaireResponses([]);
     setQuestionnaireErrors({});
     setSelectedVariantId(null);
@@ -977,14 +1026,14 @@ export default function BookingDialog({
           </section>
 
           <section className="rounded-xl border border-border bg-card p-4 shadow-sm" aria-labelledby="booking-charges-heading">
-            <div className="flex items-start justify-between gap-3"><div><h3 id="booking-charges-heading" className="font-semibold">Additional charges</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">Client-facing revenue. Business costs remain separate Expenses.</p></div><Button type="button" size="sm" variant="outline" onClick={() => setAddingCharge((value) => !value)}><Plus className="size-4" /> Add charge</Button></div>
-            {additionalCharges.length > 0 && <div className="mt-4 space-y-2">{additionalCharges.map((charge) => { const scheduleIndex = (watchedSessions ?? []).findIndex((session) => session.id === charge.sessionId); return <article key={charge.id} className="flex min-w-0 items-start gap-2 rounded-xl bg-muted/55 p-3"><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{charge.categoryName}</p><p className="mt-1 truncate text-xs text-muted-foreground">{scheduleIndex >= 0 ? `Schedule ${scheduleIndex + 1}` : "Overall booking"}{charge.description ? ` · ${charge.description}` : ""}</p></div><p className="shrink-0 text-sm font-bold">{formatRupiah(charge.amount)}</p><Button type="button" size="icon-sm" variant="ghost" className="shrink-0 text-destructive" aria-label={`Remove ${charge.categoryName} charge`} onClick={() => setAdditionalCharges((current) => current.filter((item) => item.id !== charge.id))}><Trash2 className="size-4" /></Button></article>; })}</div>}
+            <div className="flex items-start justify-between gap-3"><div><h3 id="booking-charges-heading" className="font-semibold">Additional charges</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">Client-facing revenue. Business costs remain separate Expenses.</p></div><Button type="button" size="sm" variant="outline" onClick={startAddingCharge}><Plus className="size-4" /> Add charge</Button></div>
+            {additionalCharges.length > 0 && <div className="mt-4 space-y-2">{additionalCharges.map((charge, chargeIndex) => { const scheduleIndex = (watchedSessions ?? []).findIndex((session) => session.id === charge.sessionId); return <article key={charge.id ?? chargeIndex} className="flex min-w-0 items-start gap-2 rounded-xl bg-muted/55 p-3"><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{charge.categoryName}</p><p className="mt-1 truncate text-xs text-muted-foreground">{scheduleIndex >= 0 ? `Schedule ${scheduleIndex + 1}` : "Overall booking"}{charge.description ? ` · ${charge.description}` : ""}</p></div><p className="shrink-0 text-sm font-bold">{formatRupiah(charge.amount)}</p><Button type="button" size="icon-sm" variant="ghost" className="shrink-0" aria-label={`Edit ${charge.categoryName} charge`} onClick={() => startEditingCharge(charge, chargeIndex)}><Pencil className="size-4" /></Button><Button type="button" size="icon-sm" variant="ghost" className="shrink-0 text-destructive" aria-label={`Remove ${charge.categoryName} charge`} onClick={() => removeCharge(chargeIndex)}><Trash2 className="size-4" /></Button></article>; })}</div>}
             {addingCharge && <div className="mt-4 space-y-3 rounded-xl border border-border bg-muted/25 p-3">
               <div><Label className="mb-2 block">Category</Label><select className="native-control" value={chargeDraft.categoryId} onChange={(event) => setChargeDraft((current) => ({ ...current, categoryId: event.target.value }))}>{chargeCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select><Button type="button" variant="ghost" size="sm" className="mt-1" onClick={() => setNewChargeCategoryOpen((value) => !value)}>+ New category</Button>{newChargeCategoryOpen && <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]"><Input value={newChargeCategoryName} onChange={(event) => setNewChargeCategoryName(event.target.value)} placeholder="Category name" /><Button type="button" size="sm" onClick={() => void createChargeCategoryInline()}>Add</Button></div>}</div>
               <div><Label className="mb-2 block">Apply to</Label><select className="native-control" value={chargeDraft.sessionId} onChange={(event) => setChargeDraft((current) => ({ ...current, sessionId: event.target.value }))}><option value="">Overall booking</option>{(watchedSessions ?? []).map((session, index) => session.id && <option key={session.id} value={session.id}>Schedule {index + 1}{session.label ? ` · ${session.label}` : ""}</option>)}</select></div>
               <div><Label className="mb-2 block">Amount</Label><MoneyInput value={chargeDraft.amount} onChange={(amount) => setChargeDraft((current) => ({ ...current, amount }))} placeholder="0" /></div>
               <div><Label className="mb-2 block">Note</Label><Input value={chargeDraft.description} onChange={(event) => setChargeDraft((current) => ({ ...current, description: event.target.value }))} placeholder="Optional detail" /></div>
-              <div className="flex gap-2"><Button type="button" size="sm" onClick={addChargeDraft}>Add charge</Button><Button type="button" size="sm" variant="ghost" onClick={() => setAddingCharge(false)}>Cancel</Button></div>
+              <div className="flex gap-2"><Button type="button" size="sm" onClick={addChargeDraft}>{editingChargeIndex !== null ? "Save charge" : "Add charge"}</Button><Button type="button" size="sm" variant="ghost" onClick={cancelChargeDraft}>Cancel</Button></div>
             </div>}
             <dl className="mt-4 space-y-2 border-t border-border pt-4 text-sm"><div className="flex justify-between gap-3"><dt className="text-muted-foreground">Service</dt><dd>{formatRupiah(effectivePrice)}</dd></div><div className="flex justify-between gap-3"><dt className="text-muted-foreground">Additional charges</dt><dd>{formatRupiah(additionalChargesTotal)}</dd></div><div className="flex justify-between gap-3 border-t border-border pt-3 text-base font-bold"><dt>Client total</dt><dd>{formatRupiah(clientTotal)}</dd></div></dl>
           </section>
