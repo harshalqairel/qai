@@ -4,9 +4,6 @@ import { useEffect, useState } from "react";
 import CategoryManager from "@/features/category/components/CategoryManager";
 import { useServiceCategories } from "@/features/service-category/hooks/useServiceCategories";
 import { useExpenseCategories } from "@/features/expense-category/hooks/useExpenseCategories";
-import DataBackupSection from "@/features/backup/components/DataBackupSection";
-import SpreadsheetImportSection from "@/features/import/components/SpreadsheetImportSection";
-import { isCloudModeEnabled } from "@/lib/supabase/config";
 import HowToUseQai from "@/features/settings/components/HowToUseQai";
 import PaymentReminderSettings from "@/features/reminder/components/PaymentReminderSettings";
 import AppearanceSettings from "@/features/appearance/AppearanceSettings";
@@ -177,22 +174,18 @@ export default function SettingsPage() {
           <div className="min-w-0">
             {activeSection === "how-to-use" && <HowToUseQai />}
             {activeSection === "data-backup" && (
-              isCloudModeEnabled() ? (
-                <section className="surface-card p-5 sm:p-6" aria-labelledby="cloud-backup-heading">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h2 id="cloud-backup-heading" className="text-lg font-bold tracking-tight">Backup & Restore</h2>
-                    <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">Coming soon</span>
-                  </div>
-                  <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                    Download a complete backup of your Qai workspace and restore it when needed.
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    We’re preparing a secure backup and restore system for your business data.
-                  </p>
-                </section>
-              ) : (
-                <div className="space-y-5"><DataBackupSection /><SpreadsheetImportSection /></div>
-              )
+              <section className="surface-card p-5 sm:p-6" aria-labelledby="backup-heading">
+                <div className="flex flex-wrap items-center gap-3">
+                  <h2 id="backup-heading" className="text-lg font-bold tracking-tight">Backup & Restore</h2>
+                  <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">Coming soon</span>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                  Download a complete backup of your Qai workspace and restore it when needed.
+                </p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  We’re preparing a secure backup and restore system for your business data.
+                </p>
+              </section>
             )}
             {activeSection === "service-categories" && (
               <CategoryManager

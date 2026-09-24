@@ -1,23 +1,16 @@
 // @vitest-environment happy-dom
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import SettingsPage from "./page";
 import { isCloudModeEnabled } from "@/lib/supabase/config";
 
-vi.mock("@/lib/supabase/config", () => ({ isCloudModeEnabled: vi.fn() }));
 vi.mock("@/features/service-category/hooks/useServiceCategories", () => ({
   useServiceCategories: () => ({ isLoading: false, categories: [], usageCounts: {} }),
 }));
 vi.mock("@/features/expense-category/hooks/useExpenseCategories", () => ({
   useExpenseCategories: () => ({ isLoading: false, categories: [], usageCounts: {} }),
-}));
-vi.mock("@/features/backup/components/DataBackupSection", () => ({
-  default: () => <button type="button">Download backup</button>,
-}));
-vi.mock("@/features/import/components/SpreadsheetImportSection", () => ({
-  default: () => <button type="button">Import Excel or CSV</button>,
 }));
 vi.mock("@/features/category/components/CategoryManager", () => ({ default: () => null }));
 vi.mock("@/features/reminder/components/PaymentReminderSettings", () => ({ default: () => null }));
@@ -34,29 +27,53 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
 });
 
-describe("Settings Backup & Restore", () => {
-  it("shows an unavailable cloud feature without backup, restore, or legacy-import actions", () => {
-    vi.mocked(isCloudModeEnabled).mockReturnValue(true);
+function setCloudEnvironment(configured: boolean) {
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", configured ? "https://example.supabase.co" : "");
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", configured ? "test-publishable" : "");
+  vi.stubEnv("NEXT_PUBLIC_QAI_CLOUD_ENABLED", "true");
+  vi.stubEnv("NEXT_PUBLIC_QAI_VALIDATION_ENABLED", "false");
+  expect(isCloudModeEnabled()).toBe(configured);
+}
 
+function expectUnavailableBackup() {
+  expect(screen.getByRole("heading", { name: "Backup & Restore", level: 2 })).toBeTruthy();
+  expect(screen.getByText("Coming soon")).toBeTruthy();
+  expect(screen.getByText("Download a complete backup of your Qai workspace and restore it when needed.")).toBeTruthy();
+  expect(screen.queryByText("Data backup")).toBeNull();
+  expect(screen.queryByText("Save your Qai data to a file, or restore it from a backup.")).toBeNull();
+  expect(screen.queryByRole("button", { name: /download backup|restore backup|import/i })).toBeNull();
+}
+
+describe("Settings Backup & Restore", () => {
+  it("shows Coming soon for authenticated cloud users on desktop", () => {
+    setCloudEnvironment(true);
+    window.innerWidth = 1280;
     render(<SettingsPage />);
 
-    expect(screen.getByRole("heading", { name: "Backup & Restore", level: 2 })).toBeTruthy();
-    expect(screen.getByText("Coming soon")).toBeTruthy();
-    expect(screen.getByText("Download a complete backup of your Qai workspace and restore it when needed.")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /download backup/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: /restore backup/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: /import/i })).toBeNull();
+    expect(within(screen.getByRole("navigation", { name: "Settings sections" })).getByRole("button", { name: "Backup & Restore" })).toBeTruthy();
+    expectUnavailableBackup();
   });
 
-  it("keeps the existing local-only tools outside cloud mode", () => {
-    vi.mocked(isCloudModeEnabled).mockReturnValue(false);
-
+  it("shows Coming soon after selecting Backup & Restore on mobile", () => {
+    setCloudEnvironment(true);
+    window.innerWidth = 390;
+    window.history.replaceState({}, "", "/settings");
     render(<SettingsPage />);
 
-    expect(screen.getByRole("button", { name: "Download backup" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Import Excel or CSV" })).toBeTruthy();
-    expect(screen.queryByText("Coming soon")).toBeNull();
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Settings" })).getByRole("button", { name: /Backup & Restore/ }));
+
+    expect(screen.getByRole("heading", { name: "Backup & Restore", level: 1 })).toBeTruthy();
+    expectUnavailableBackup();
+  });
+
+  it("never exposes the old backup controls when Preview cloud configuration is missing", () => {
+    setCloudEnvironment(false);
+    window.innerWidth = 390;
+    render(<SettingsPage />);
+
+    expectUnavailableBackup();
   });
 });
