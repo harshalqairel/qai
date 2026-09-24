@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element -- Validation-only owner-provided data URLs cannot use the Next image optimizer. */
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Download, Eye, FilePenLine, History, Mail, MessageCircle, Plus, ReceiptText, Search, Settings2, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -306,6 +306,65 @@ export default function InvoicePage() {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <div><Label className="mb-2">{label}</Label>{children}</div>; }
 
+function groupUnitPriceDigits(digits: string): string {
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+function formatUnitPrice(value: number): string {
+  const raw = String(value);
+  const match = /^(\d+)(?:\.(\d+))?$/.exec(raw);
+  if (!match) return raw;
+  return `${groupUnitPriceDigits(match[1])}${match[2] === undefined ? "" : `,${match[2]}`}`;
+}
+
+function InvoiceUnitPriceInput({ value, onValueChange, label }: { value: number; onValueChange: (value: number) => void; label: string }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const pendingCaret = useRef<number | null>(null);
+  const displayedValue = draft ?? formatUnitPrice(value);
+
+  useLayoutEffect(() => {
+    if (pendingCaret.current === null || document.activeElement !== inputRef.current) return;
+    inputRef.current?.setSelectionRange(pendingCaret.current, pendingCaret.current);
+    pendingCaret.current = null;
+  }, [displayedValue]);
+
+  return <Input
+    ref={inputRef}
+    type="text"
+    inputMode="decimal"
+    aria-label={label}
+    value={displayedValue}
+    onFocus={() => setDraft(displayedValue)}
+    onChange={(event) => {
+      const raw = event.currentTarget.value;
+      const meaningfulBeforeCaret = (raw.slice(0, event.currentTarget.selectionStart ?? raw.length).match(/[\d,]/g) ?? []).length;
+      const [integerSource, ...fractionSources] = raw.replace(/[^\d.,]/g, "").split(",");
+      const integerDigits = integerSource.replace(/\D/g, "");
+      const fractionDigits = fractionSources.join("").replace(/\D/g, "");
+      const nextDraft = `${groupUnitPriceDigits(integerDigits)}${fractionSources.length ? `,${fractionDigits}` : ""}`;
+      let meaningful = 0;
+      let caret = 0;
+      while (caret < nextDraft.length && meaningful < meaningfulBeforeCaret) {
+        if (/[\d,]/.test(nextDraft[caret])) meaningful += 1;
+        caret += 1;
+      }
+      pendingCaret.current = caret;
+      event.currentTarget.value = nextDraft;
+      event.currentTarget.setSelectionRange(caret, caret);
+      setDraft(nextDraft);
+      if (!integerDigits && !fractionDigits) return;
+      const parsed = Number(`${integerDigits || "0"}${fractionSources.length ? `.${fractionDigits}` : ""}`);
+      if (Number.isFinite(parsed) && parsed <= 1_000_000_000_000) onValueChange(parsed);
+    }}
+    onBlur={() => {
+      if (draft === "") onValueChange(0);
+      pendingCaret.current = null;
+      setDraft(null);
+    }}
+  />;
+}
+
 function AssetField({ label, value, onUpload, onRemove }: { label: string; value: string; onUpload: (file?: File) => void; onRemove: () => void }) { return <div><Label>{label}</Label><div className="mt-2 flex items-center gap-3">{value && <img src={value} alt="" className="size-16 rounded-lg border border-border object-contain p-1" />}<div className="min-w-0 flex-1"><Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => onUpload(event.target.files?.[0])} />{value && <Button type="button" size="sm" variant="ghost" className="mt-1" onClick={onRemove}>Remove</Button>}</div></div></div>; }
 
 function InvoiceEditor({ invoice, customers, settings, payments, onClose, onSave }: { invoice: Invoice | null; customers: Array<{ id: string; name: string; phone: string; email: string }>; settings: InvoiceSettings; payments: ReturnType<typeof usePayments>["payments"]; onClose: () => void; onSave: (invoice: Invoice) => void }) {
@@ -342,7 +401,7 @@ function InvoiceEditor({ invoice, customers, settings, payments, onClose, onSave
             <Field label="Item"><Input value={item.item} onChange={(event) => updateItem(item.id, { item: event.target.value })} /></Field>
             <Field label="Description (optional)"><Input value={item.description} onChange={(event) => updateItem(item.id, { description: event.target.value })} /></Field>
             <Field label="Quantity"><EditableNumberInput min="0.01" step="0.01" emptyValue={1} value={item.quantity} onValueChange={(quantity) => updateItem(item.id, { quantity })} /></Field>
-            <Field label="Unit price"><EditableNumberInput min="0" step="1000" value={item.unitPrice} onValueChange={(unitPrice) => updateItem(item.id, { unitPrice })} /></Field>
+            <Field label="Unit price"><InvoiceUnitPriceInput label={`Unit price for item ${index + 1}`} value={item.unitPrice} onValueChange={(unitPrice) => updateItem(item.id, { unitPrice })} /></Field>
           </div>
           <p className="mt-3 text-right text-sm font-semibold">Amount: {formatRupiah(item.quantity * item.unitPrice)}</p>
         </article>

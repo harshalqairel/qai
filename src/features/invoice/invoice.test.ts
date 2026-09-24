@@ -14,6 +14,7 @@ import {
   invoicePaidAmount,
   invoicePaymentStatus,
   invoiceRemainingAmount,
+  invoiceSchema,
   invoiceShareContext,
   invoiceTotals,
   invoiceWatermarkLayout,
@@ -69,7 +70,7 @@ describe("invoice financial rules", () => {
       booking: {
         id: "booking-priced", customerId: "client-1", serviceId: "service-1", servicePrice: 50_000,
         serviceSnapshot: { serviceName: "Bobo Siang", variantId: null, variantLabel: "", options: [], price: 50_000, duration: 60, defaultSessionCount: 1 },
-        sessions: [], additionalCharges: [{ id: "charge-1", bookingId: "booking-priced", sessionId: null, categoryId: "category-1", categoryName: "Extra assistant", description: "", amount: 25_000, createdAt: 1, updatedAt: 1 }],
+        sessions: [{ id: "session-1", bookingId: "booking-priced", sequence: 1, label: "Akad", startAt: "2026-08-12T03:00:00+00:00", endAt: "2026-08-12T05:00:00+00:00", location: "Bandung", notes: "", createdAt: 1, updatedAt: 1 }], additionalCharges: [{ id: "charge-1", bookingId: "booking-priced", sessionId: null, categoryId: "category-1", categoryName: "Extra assistant", description: "", amount: 25_000, createdAt: 1, updatedAt: 1 }],
         questionnaireResponses: [], capacitySourceRequestId: null, capacitySlotKeys: [], bookingStatus: "Scheduled", fullPaymentDueDate: "2026-08-20", notes: "", createdAt: 1, updatedAt: 1,
       },
       customer: { id: "client-1", name: "Harshal", phone: "0812", instagram: "", email: "", notes: "", createdAt: 1 },
@@ -82,6 +83,14 @@ describe("invoice financial rules", () => {
       ["Extra assistant", 25_000],
     ]);
     expect(invoiceTotals(draft).total).toBe(75_000);
+    expect(draft.schedules).toEqual([{ label: "Akad", startAt: "2026-08-12T03:00:00+00:00", endAt: "2026-08-12T05:00:00+00:00", location: "Bandung" }]);
+  });
+
+  it("accepts Z and timezone-offset schedules but rejects malformed timestamps", () => {
+    expect(invoiceSchema.safeParse(sampleInvoice()).success).toBe(true);
+    const offsetSchedule = { label: "Studio", startAt: "2026-09-25T10:00:00+07:00", endAt: "2026-09-25T11:00:00+07:00", location: "Jakarta" };
+    expect(invoiceSchema.safeParse(sampleInvoice({ schedules: [offsetSchedule] })).success).toBe(true);
+    expect(invoiceSchema.safeParse(sampleInvoice({ schedules: [{ ...offsetSchedule, startAt: "not-a-date" }] })).success).toBe(false);
   });
 
   it("defines four structurally distinct preview/PDF layout profiles", () => {

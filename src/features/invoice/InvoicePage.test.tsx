@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import InvoicePage from "./InvoicePage";
+import { invoiceRepository, invoiceTotals } from "./invoice";
 
 const hookData = vi.hoisted(() => ({
   bookings: [{
@@ -23,9 +24,9 @@ const hookData = vi.hoisted(() => ({
       createdAt: 1,
       updatedAt: 1,
     }],
-    servicePrice: 50_000,
+    servicePrice: 500_000,
     serviceSnapshot: null,
-    additionalCharges: [],
+    additionalCharges: [{ id: "charge-1", bookingId: "booking-1", sessionId: null, categoryId: "category-1", categoryName: "Location", description: "", amount: 75_000, createdAt: 1, updatedAt: 1 }],
     questionnaireResponses: [],
     capacitySourceRequestId: null,
     capacitySlotKeys: [],
@@ -36,7 +37,7 @@ const hookData = vi.hoisted(() => ({
     updatedAt: 1,
   }],
   customers: [{ id: "customer-1", name: "Booking Save QA", phone: "080000000001", instagram: "", email: "", notes: "", createdAt: 1 }],
-  services: [{ id: "service-1", name: "Booking Save Service", categoryId: "category-1", price: 50_000, duration: 60, defaultSessionCount: 1, description: "", active: true }],
+  services: [{ id: "service-1", name: "Booking Save Service", categoryId: "category-1", price: 500_000, duration: 60, defaultSessionCount: 1, description: "", active: true }],
 }));
 
 vi.mock("@/features/booking/hooks/useBookings", () => ({
@@ -64,6 +65,87 @@ afterEach(() => {
 });
 
 describe("InvoicePage new invoice flow", () => {
+  it("formats unit prices while preserving empty editing, numeric values, and totals", async () => {
+    const user = userEvent.setup();
+    render(<InvoicePage />);
+
+    await user.click(screen.getAllByRole("button", { name: "New invoice" })[0]!);
+    await user.click(screen.getByRole("button", { name: /From a booking/ }));
+    await user.click(screen.getByRole("button", { name: /Booking Save QA Booking Save Service/ }));
+
+    const servicePrice = screen.getByRole("textbox", { name: "Unit price for item 1" }) as HTMLInputElement;
+    const chargePrice = screen.getByRole("textbox", { name: "Unit price for item 2" }) as HTMLInputElement;
+    expect(servicePrice.value).toBe("500.000");
+    expect(chargePrice.value).toBe("75.000");
+    expect(screen.getAllByText("Rp 575.000").length).toBeGreaterThan(0);
+
+    await user.click(servicePrice);
+    await user.clear(servicePrice);
+    expect(servicePrice.value).toBe("");
+    expect(screen.getByText("Amount: Rp 500.000")).toBeTruthy();
+
+    await user.type(servicePrice, "600000");
+    expect(servicePrice.value).toBe("600.000");
+    expect(chargePrice.value).toBe("75.000");
+    expect(screen.getByText("Amount: Rp 600.000")).toBeTruthy();
+    expect(screen.getAllByText("Rp 675.000").length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+    const saved = invoiceRepository.getAll()[0]!;
+    expect(saved.lineItems.map((item) => item.unitPrice)).toEqual([600_000, 75_000]);
+    expect(invoiceTotals(saved).total).toBe(675_000);
+  });
+
+  it("keeps keyboard insertion at the logical caret position in a grouped price", async () => {
+    const user = userEvent.setup();
+    render(<InvoicePage />);
+    await user.click(screen.getAllByRole("button", { name: "New invoice" })[0]!);
+    await user.click(screen.getByRole("button", { name: /From a booking/ }));
+    await user.click(screen.getByRole("button", { name: /Booking Save QA Booking Save Service/ }));
+
+    const price = screen.getByRole("textbox", { name: "Unit price for item 1" }) as HTMLInputElement;
+    await user.click(price);
+    price.setSelectionRange(1, 1);
+    await user.keyboard("9");
+    expect(price.value).toBe("5.900.000");
+    expect(price.value.slice(0, price.selectionStart ?? 0).replace(/\D/g, "")).toBe("59");
+    await user.keyboard("{Tab}");
+    expect(price.value).toBe("5.900.000");
+  });
+
+  it("keeps the grouped value stable when editing a separator", async () => {
+    const user = userEvent.setup();
+    render(<InvoicePage />);
+    await user.click(screen.getAllByRole("button", { name: "New invoice" })[0]!);
+    await user.click(screen.getByRole("button", { name: /From a booking/ }));
+    await user.click(screen.getByRole("button", { name: /Booking Save QA Booking Save Service/ }));
+
+    const price = screen.getByRole("textbox", { name: "Unit price for item 1" }) as HTMLInputElement;
+    await user.click(price);
+    price.setSelectionRange(4, 4);
+    await user.keyboard("{Backspace}");
+    expect(price.value).toBe("500.000");
+    expect(price.value.slice(0, price.selectionStart ?? 0).replace(/\D/g, "")).toBe("500");
+  });
+
+  it("keeps an entered fractional price exact without changing the calculation", async () => {
+    const user = userEvent.setup();
+    render(<InvoicePage />);
+    await user.click(screen.getAllByRole("button", { name: "New invoice" })[0]!);
+    await user.click(screen.getByRole("button", { name: /From a booking/ }));
+    await user.click(screen.getByRole("button", { name: /Booking Save QA Booking Save Service/ }));
+
+    const price = screen.getByRole("textbox", { name: "Unit price for item 1" }) as HTMLInputElement;
+    await user.clear(price);
+    await user.type(price, "600000,25");
+    expect(price.value).toBe("600.000,25");
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+
+    const saved = invoiceRepository.getAll()[0]!;
+    expect(saved.lineItems[0].unitPrice).toBe(600_000.25);
+    expect(invoiceTotals(saved).total).toBe(675_000.25);
+  });
+
   it("uses one modal layer and opens a booking-linked invoice when the booking is clicked", async () => {
     const user = userEvent.setup();
     render(<InvoicePage />);

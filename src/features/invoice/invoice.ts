@@ -194,7 +194,7 @@ const lineItemSchema = z.object({
   id: z.string().min(1), item: z.string().trim().min(1).max(160), description: z.string().max(500),
   quantity: z.number().finite().positive().max(10000), unitPrice: z.number().finite().nonnegative().max(1_000_000_000_000),
 });
-const scheduleSchema = z.object({ label: z.string().max(120), startAt: z.string().datetime(), endAt: z.string().datetime(), location: z.string().max(500) });
+const scheduleSchema = z.object({ label: z.string().max(120), startAt: z.string().datetime({ offset: true }), endAt: z.string().datetime({ offset: true }), location: z.string().max(500) });
 const snapshotSchema = z.object({
   invoiceNumber: z.string().min(1), businessName: z.string().max(160), legalName: z.string().max(160), businessLogo: z.string().max(3_000_000),
   address: z.string().max(1000), phone: z.string().max(80), email: z.string().max(160), clientName: z.string().max(160),
