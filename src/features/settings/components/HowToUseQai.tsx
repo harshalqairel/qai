@@ -21,7 +21,7 @@ const TASKS = [
   { group: "Client experience", title: "Customize booking questions", description: "Ask only the details your business needs and target questions to services.", href: "/settings?section=booking-questions" },
   { group: "Money", title: "Review unpaid work", description: "See financially active balances and take action without changing invoice status.", href: "/reports" },
   { group: "Money", title: "Create and share an invoice", description: "Create a draft, review its calculation, issue it, then share the PDF.", href: "/invoices?new=1" },
-  { group: "Protect your data", title: "Export or restore data", description: "Download a backup or import a reviewed spreadsheet without partial saves.", href: "/settings?section=data-backup" },
+  { group: "Protect your data", title: "Backup & Restore", description: "Complete workspace backup and restore is coming soon.", href: "/settings?section=data-backup" },
 ] as const;
 
 export default function HowToUseQai() {
