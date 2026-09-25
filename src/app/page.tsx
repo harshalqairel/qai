@@ -7,12 +7,12 @@ import { isValidationModeEnabled } from "@/lib/supabase/config";
 import { requireValidationSession } from "@/lib/validation/session";
 
 export const metadata: Metadata = {
-  title: "Qai — One booking, everything connected",
-  description: "Manage client requests, bookings, schedules, payments, invoices, reports, and your public booking page in one connected workflow.",
+  title: "Qai — From booking to payment, everything stays connected",
+  description: "Run bookings, clients, schedules, payments, invoices, and reports in one workspace. Create a Qai Space where clients can discover your business and request a booking.",
   alternates: { canonical: "/" },
   openGraph: {
-    title: "Qai — One booking, everything connected",
-    description: "A calm, connected workspace for independent service businesses—from the first request to the final report.",
+    title: "Qai — From booking to payment, everything stays connected",
+    description: "A connected workspace for independent service businesses, from the first request to the final report.",
     type: "website",
     url: "/",
   },

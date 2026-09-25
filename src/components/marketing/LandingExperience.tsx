@@ -1,84 +1,94 @@
+import Image from "next/image";
 import Link from "next/link";
-import { ArrowDown, ArrowRight, BarChart3, CalendarDays, Check, CheckCircle2, CircleDollarSign, FileText, Globe2, Menu, MessageSquareText, ReceiptText, ShieldCheck, Sparkles, UsersRound } from "lucide-react";
 
-import { QaiLogo, QaiMark } from "@/components/brand/QaiLogo";
-import Container from "@/components/ui/Container";
-import { buttonVariants } from "@/components/ui/button";
+import LandingMobileNav from "./LandingMobileNav";
+import styles from "./LandingExperience.module.css";
 
-const WORKFLOW = [
-  { label: "Request", detail: "A client reaches out", icon: MessageSquareText, central: false },
-  { label: "Booking", detail: "One living record", icon: UsersRound, central: true },
-  { label: "Schedule", detail: "Every session in place", icon: CalendarDays, central: false },
-  { label: "Payment", detail: "Paid and outstanding", icon: CircleDollarSign, central: false },
-  { label: "Invoice", detail: "Clear and professional", icon: ReceiptText, central: false },
-  { label: "Report", detail: "See how work performs", icon: BarChart3, central: false },
-] as const;
+const asset = (name: string) => `/landing/${name}.png`;
+
+function Wordmark({ className = "" }: { className?: string }) {
+  return <Image src="/landing/qai-wordmark.svg" alt="Qai" width={132} height={47} className={className} />;
+}
+
+function Eyebrow({ children }: { children: React.ReactNode }) {
+  return <p className={styles.eyebrow}>{children}</p>;
+}
 
 export default function LandingExperience() {
-  return (
-    <main className="min-h-screen w-full flex-1 overflow-x-hidden bg-[#f7f4f1] text-[#17151a]">
-      <header className="sticky top-0 z-30 border-b border-black/7 bg-[#f7f4f1]/92 backdrop-blur-xl">
-        <Container className="flex h-16 max-w-[88rem] items-center justify-between sm:h-18">
-          <QaiLogo size="md" />
-          <nav className="hidden items-center gap-7 text-sm font-semibold text-black/60 md:flex" aria-label="Landing page">
-            <a href="#workflow" className="transition-colors hover:text-black">How it works</a><a href="#qai-space" className="transition-colors hover:text-black">Qai Space</a><a href="#benefits" className="transition-colors hover:text-black">Why Qai</a><a href="#faq" className="transition-colors hover:text-black">FAQ</a>
-          </nav>
-          <div className="flex items-center gap-1.5 sm:gap-2"><Link href="/login" className={buttonVariants({ variant: "ghost", size: "sm", className: "hidden sm:inline-flex" })}>Log in</Link><Link href="/dashboard" className={buttonVariants({ size: "sm", className: "rounded-full px-4" })}>Start free</Link><a href="#workflow" aria-label="Jump to how Qai works" className="flex size-10 items-center justify-center rounded-full text-black md:hidden"><Menu className="size-5" /></a></div>
-        </Container>
-      </header>
+  return <div className={styles.page}>
+    <header className={styles.header}>
+      <div className={styles.headerInner}>
+        <Link href="/" aria-label="Qai home" className={styles.logoLink}><Wordmark /></Link>
+        <nav className={styles.desktopNav} aria-label="Main navigation">
+          <a href="#product">Product</a><a href="#how-it-works">How it works</a><a href="#qai-space">Qai Space</a><a href="#pricing">Pricing</a>
+        </nav>
+        <div className={styles.headerActions}><Link href="/login" className={styles.signIn}>Sign in</Link><Link href="/dashboard" className={styles.headerCta}>Start free</Link></div>
+        <LandingMobileNav />
+      </div>
+    </header>
 
-      <section className="relative isolate overflow-hidden border-b border-black/8">
-        <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[38rem] bg-[radial-gradient(circle_at_80%_0%,rgba(122,63,100,.13),transparent_38%)]" />
-        <Container className="max-w-[88rem] py-12 sm:py-16 lg:py-20">
-          <div className="grid items-center gap-10 lg:grid-cols-[.86fr_1.14fr] lg:gap-16">
-            <div className="max-w-2xl">
-              <p className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[.17em] text-[#75425f]"><Sparkles className="size-3.5" />Built for independent service businesses</p>
-              <h1 className="mt-5 max-w-xl text-[2.8rem] font-semibold leading-[.96] tracking-[-.055em] sm:text-6xl lg:text-[4.7rem]">One booking.<br />Everything connected.</h1>
-              <p className="mt-6 max-w-xl text-base leading-7 text-black/62 sm:text-lg">From a client’s first request to schedules, payments, invoices, and reports—Qai keeps the whole job together without adding accounting complexity.</p>
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row"><Link href="/dashboard" className={buttonVariants({ size: "lg", className: "w-full rounded-full px-6 shadow-lg shadow-[#56334f]/15 sm:w-auto" })}>Start with Qai <ArrowRight aria-hidden="true" /></Link><a href="#workflow" className={buttonVariants({ variant: "outline", size: "lg", className: "w-full rounded-full border-black/15 bg-white/55 sm:w-auto" })}>See the connected flow <ArrowDown aria-hidden="true" /></a></div>
-              <div className="mt-7 flex flex-wrap gap-x-5 gap-y-2 text-sm text-black/55"><span className="inline-flex items-center gap-1.5"><Check className="size-4 text-[#75425f]" />Works on mobile</span><span className="inline-flex items-center gap-1.5"><Check className="size-4 text-[#75425f]" />Professional public page</span><span className="inline-flex items-center gap-1.5"><Check className="size-4 text-[#75425f]" />No accounting jargon</span></div>
-            </div>
-            <ConnectedBookingVisual />
+    <main>
+      <section className={styles.hero} aria-labelledby="hero-title">
+        <div className={styles.heroCopy}>
+          <Eyebrow>Qai for independent businesses</Eyebrow>
+          <h1 id="hero-title">From booking to payment, everything stays connected.</h1>
+          <p>Bookings, schedules, payments, and invoices stay linked, so you always know what comes next.</p>
+          <div className={styles.actions}><Link href="/dashboard" className={styles.buttonPrimary}>Start free</Link><a href="#product" className={styles.buttonSecondary}>See the product</a></div>
+        </div>
+        <div className={styles.heroVisual}><div className={styles.heroFrame}>
+          <Image src={asset("01-dashboard-overview")} alt="Qai dashboard showing today's schedule and client work needing attention" width={1672} height={941} sizes="(max-width: 640px) 700px, (max-width: 1200px) 92vw, 1220px" priority className={styles.heroImage} />
+        </div></div>
+      </section>
+
+      <section id="product" className={`${styles.storySection} ${styles.bookingSection}`} aria-labelledby="booking-title">
+        <div className={`${styles.sectionInner} ${styles.bookingLayout}`}>
+          <div id="how-it-works" className={styles.bookingCopy}><Eyebrow>Bookings</Eyebrow><h2 id="booking-title">Keep the whole job connected.</h2><p>Client, service, schedule, payment status, and invoice stay with the same booking.</p></div>
+          <div className={`${styles.imageFrame} ${styles.bookingVisual}`}><Image src={asset("02-bookings-payment-overview")} alt="Qai bookings with scheduled jobs and paid, part-paid, and unpaid states" width={1672} height={941} sizes="(max-width: 760px) 700px, (max-width: 1200px) 65vw, 860px" className={styles.screenshot} /></div>
+        </div>
+      </section>
+
+      <section className={`${styles.storySection} ${styles.calendarSection}`} aria-labelledby="calendar-title">
+        <div className={styles.sectionInner}>
+          <div className={styles.storyHeading}><Eyebrow>Calendar</Eyebrow><h2 id="calendar-title">Your schedule follows the work.</h2><p>Sessions created from bookings appear in one clear calendar.</p></div>
+          <div className={styles.calendarComposition}>
+            <div className={`${styles.imageFrame} ${styles.calendarOverview}`}><Image src={asset("03-calendar-month-overview")} alt="Qai monthly calendar showing upcoming booking sessions" width={1672} height={941} sizes="(max-width: 760px) 700px, (max-width: 1200px) 90vw, 1080px" className={styles.screenshot} /></div>
+            <div className={`${styles.imageFrame} ${styles.calendarDetail}`}><Image src={asset("04-calendar-month-detail")} alt="Closer view of bookings across the Qai calendar" width={1672} height={941} sizes="(max-width: 760px) 320px, (max-width: 1200px) 38vw, 455px" className={styles.screenshot} /></div>
           </div>
-        </Container>
+        </div>
       </section>
 
-      <section id="workflow" className="bg-white py-16 sm:py-24">
-        <Container className="max-w-[88rem]">
-          <div className="grid gap-7 lg:grid-cols-[.62fr_1.38fr] lg:items-end"><div><p className="text-xs font-bold uppercase tracking-[.17em] text-[#75425f]">One connected workflow</p><h2 className="mt-3 text-3xl font-semibold tracking-[-.035em] sm:text-5xl">The details move forward. You don’t re-enter them.</h2></div><p className="max-w-2xl text-base leading-7 text-black/58 lg:justify-self-end">A request becomes a booking. The booking carries its client, service, schedule, payment state, invoice, and reporting context with it.</p></div>
-          <ol className="mt-10 grid gap-px overflow-hidden rounded-2xl border border-black/10 bg-black/10 sm:grid-cols-2 lg:grid-cols-6">{WORKFLOW.map(({ label, detail, icon: Icon, central }, index) => <li key={label} className={`relative min-h-40 bg-[#faf8f6] p-5 ${central ? "!bg-[#2d2029] text-white" : ""}`}><div className="flex items-center justify-between"><span className="text-[11px] font-bold tracking-[.16em] opacity-45">{String(index + 1).padStart(2, "0")}</span><Icon className="size-5 opacity-70" /></div><p className="mt-8 text-lg font-semibold">{label}</p><p className={`mt-1 text-sm leading-5 ${central ? "text-white/62" : "text-black/52"}`}>{detail}</p>{index < WORKFLOW.length - 1 && <ArrowRight className="absolute -right-3 top-1/2 z-10 hidden size-6 rounded-full border border-black/10 bg-white p-1 text-black/50 lg:block" aria-hidden="true" />}</li>)}</ol>
-        </Container>
+      <section className={`${styles.storySection} ${styles.invoiceSection}`} aria-labelledby="invoice-title">
+        <div className={styles.sectionInner}>
+          <div className={styles.storyHeading}><Eyebrow>Payments & invoices</Eyebrow><h2 id="invoice-title">See what&apos;s paid. Follow up on what isn&apos;t.</h2><p>Payments stay linked to the booking. Invoices show the total, paid amount, and balance due.</p></div>
+          <div className={styles.invoiceComposition}>
+            <div className={`${styles.imageFrame} ${styles.invoiceList}`}><Image src={asset("05-invoices-list")} alt="Qai invoice list showing payment status and remaining balances" width={1672} height={941} sizes="(max-width: 760px) 690px, (max-width: 1200px) 72vw, 860px" className={styles.screenshot} /></div>
+            <div className={`${styles.imageFrame} ${styles.invoiceSummary}`}><Image src={asset("07-invoice-preview-payment-summary")} alt="Invoice payment summary with grand total, paid amount, and balance due" width={1448} height={1086} sizes="(max-width: 760px) 340px, (max-width: 1200px) 36vw, 440px" className={styles.screenshot} /></div>
+          </div>
+        </div>
       </section>
 
-      <section id="qai-space" className="border-y border-white/10 bg-[#17151a] py-16 text-white sm:py-24">
-        <Container className="max-w-[88rem]"><div className="grid items-center gap-11 lg:grid-cols-[.88fr_1.12fr] lg:gap-16"><div><p className="text-xs font-bold uppercase tracking-[.17em] text-[#d0a6bd]">Qai Space</p><h2 className="mt-3 max-w-xl text-3xl font-semibold tracking-[-.035em] sm:text-5xl">Your public page is where the connected workflow begins.</h2><p className="mt-5 max-w-xl text-base leading-7 text-white/62">Show your work and services, then let clients send a clear booking request. It arrives inside Qai ready for you to review—not buried in another disconnected inbox.</p><div className="mt-7 flex flex-col gap-3 sm:flex-row"><Link href="/dashboard" className={buttonVariants({ variant: "secondary", size: "lg", className: "rounded-full" })}>Create your Qai Space <ArrowRight /></Link><a href="#qai-space-preview" className={buttonVariants({ variant: "outline", size: "lg", className: "rounded-full border-white/25 bg-transparent text-white hover:bg-white/10 hover:text-white" })}>See the journey</a></div></div><QaiSpaceJourney /></div></Container>
+      <section className={`${styles.storySection} ${styles.reportsSection}`} aria-labelledby="reports-title">
+        <div className={styles.sectionInner}>
+          <div className={styles.storyHeading}><Eyebrow>Reports</Eyebrow><h2 id="reports-title">Know where the money stands.</h2><p>See client total, money received, outstanding payments, expenses, profit, and service performance.</p></div>
+          <div className={`${styles.imageFrame} ${styles.reportsVisual}`}><Image src={asset("08-financial-reports-overview")} alt="Qai financial reports with client total, money received, outstanding, expenses, profit, and top services" width={1122} height={1402} sizes="(max-width: 760px) 720px, (max-width: 1200px) 76vw, 820px" className={styles.screenshot} /></div>
+        </div>
       </section>
 
-      <section id="benefits" className="bg-[#f7f4f1] py-16 sm:py-24">
-        <Container className="max-w-[88rem]"><div className="max-w-2xl"><p className="text-xs font-bold uppercase tracking-[.17em] text-[#75425f]">Less admin, clearer work</p><h2 className="mt-3 text-3xl font-semibold tracking-[-.035em] sm:text-5xl">Built around what you need to do next.</h2></div><div className="mt-10 grid border-y border-black/10 sm:grid-cols-2 lg:grid-cols-4"><Benefit icon={CheckCircle2} title="Keep every booking connected" detail="Client, service, schedule, money, and documents stay with the same job." /><Benefit icon={Sparkles} title="Know what needs attention" detail="See overdue payments and upcoming work without hunting through screens." /><Benefit icon={CircleDollarSign} title="Track money simply" detail="Know what is paid, outstanding, and profitable—without becoming an accountant." /><Benefit icon={Globe2} title="Look professional to clients" detail="Share a polished public page and collect complete requests on any screen." /></div></Container>
+      <section id="qai-space" className={styles.spaceSection} aria-labelledby="space-title">
+        <div className={`${styles.sectionInner} ${styles.spaceLayout}`}>
+          <div className={styles.spaceCopy}><Eyebrow>Qai Space</Eyebrow><h2 id="space-title">Your services. Your work. Ready to book.</h2><p>Give clients one place to view your services, portfolio, and send a booking request.</p></div>
+          <div className={styles.spaceVisual}><Image src={asset("10-qai-space-mobile-luma-studio")} alt="Luma Studio Qai Space showing services, portfolio, and a booking request button" width={863} height={1822} sizes="(max-width: 760px) 72vw, (max-width: 1200px) 35vw, 450px" className={styles.spaceImage} /></div>
+        </div>
       </section>
 
-      <section className="border-y border-black/8 bg-white py-10"><Container className="grid max-w-[88rem] gap-5 sm:grid-cols-2 lg:grid-cols-4"><TrustPoint icon={ShieldCheck} title="Private by design" detail="Business data stays separated by workspace." /><TrustPoint icon={CalendarDays} title="Google Calendar" detail="Keep Qai schedules reflected in your calendar." /><TrustPoint icon={FileText} title="Invoices and exports" detail="Create client-ready documents and usable records." /><TrustPoint icon={MessageSquareText} title="Honest communication" detail="Qai distinguishes prepared messages from messages actually sent." /></Container></section>
-
-      <section id="faq" className="bg-[#f7f4f1] py-16 sm:py-24">
-        <Container className="max-w-3xl"><p className="text-xs font-bold uppercase tracking-[.17em] text-[#75425f]">Useful answers</p><h2 className="mt-3 text-3xl font-semibold tracking-[-.035em] sm:text-4xl">A calmer way to run client work.</h2><div className="mt-8 divide-y divide-black/10 border-y border-black/10"><Faq question="Is Qai accounting software?">No. Qai keeps the practical money side of each booking clear—payments, expenses, invoices, and reports—without turning your workflow into an accounting system.</Faq><Faq question="Can one booking have several dates?">Yes. One booking can contain multiple sessions on consecutive or separate dates, while remaining one connected client job.</Faq><Faq question="Does Qai send messages or process payments for me?">Qai helps you prepare client messages and records manual payments. It does not claim a WhatsApp message was sent, and it is not a payment gateway.</Faq><Faq question="Can I use Qai on my phone?">Yes. Qai is designed for mobile and desktop, and can be installed as a PWA on supported devices.</Faq></div><div className="mt-10 rounded-2xl bg-[#2d2029] p-7 text-white sm:flex sm:items-center sm:justify-between sm:gap-7 sm:p-9"><div><h3 className="text-2xl font-semibold">Ready to connect your next booking?</h3><p className="mt-2 text-sm text-white/62">Start with your business, first service, and public Qai Space.</p></div><Link href="/dashboard" className={buttonVariants({ variant: "secondary", size: "lg", className: "mt-6 w-full rounded-full sm:mt-0 sm:w-auto" })}>Start free <ArrowRight /></Link></div></Container>
+      <section id="pricing" className={styles.closingSection} aria-labelledby="pricing-title">
+        <div className={styles.sectionInner}>
+          <div className={styles.pricingLine}><div><Eyebrow>Pricing</Eyebrow><h2 id="pricing-title">Start free.</h2></div><p>Create your workspace and set up your services. No plan selection required.</p></div>
+          <div className={styles.finalCta}><p>For makeup artists, photographers, studios, tutors, consultants, and other independent service businesses.</p><h2>Ready to run your next booking in Qai?</h2><div className={styles.actions}><Link href="/dashboard" className={styles.buttonPrimary}>Start free</Link><Link href="/login" className={styles.buttonSecondary}>Sign in</Link></div></div>
+        </div>
       </section>
-
-      <footer className="border-t border-black/8 bg-white py-8"><Container className="flex flex-col items-center justify-between gap-4 text-sm text-black/50 sm:flex-row"><QaiLogo size="sm" /><p>One booking. Everything connected.</p></Container></footer>
     </main>
-  );
+
+    <footer className={styles.footer}><div className={styles.sectionInner}><Link href="/" aria-label="Qai home"><Wordmark className={styles.footerLogo} /></Link><span>© {new Date().getFullYear()} Qai</span></div></footer>
+  </div>;
 }
-
-function ConnectedBookingVisual() {
-  return <div className="relative mx-auto w-full max-w-3xl" aria-label="A booking connecting a request, schedule, payment, invoice, and report"><div className="absolute inset-10 rounded-full bg-[#b77c9e]/16 blur-3xl" aria-hidden="true" /><div className="relative grid grid-cols-2 gap-3 rounded-[1.8rem] border border-black/10 bg-white/72 p-3 shadow-[0_30px_90px_rgba(45,32,41,.13)] backdrop-blur sm:grid-cols-[1fr_1.18fr_1fr] sm:gap-4 sm:p-5"><ConnectionCard icon={MessageSquareText} kicker="Request" title="New client enquiry" detail="Wedding · 12 September" /><article className="relative row-span-2 flex min-h-64 flex-col rounded-[1.35rem] bg-[#2d2029] p-5 text-white sm:col-start-2 sm:row-start-1 sm:min-h-80 sm:p-6"><div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-[.16em] text-white/48">Booking 0248</span><QaiMark size="sm" tone="light" decorative /></div><div className="mt-auto"><span className="inline-flex rounded-full bg-[#d9b5c8]/14 px-3 py-1 text-xs text-[#e7cbd9]">Scheduled</span><h2 className="mt-4 break-words text-2xl font-semibold tracking-[-.03em]">Maya · Wedding photography</h2><p className="mt-2 text-sm text-white/55">One source of truth for the whole job.</p></div><dl className="mt-6 grid grid-cols-2 gap-2 text-xs"><div className="rounded-xl bg-white/7 p-3"><dt className="text-white/45">Sessions</dt><dd className="mt-1 font-semibold">2 dates</dd></div><div className="rounded-xl bg-white/7 p-3"><dt className="text-white/45">Outstanding</dt><dd className="mt-1 font-semibold">Rp 1.500.000</dd></div></dl><span className="landing-booking-pulse absolute -right-1 top-1/2 size-3 rounded-full bg-[#d9b5c8]" aria-hidden="true" /></article><ConnectionCard icon={CalendarDays} kicker="Schedule" title="Two sessions" detail="Jakarta · synced" /><ConnectionCard icon={CircleDollarSign} kicker="Payment" title="Part paid" detail="Balance stays visible" /><ConnectionCard icon={ReceiptText} kicker="Invoice + report" title="Ready from the same data" detail="No copying details" /></div></div>;
-}
-
-function ConnectionCard({ icon: Icon, kicker, title, detail }: { icon: typeof CalendarDays; kicker: string; title: string; detail: string }) { return <article className="min-w-0 rounded-[1.2rem] border border-black/8 bg-white p-4 sm:p-5"><div className="flex size-9 items-center justify-center rounded-full bg-[#f2e8ed] text-[#75425f]"><Icon className="size-4" /></div><p className="mt-5 text-[10px] font-bold uppercase tracking-[.15em] text-black/38">{kicker}</p><h3 className="mt-1 break-words text-sm font-semibold sm:text-base">{title}</h3><p className="mt-1 text-xs leading-5 text-black/48">{detail}</p></article>; }
-
-function QaiSpaceJourney() {
-  return <div id="qai-space-preview" className="grid gap-3 sm:grid-cols-[1.1fr_auto_1fr] sm:items-center"><article className="overflow-hidden rounded-[1.5rem] border border-white/14 bg-[#f3eee9] text-[#201a1e] shadow-2xl"><div className="flex items-center justify-between border-b border-black/8 px-4 py-3"><span className="text-xs font-semibold">Maya Studio</span><span className="rounded-full bg-black px-3 py-1.5 text-[10px] font-bold text-white">Book now</span></div><div className="grid grid-cols-[1.15fr_.85fr] gap-2 p-3"><div className="aspect-[4/5] rounded-xl bg-[linear-gradient(145deg,#5f4352,#d0a6bd)] p-4 text-white"><p className="mt-[75%] text-lg font-semibold">Work worth remembering.</p></div><div className="space-y-2"><div className="aspect-square rounded-xl bg-[#c4a59a]" /><div className="rounded-xl bg-white p-3"><p className="text-[10px] text-black/45">Portrait session</p><p className="mt-1 text-xs font-bold">View service →</p></div></div></div></article><div className="flex items-center justify-center sm:flex-col"><ArrowRight className="size-5 rotate-90 text-[#d0a6bd] sm:rotate-0" /><span className="px-2 text-center text-[10px] font-bold uppercase tracking-[.14em] text-white/42 sm:py-2">Request</span></div><article className="rounded-[1.5rem] border border-white/14 bg-white/7 p-5"><div className="flex items-center gap-3"><span className="flex size-10 items-center justify-center rounded-full bg-[#d0a6bd] text-[#2d2029]"><CheckCircle2 className="size-5" /></span><div><p className="text-xs text-white/45">Needs attention</p><p className="font-semibold">New booking request</p></div></div><div className="mt-5 space-y-2 text-sm"><p className="rounded-xl bg-white/7 p-3">Client and service captured</p><p className="rounded-xl bg-white/7 p-3">Preferred schedule included</p><p className="rounded-xl bg-white/7 p-3">Ready for owner review</p></div></article></div>;
-}
-
-function Benefit({ icon: Icon, title, detail }: { icon: typeof CheckCircle2; title: string; detail: string }) { return <article className="border-black/10 py-7 sm:border-l sm:px-6 sm:first:border-l-0 sm:first:pl-0"><Icon className="size-5 text-[#75425f]" /><h3 className="mt-6 max-w-[15rem] text-lg font-semibold">{title}</h3><p className="mt-2 max-w-[17rem] text-sm leading-6 text-black/53">{detail}</p></article>; }
-function TrustPoint({ icon: Icon, title, detail }: { icon: typeof ShieldCheck; title: string; detail: string }) { return <div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#f2e8ed] text-[#75425f]"><Icon className="size-4" /></span><div><p className="text-sm font-semibold">{title}</p><p className="mt-1 text-xs leading-5 text-black/48">{detail}</p></div></div>; }
-function Faq({ question, children }: { question: string; children: React.ReactNode }) { return <details className="group py-5"><summary className="cursor-pointer list-none pr-8 font-semibold marker:content-none">{question}<span className="float-right text-[#75425f] transition-transform group-open:rotate-45" aria-hidden="true">+</span></summary><p className="mt-3 max-w-2xl text-sm leading-6 text-black/55">{children}</p></details>; }
